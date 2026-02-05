@@ -1,11 +1,7 @@
 package com.stylo.api_agendamento.core.domain;
 
+import lombok.*;
 import java.math.BigDecimal;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 @Data
 @Builder
@@ -15,6 +11,6 @@ public class Service {
     private String id;
     private String name;
     private String description;
-    private Integer duration; // em minutos
+    private Integer duration; // Crucial para o backend validar horários
     private BigDecimal price;
 }

@@ -4,6 +4,7 @@ import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.INotificationProvider;
+import com.stylo.api_agendamento.core.exceptions.ScheduleConflictException; // Exceção customizada
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -15,24 +16,32 @@ public class CreateAppointmentUseCase {
     private final INotificationProvider notificationProvider;
 
     public Appointment execute(Appointment appointment) {
-        // Validação de conflito de horário
-        if (repository.hasConflictingAppointment(
-                appointment.getProfessionalId(), 
-                appointment.startTime, 
-                appointment.endTime)) {
-            throw new RuntimeException("Profissional já possui agendamento neste horário.");
+        // 1. Validação de data retroativa
+        if (appointment.getStartTime().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Não é possível agendar para uma data passada.");
         }
 
+        // 2. Validação de conflito de horário usando o repositório
+        if (repository.hasConflictingAppointment(
+                appointment.getProfessionalId(), 
+                appointment.getStartTime(), 
+                appointment.getEndTime())) {
+            throw new ScheduleConflictException("O profissional já possui um agendamento neste horário.");
+        }
+
+        // 3. Preparação do objeto de domínio
         appointment.setId(UUID.randomUUID().toString());
         appointment.setStatus(AppointmentStatus.PENDING);
         appointment.setCreatedAt(LocalDateTime.now());
 
+        // 4. Persistência
         Appointment saved = repository.save(appointment);
 
+        // 5. Notificação assíncrona para o prestador
         notificationProvider.send(
             appointment.getProviderId(),
             "Novo Agendamento",
-            "Você tem um novo agendamento para " + appointment.getStartTime()
+            "Olá, você tem um novo agendamento para o dia " + appointment.getStartTime()
         );
 
         return saved;

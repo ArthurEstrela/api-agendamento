@@ -1,14 +1,20 @@
 package com.stylo.api_agendamento.core.domain;
 
+import lombok.*;
+import java.time.LocalDate;
 import java.util.List;
 
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-
 @Data
-@EqualsAndHashCode(callSuper = true)
-public class Client extends User {
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class Client {
+    private String id;
+    private String name;
+    private String email;
+    private String phoneNumber;
     private String cpf;
-    private List<String> favoriteProfessionals;
+    private LocalDate dateOfBirth;
     private String gender;
+    private List<String> favoriteProfessionals; // IDs para facilitar re-agendamento
 }
