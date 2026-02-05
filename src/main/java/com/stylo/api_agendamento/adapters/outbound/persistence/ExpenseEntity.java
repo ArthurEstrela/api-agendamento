@@ -1,5 +1,13 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Data;
+
 @Entity
 @Table(name = "expenses")
 @Data

@@ -16,25 +16,20 @@ import lombok.Data;
 public class ServiceProviderEntity {
     @Id
     private String id;
-    
     private String businessName;
     
     @Embedded
-    private AddressVo businessAddress; // Value Object para morada
+    private AddressVo businessAddress; // Rua, número, cidade, etc.
     
     private String cnpj;
-    private String documentType;
     private String businessPhone;
     
     @Column(unique = true)
-    private String publicProfileSlug; // Para a URL de reserva
+    private String publicProfileSlug; // URL personalizada: stylo.com/barbearia-do-arthur
     
     private String logoUrl;
     private String pixKey;
     private String pixKeyType;
     
-    @ElementCollection
-    private List<String> paymentMethods; // Ex: ["pix", "credit_card"]
-    
-    private String subscriptionStatus; // free, active, past_due
+    private String subscriptionStatus; // "active", "trial", "expired"
 }
