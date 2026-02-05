@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.ports;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import com.stylo.api_agendamento.core.domain.Expense;

@@ -22,6 +22,9 @@ public class ServiceProviderEntity {
     private AddressVo businessAddress; // Rua, número, cidade, etc.
     
     private String cnpj;
+    private String cpf;
+    private String documentType; // "CNPJ" ou "CPF"
+    
     private String businessPhone;
     
     @Column(unique = true)

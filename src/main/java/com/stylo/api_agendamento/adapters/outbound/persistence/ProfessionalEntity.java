@@ -1,38 +1,41 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
-import jakarta.persistence.*; // Importa todas as anotações do JPA, incluindo JoinColumn
+import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
 
 @Entity
-@Table(name = "professionals")
-@Data
-@Builder
+@Table(name = "tb_professionals")
+@PrimaryKeyJoinColumn(name = "user_id") // O ID aqui é o mesmo da tb_users
+@Getter
+@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class ProfessionalEntity {
-    @Id
-    private String id;
-
-    private String name;
-    private String email;
-    private String avatarUrl;
+@ToString(callSuper = true)
+public class ProfessionalEntity extends UserEntity {
 
     @Column(columnDefinition = "TEXT")
-    private String bio; // Alinhado com a interface ProfessionalProfile
+    private String bio;
 
-    private String serviceProviderId;
     private boolean isOwner;
 
+    @Column(name = "slot_interval")
+    private Integer slotInterval;
+
+    // Relacionamento com a empresa/provedor
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_provider_id")
+    private ServiceProviderEntity serviceProvider;
+
     @ManyToMany
-    @JoinTable(name = "professional_services", joinColumns = @JoinColumn(name = "professional_id"), // Agora reconhecido
-                                                                                                    // pelo import
-            inverseJoinColumns = @JoinColumn(name = "service_id"))
-    private List<ServiceEntity> services; // Serviços que o profissional realiza
+    @JoinTable(
+        name = "tb_professional_services",
+        joinColumns = @JoinColumn(name = "professional_id"),
+        inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private List<ServiceEntity> services;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "professional_id")
     private List<DailyAvailabilityEntity> availability;
-
-    private Integer slotInterval; // Intervalo de tempo entre serviços
 }

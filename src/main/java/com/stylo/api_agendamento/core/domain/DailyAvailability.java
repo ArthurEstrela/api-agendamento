@@ -1,14 +1,15 @@
 package com.stylo.api_agendamento.core.domain;
 
+import java.time.LocalTime;
 import lombok.*;
-import java.util.List;
 
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class DailyAvailability {
-    private String dayOfWeek; // "Monday", "Tuesday", etc.
-    private boolean isAvailable;
-    private List<TimeSlot> slots;
+    private String dayOfWeek; // "MONDAY", "TUESDAY", etc.
+    private boolean isOpen;   // Mudado de isAvailable para isOpen para clareza de negócio
+    private LocalTime startTime; // Horário que começa a trabalhar
+    private LocalTime endTime;   // Horário que para de trabalhar
 }
