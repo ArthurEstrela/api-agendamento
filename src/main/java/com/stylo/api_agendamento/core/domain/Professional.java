@@ -87,4 +87,21 @@ public class Professional {
                     "Não é possível bloquear este horário pois já existem agendamentos confirmados.");
         }
     }
+
+    // No seu Professional.java
+    public void updateAvailability(List<DailyAvailability> newAvailability) {
+        if (newAvailability == null || newAvailability.isEmpty()) {
+            throw new BusinessException("O profissional deve ter pelo menos um dia de disponibilidade configurado.");
+        }
+
+        // Validação lógica: startTime sempre antes de endTime
+        for (DailyAvailability daily : newAvailability) {
+            if (daily.isOpen() && !daily.startTime().isBefore(daily.endTime())) {
+                throw new BusinessException(
+                        "O horário de início deve ser anterior ao horário de término para o dia: " + daily.dayOfWeek());
+            }
+        }
+
+        this.availability = newAvailability;
+    }
 }

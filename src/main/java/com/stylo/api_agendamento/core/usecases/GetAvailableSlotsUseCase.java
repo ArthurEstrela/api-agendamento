@@ -42,41 +42,43 @@ public class GetAvailableSlotsUseCase {
                 .orElse(null);
 
         if (dailyConfig == null || !dailyConfig.isOpen()) {
-            return new ArrayList<>(); // Estabelecimento fechado neste dia
+            return new ArrayList<>();
         }
 
-        // 5. Buscar agendamentos existentes do profissional para o dia (não cancelados)
-        List<Appointment> existingAppointments = appointmentRepository
+        // 5. Buscar agendamentos e BLOQUEIOS existentes (Ocupação Real)
+        // Melhoria: Consideramos SCHEDULED, PENDING e o novo status BLOCKED como impeditivos
+        List<Appointment> existingOccupations = appointmentRepository
                 .findAllByProfessionalIdAndDate(input.professionalId(), input.date())
                 .stream()
                 .filter(app -> app.getStatus() != AppointmentStatus.CANCELLED)
                 .collect(Collectors.toList());
 
-        // 6. Gerar slots baseados no slotInterval (ex: de 30 em 30 min)
+        // 6. Gerar slots baseados no slotInterval
         List<LocalTime> availableSlots = new ArrayList<>();
         LocalTime currentSlot = dailyConfig.startTime();
+        LocalTime now = LocalTime.now();
+        LocalDate today = LocalDate.now();
         
-        // O último slot possível deve permitir a execução do serviço total antes de fechar
         LocalTime lastPossibleSlot = dailyConfig.endTime().minusMinutes(totalDuration);
 
         while (!currentSlot.isAfter(lastPossibleSlot)) {
             LocalTime slotStart = currentSlot;
             LocalTime slotEnd = currentSlot.plusMinutes(totalDuration);
 
-            // Verificar se este intervalo (Início -> Fim do Serviço) conflita com algum agendamento
-            boolean hasConflict = existingAppointments.stream().anyMatch(app -> {
+            // MELHORIA MONSTRA: Não permitir horários que já passaram se a data for hoje
+            boolean isPastTime = input.date().isEqual(today) && slotStart.isBefore(now);
+
+            // Verificar conflito com agendamentos ou bloqueios administrativos
+            boolean hasConflict = existingOccupations.stream().anyMatch(app -> {
                 LocalTime appStart = app.getStartTime().toLocalTime();
                 LocalTime appEnd = app.getEndTime().toLocalTime();
-                
-                // Lógica de sobreposição: (Início1 < Fim2) E (Fim1 > Início2)
                 return slotStart.isBefore(appEnd) && slotEnd.isAfter(appStart);
             });
 
-            if (!hasConflict) {
+            if (!hasConflict && !isPastTime) {
                 availableSlots.add(slotStart);
             }
 
-            // Pula para o próximo slot configurado (ex: 30 min)
             currentSlot = currentSlot.plusMinutes(professional.getSlotInterval());
         }
 

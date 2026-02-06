@@ -18,29 +18,34 @@ public class BlockProfessionalTimeUseCase {
     private final IAppointmentRepository appointmentRepository;
 
     public void execute(BlockTimeInput input) {
-        // 1. Busca o profissional
+        // 1. Busca o profissional e valida existência
         Professional professional = professionalRepository.findById(input.professionalId())
                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
-        // 2. Busca agendamentos no período para verificar conflitos antes de bloquear
-        List<Appointment> conflicts = appointmentRepository.findAllByProfessionalIdAndDate(
+        // 2. Busca agendamentos no dia para verificar conflitos antes de bloquear
+        // Usamos a data do início do bloqueio para filtrar a busca no repositório
+        List<Appointment> currentAppointments = appointmentRepository.findAllByProfessionalIdAndDate(
                 professional.getId(), 
                 input.start().toLocalDate()
         );
 
-        // 3. Valida no domínio se o bloqueio é permitido
-        professional.validateCanBlockTime(input.start(), input.end(), conflicts);
+        // 3. Valida no domínio se o bloqueio conflita com agendamentos SCHEDULED ou PENDING
+        professional.validateCanBlockTime(input.start(), input.end(), currentAppointments);
 
-        // 4. Cria um agendamento especial de sistema (Status: CANCELLED ou um novo status BLOCK)
-        // DICA: Você pode usar o AppointmentStatus.CANCELLED ou criar o status BLOCKED no seu enum
+        // 4. Criação do registro de bloqueio usando o novo status BLOCKED
+        // Importante preencher professionalName e providerId para consistência dos dados
         Appointment block = Appointment.builder()
                 .professionalId(professional.getId())
+                .professionalName(professional.getName())
                 .providerId(professional.getServiceProviderId())
                 .startTime(input.start())
-                .status(AppointmentStatus.CANCELLED) // Ou adicione BLOCKED ao seu AppointmentStatus.java
-                .notes("BLOQUEIO DE AGENDA: " + input.reason())
+                .endTime(input.end())
+                .status(AppointmentStatus.BLOCKED) // Usando o status específico para administração
+                .notes("BLOQUEIO ADMINISTRATIVO: " + input.reason())
+                .createdAt(LocalDateTime.now())
                 .build();
 
+        // 5. Persistência do bloqueio como uma "ocupação" na agenda
         appointmentRepository.save(block);
     }
 

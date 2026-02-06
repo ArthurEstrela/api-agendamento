@@ -15,25 +15,21 @@ public class CreateReviewUseCase {
     private final IAppointmentRepository appointmentRepository;
 
     public Review execute(CreateReviewInput input) {
-        // 1. Busca o agendamento
+        // 1. Busca o agendamento original
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
                 .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
-        // 2. Valida se já existe uma avaliação para este agendamento (evita spam)
+        // 2. Regra Anti-Spam: Um agendamento, uma avaliação
         if (reviewRepository.existsByAppointmentId(input.appointmentId())) {
-            throw new BusinessException("Este agendamento já foi avaliado.");
+            throw new BusinessException("Você já avaliou este serviço.");
         }
 
-        // 3. Cria a instância de domínio com as regras de validação
+        // 3. Criação via Domínio (Valida status COMPLETED e range da nota 1-5)
         Review review = Review.create(appointment, input.rating(), input.comment());
 
-        // 4. Persistência
+        // 4. Salva o feedback
         return reviewRepository.save(review);
     }
 
-    public record CreateReviewInput(
-            String appointmentId,
-            int rating,
-            String comment
-    ) {}
+    public record CreateReviewInput(String appointmentId, int rating, String comment) {}
 }
