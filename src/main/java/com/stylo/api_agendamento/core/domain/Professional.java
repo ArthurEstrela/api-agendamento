@@ -1,21 +1,78 @@
 package com.stylo.api_agendamento.core.domain;
 
+import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
+import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
-import java.util.List;
 
-@Data
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Collections;
+
+@Getter
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Professional {
-    private String id;
+    private final String id;
+    private final String serviceProviderId; // Multi-tenant: Sempre vinculado a um salão
     private String name;
-    private String email;
+    private final String email;
     private String avatarUrl;
     private String bio;
-    private List<Service> services;
-    private List<DailyAvailability> availability;
-    private Integer slotInterval;
-    private String serviceProviderId;
+    
+    private final List<Service> services; // Serviços que ele está habilitado a fazer
+    private List<DailyAvailability> availability; // Grade de horários semanal
+    
+    private final Integer slotInterval; // Ex: Atende de 30 em 30 min
     private boolean isOwner;
+
+    // Fábrica para criar um profissional com segurança
+    public static Professional create(String name, String email, String providerId, 
+                                    List<Service> services, List<DailyAvailability> availability) {
+        if (services == null || services.isEmpty()) {
+            throw new BusinessException("Um profissional deve estar habilitado em pelo menos um serviço.");
+        }
+        
+        return Professional.builder()
+                .name(name)
+                .email(email)
+                .serviceProviderId(providerId)
+                .services(Collections.unmodifiableList(services))
+                .availability(availability)
+                .slotInterval(30) // Default
+                .isOwner(false)
+                .build();
+    }
+
+    // --- REGRAS DE NEGÓCIO ---
+
+    /**
+     * Valida se o profissional trabalha no dia e hora solicitados
+     */
+    public boolean isAvailable(LocalDateTime dateTime, int totalDuration) {
+        return availability.stream()
+                .filter(a -> a.dayOfWeek() == dateTime.getDayOfWeek())
+                .findFirst()
+                .map(a -> a.contains(dateTime.toLocalTime(), totalDuration))
+                .orElse(false);
+    }
+
+    /**
+     * Verifica se o profissional é capaz de realizar a lista de serviços solicitada
+     */
+    public void validateCanPerform(List<Service> requestedServices) {
+        boolean allSupported = requestedServices.stream()
+                .allMatch(rs -> this.services.stream()
+                        .anyMatch(ps -> ps.getId().equals(rs.getId())));
+        
+        if (!allSupported) {
+            throw new BusinessException("Este profissional não realiza um ou mais dos serviços selecionados.");
+        }
+    }
+
+    public void updateBio(String newBio) {
+        if (newBio != null && newBio.length() > 500) {
+            throw new BusinessException("A bio não pode exceder 500 caracteres.");
+        }
+        this.bio = newBio;
+    }
 }

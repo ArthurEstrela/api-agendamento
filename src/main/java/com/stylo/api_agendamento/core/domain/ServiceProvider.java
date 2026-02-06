@@ -1,26 +1,79 @@
 package com.stylo.api_agendamento.core.domain;
 
+import com.stylo.api_agendamento.core.domain.vo.*;
+import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
-import java.util.List;
 
-@Data
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Collections;
+
+@Getter
 @Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ServiceProvider {
-    private String id;
+    private final String id;
     private String businessName;
-    private Address businessAddress; // Objeto de endereço completo
-    private String cnpj;
-    private String cpf;
-    private String documentType; // "cpf" | "cnpj"
+    private Address businessAddress;
+    
+    // Agrupamos o documento em um Value Object
+    private final Document document; 
+    
     private String businessPhone;
-    private String publicProfileSlug; // Para a URL pública
+    private final Slug publicProfileSlug; 
+    
     private String logoUrl;
     private String bannerUrl;
-    private String pixKey; // Para recebimentos
-    private String pixKeyType; // "email", "cpf", etc
-    private List<String> paymentMethods; // ["pix", "credit_card", "cash"]
-    private Integer cancellationMinHours; // Política de cancelamento
-    private String subscriptionStatus; // Controle de acesso SaaS
+    private String pixKey;
+    private String pixKeyType;
+    
+    // Usamos o Enum rico de PaymentMethod que criamos antes
+    private List<PaymentMethod> paymentMethods; 
+    
+    private Integer cancellationMinHours; 
+    private String subscriptionStatus; // "ACTIVE", "TRIAL", "EXPIRED", "CANCELED"
+
+    // Fábrica estática para garantir que o estabelecimento nasça correto
+    public static ServiceProvider create(String businessName, Document doc, Slug slug, Address address) {
+        return ServiceProvider.builder()
+                .businessName(businessName)
+                .document(doc)
+                .publicProfileSlug(slug)
+                .businessAddress(address)
+                .subscriptionStatus("TRIAL") // Todo mundo começa em teste
+                .cancellationMinHours(2)     // Padrão de 2 horas
+                .paymentMethods(Collections.emptyList())
+                .build();
+    }
+
+    // --- REGRAS DE NEGÓCIO (ZIKA) ---
+
+    public void updateSubscription(String newStatus) {
+        List<String> validStatuses = List.of("ACTIVE", "TRIAL", "EXPIRED", "CANCELED");
+        if (!validStatuses.contains(newStatus)) {
+            throw new BusinessException("Status de assinatura inválido.");
+        }
+        this.subscriptionStatus = newStatus;
+    }
+
+    public boolean isSubscriptionActive() {
+        return "ACTIVE".equals(this.subscriptionStatus) || "TRIAL".equals(this.subscriptionStatus);
+    }
+
+    /**
+     * Valida se um agendamento ainda pode ser cancelado conforme a política do salão
+     */
+    public void validateCancellationPolicy(LocalDateTime appointmentStartTime) {
+        LocalDateTime limit = LocalDateTime.now().plusHours(this.cancellationMinHours);
+        if (appointmentStartTime.isBefore(limit)) {
+            throw new BusinessException("O prazo mínimo para cancelamento é de " + cancellationMinHours + " horas.");
+        }
+    }
+
+    public void updatePaymentMethods(List<PaymentMethod> methods) {
+        if (methods == null || methods.isEmpty()) {
+            throw new BusinessException("O estabelecimento deve aceitar pelo menos um método de pagamento.");
+        }
+        this.paymentMethods = methods;
+    }
 }

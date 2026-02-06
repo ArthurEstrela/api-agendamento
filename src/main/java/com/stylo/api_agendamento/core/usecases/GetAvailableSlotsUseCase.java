@@ -1,6 +1,7 @@
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.domain.*;
+import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;

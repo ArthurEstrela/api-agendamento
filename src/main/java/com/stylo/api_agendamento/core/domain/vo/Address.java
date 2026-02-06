@@ -1,4 +1,4 @@
-package com.stylo.api_agendamento.core.domain;
+package com.stylo.api_agendamento.core.domain.vo;
 
 import lombok.Builder;
 import lombok.Data;
