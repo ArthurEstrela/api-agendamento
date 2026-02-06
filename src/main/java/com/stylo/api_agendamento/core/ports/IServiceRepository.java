@@ -8,4 +8,5 @@ public interface IServiceRepository {
     Service save(Service service);
     List<Service> findAllByProviderId(String providerId);
     void delete(String id);
+    List<Service> findAllByIds(List<String> ids);
 }
