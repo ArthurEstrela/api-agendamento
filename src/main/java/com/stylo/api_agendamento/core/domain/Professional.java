@@ -18,20 +18,20 @@ public class Professional {
     private final String email;
     private String avatarUrl;
     private String bio;
-    
+
     private final List<Service> services; // Serviços que ele está habilitado a fazer
     private List<DailyAvailability> availability; // Grade de horários semanal
-    
+
     private final Integer slotInterval; // Ex: Atende de 30 em 30 min
     private boolean isOwner;
 
     // Fábrica para criar um profissional com segurança
-    public static Professional create(String name, String email, String providerId, 
-                                    List<Service> services, List<DailyAvailability> availability) {
+    public static Professional create(String name, String email, String providerId,
+            List<Service> services, List<DailyAvailability> availability) {
         if (services == null || services.isEmpty()) {
             throw new BusinessException("Um profissional deve estar habilitado em pelo menos um serviço.");
         }
-        
+
         return Professional.builder()
                 .name(name)
                 .email(email)
@@ -63,7 +63,7 @@ public class Professional {
         boolean allSupported = requestedServices.stream()
                 .allMatch(rs -> this.services.stream()
                         .anyMatch(ps -> ps.getId().equals(rs.getId())));
-        
+
         if (!allSupported) {
             throw new BusinessException("Este profissional não realiza um ou mais dos serviços selecionados.");
         }
@@ -74,5 +74,17 @@ public class Professional {
             throw new BusinessException("A bio não pode exceder 500 caracteres.");
         }
         this.bio = newBio;
+    }
+
+    public void validateCanBlockTime(LocalDateTime start, LocalDateTime end, List<Appointment> existingAppointments) {
+        boolean hasConflict = existingAppointments.stream()
+                .anyMatch(app -> app.getStatus() == AppointmentStatus.SCHEDULED &&
+                        app.getStartTime().isBefore(end) &&
+                        app.getEndTime().isAfter(start));
+
+        if (hasConflict) {
+            throw new BusinessException(
+                    "Não é possível bloquear este horário pois já existem agendamentos confirmados.");
+        }
     }
 }

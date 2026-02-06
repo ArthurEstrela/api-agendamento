@@ -9,4 +9,5 @@ public interface IReviewRepository {
     List<Review> findByProfessionalId(String professionalId);
     List<Review> findByServiceProviderId(String providerId);
     Double getAverageRating(String professionalId);
+    boolean existsByAppointmentId(String appointmentId);
 }

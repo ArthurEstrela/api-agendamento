@@ -14,19 +14,29 @@ public class Review {
     private final String clientName;
     private final String serviceProviderId;
     private final String professionalId;
-    private final String professionalName;
+    private final String professionalName; // Importante para o histórico
     private final int rating; 
-    private String comment;
+    private final String comment; // Tornar final reforça a imutabilidade do feedback
     private final LocalDateTime createdAt;
 
-    public static Review create(String appointmentId, String clientId, String providerId, int rating, String comment) {
+    public static Review create(Appointment appointment, int rating, String comment) {
+        // REGRA DE NEGÓCIO: Só avalia o que foi concluído
+        if (appointment.getStatus() != AppointmentStatus.COMPLETED) {
+            throw new BusinessException("Apenas agendamentos finalizados podem ser avaliados.");
+        }
+
+        // Validação de nota
         if (rating < 1 || rating > 5) {
             throw new BusinessException("A avaliação deve ser entre 1 e 5 estrelas.");
         }
+
         return Review.builder()
-                .appointmentId(appointmentId)
-                .clientId(clientId)
-                .serviceProviderId(providerId)
+                .appointmentId(appointment.getId())
+                .clientId(appointment.getClientId())
+                .clientName(appointment.getClientName()) // Pegando do objeto Appointment
+                .serviceProviderId(appointment.getProviderId())
+                .professionalId(appointment.getProfessionalId())
+                .professionalName(appointment.getProfessionalName()) // Pegando do objeto Appointment
                 .rating(rating)
                 .comment(comment)
                 .createdAt(LocalDateTime.now())

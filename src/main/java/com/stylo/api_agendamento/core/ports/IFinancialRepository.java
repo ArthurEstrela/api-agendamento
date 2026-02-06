@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.ports;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -9,4 +10,5 @@ public interface IFinancialRepository {
     void saveExpense(Expense expense);
     List<Expense> findExpensesByProvider(String providerId, LocalDateTime start, LocalDateTime end);
     // Aqui o UseCase vai buscar os Appointments pagos para calcular o lucro
+    void registerRevenue(String providerId, BigDecimal amount, String description, LocalDateTime date);
 }
