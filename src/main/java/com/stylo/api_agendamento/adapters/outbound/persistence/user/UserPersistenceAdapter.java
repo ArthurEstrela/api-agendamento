@@ -1,13 +1,13 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.user.UserMapper;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
-import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -17,9 +17,21 @@ public class UserPersistenceAdapter implements IUserRepository {
     private final UserMapper userMapper;
 
     @Override
-    public Optional<User> findById(String id) {
-        return jpaUserRepository.findById(id)
-                .map(userMapper::toDomain);
+    public User save(User user) {
+        var entity = userMapper.toEntity(user);
+        var savedEntity = jpaUserRepository.save(entity);
+        return userMapper.toDomain(savedEntity);
+    }
+
+    @Override
+    public void updateProfile(User user) {
+        // No JPA, o save() faz o merge se o ID já existir
+        jpaUserRepository.save(userMapper.toEntity(user));
+    }
+
+    @Override
+    public void delete(String id) {
+        jpaUserRepository.deleteById(UUID.fromString(id));
     }
 
     @Override
@@ -29,25 +41,8 @@ public class UserPersistenceAdapter implements IUserRepository {
     }
 
     @Override
-    @Transactional
-    public User save(User user) {
-        UserEntity entity = userMapper.toEntity(user);
-        UserEntity saved = jpaUserRepository.save(entity);
-        return userMapper.toDomain(saved);
-    }
-
-    @Override
-    @Transactional
-    public void updateProfile(User user) {
-        if (!jpaUserRepository.existsById(user.getId())) {
-            throw new EntityNotFoundException("Usuário não encontrado para atualização.");
-        }
-        jpaUserRepository.save(userMapper.toEntity(user));
-    }
-
-    @Override
-    @Transactional
-    public void delete(String id) {
-        jpaUserRepository.deleteById(id);
+    public Optional<User> findById(String id) {
+        return jpaUserRepository.findById(UUID.fromString(id))
+                .map(userMapper::toDomain);
     }
 }

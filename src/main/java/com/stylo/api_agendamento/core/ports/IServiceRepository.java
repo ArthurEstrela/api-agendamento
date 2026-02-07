@@ -1,12 +1,14 @@
 package com.stylo.api_agendamento.core.ports;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.stylo.api_agendamento.core.domain.Service;
 
 public interface IServiceRepository {
     Service save(Service service);
-    List<Service> findAllByProviderId(String providerId);
+    Optional<Service> findById(String id);
     void delete(String id);
     List<Service> findAllByIds(List<String> ids);
+    List<Service> findAllByProviderId(String providerId);
 }

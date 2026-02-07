@@ -1,0 +1,78 @@
+package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
+
+import com.stylo.api_agendamento.core.domain.Appointment;
+import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Component
+@RequiredArgsConstructor
+public class AppointmentPersistenceAdapter implements IAppointmentRepository {
+
+    private final JpaAppointmentRepository jpaAppointmentRepository;
+    private final AppointmentMapper appointmentMapper;
+
+    @Override
+    public Appointment save(Appointment appointment) {
+        var entity = appointmentMapper.toEntity(appointment);
+        var savedEntity = jpaAppointmentRepository.save(entity);
+        return appointmentMapper.toDomain(savedEntity);
+    }
+
+    @Override
+    public Optional<Appointment> findById(String id) {
+        return jpaAppointmentRepository.findById(UUID.fromString(id))
+                .map(appointmentMapper::toDomain);
+    }
+
+    @Override
+    public List<Appointment> findAllByProfessionalIdAndDate(String professionalId, LocalDate date) {
+        var startOfDay = date.atStartOfDay();
+        var endOfDay = date.atTime(23, 59, 59);
+        
+        return jpaAppointmentRepository.findAllByProfessionalIdAndStartTimeBetween(
+                UUID.fromString(professionalId), startOfDay, endOfDay)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Appointment> findAllByProviderIdAndPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
+        return jpaAppointmentRepository.findAllByProviderIdAndStartTimeBetween(
+                UUID.fromString(providerId), start, end)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean hasConflictingAppointment(String professionalId, LocalDateTime start, LocalDateTime end) {
+        // Verifica se existe algum agendamento que sobrepõe o horário solicitado
+        // Regra: (Início solicitado < Fim existente) E (Fim solicitado > Início existente)
+        return jpaAppointmentRepository.existsOverlapping(UUID.fromString(professionalId), start, end);
+    }
+
+    @Override
+    public List<Appointment> findAppointmentsToNotify(LocalDateTime threshold) {
+        //Threshold é o tempo atual + reminderMinutes
+        return jpaAppointmentRepository.findToNotify(threshold)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    public List<Appointment> findPendingReminders() {
+    return jpaAppointmentRepository.findAllByNotifiedFalseAndStatusScheduled()
+            .stream()
+            .map(appointmentMapper::toDomain)
+            .collect(Collectors.toList());
+}
+}

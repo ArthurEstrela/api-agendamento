@@ -1,12 +1,37 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
 
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntity, UUID> {
-    // Exemplo de busca para validar conflitos que seu Use Case vai precisar
-    List<AppointmentEntity> findAllByProfessionalIdAndStartTimeBetween(UUID professionalId, LocalDateTime start, LocalDateTime end);
+
+    List<AppointmentEntity> findAllByProfessionalIdAndStartTimeBetween(UUID professionalId, LocalDateTime start,
+            LocalDateTime end);
+
+    List<AppointmentEntity> findAllByProviderIdAndStartTimeBetween(UUID providerId, LocalDateTime start,
+            LocalDateTime end);
+
+    @Query("SELECT COUNT(a) > 0 FROM AppointmentEntity a " +
+            "WHERE a.professionalId = :profId " +
+            "AND a.status IN ('SCHEDULED', 'PENDING', 'BLOCKED') " +
+            "AND a.startTime < :end AND a.endTime > :start")
+    boolean existsOverlapping(@Param("profId") UUID professionalId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
+
+    @Query("SELECT a FROM AppointmentEntity a " +
+            "WHERE a.notified = false " +
+            "AND a.status = 'SCHEDULED' " +
+            "AND a.startTime <= :threshold")
+    List<AppointmentEntity> findToNotify(@Param("threshold") LocalDateTime threshold);
+
+    @Query("SELECT a FROM AppointmentEntity a WHERE a.notified = false AND a.status = 'SCHEDULED'")
+    List<AppointmentEntity> findAllByNotifiedFalseAndStatusScheduled();
+
+    List<AppointmentEntity> findAllByProviderIdAndStatusAndStartTimeBetween(UUID providerId, String status,
+            LocalDateTime start, LocalDateTime end);
 }

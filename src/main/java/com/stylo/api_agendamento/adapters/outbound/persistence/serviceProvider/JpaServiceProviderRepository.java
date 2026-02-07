@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaServiceProviderRepository extends JpaRepository<ServiceProviderEntity, UUID> {
     Optional<ServiceProviderEntity> findByPublicProfileSlug(String slug);
+
+    boolean existsByDocumentValue(String value);
 }
