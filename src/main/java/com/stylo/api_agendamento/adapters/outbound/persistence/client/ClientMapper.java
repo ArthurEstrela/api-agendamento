@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
+package com.stylo.api_agendamento.adapters.outbound.persistence.client;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.ClientEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 import com.stylo.api_agendamento.core.domain.Client;
 import com.stylo.api_agendamento.core.domain.vo.Document;

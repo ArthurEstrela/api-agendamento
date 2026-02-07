@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
+package com.stylo.api_agendamento.adapters.outbound.persistence.review;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.ReviewEntity;
 import com.stylo.api_agendamento.core.domain.Review;
 import org.mapstruct.Mapper;
 

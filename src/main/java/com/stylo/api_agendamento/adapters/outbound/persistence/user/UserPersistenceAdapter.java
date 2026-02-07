@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.mapper.UserMapper;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;

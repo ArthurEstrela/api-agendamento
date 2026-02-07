@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
+package com.stylo.api_agendamento.adapters.outbound.persistence.expense;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.ExpenseEntity;
 import com.stylo.api_agendamento.core.domain.Expense;
 import org.mapstruct.Mapper;
 

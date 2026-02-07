@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
+package com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.ServiceProviderEntity;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Address;
 import com.stylo.api_agendamento.core.domain.vo.Document;

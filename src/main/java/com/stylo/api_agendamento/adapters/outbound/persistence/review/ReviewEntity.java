@@ -1,4 +1,4 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.review;
 
 import jakarta.persistence.*;
 import lombok.*;

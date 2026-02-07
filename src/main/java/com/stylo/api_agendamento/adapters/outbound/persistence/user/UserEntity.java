@@ -1,4 +1,4 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
 import com.stylo.api_agendamento.core.domain.UserRole;
 import jakarta.persistence.*;

@@ -1,9 +1,12 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.professional;
 
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
 import java.util.UUID;
+
+import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity;
+import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 
 @Entity
 @Table(name = "professionals")

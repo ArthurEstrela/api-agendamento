@@ -1,4 +1,4 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.client;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -6,6 +6,8 @@ import lombok.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+
+import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 
 @Entity
 @Table(name = "clients")

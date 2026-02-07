@@ -1,10 +1,12 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.service;
 
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+
+import com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider.ServiceProviderEntity;
 
 @Entity
 @Table(name = "services")

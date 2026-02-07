@@ -3,7 +3,7 @@ package com.stylo.api_agendamento.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.UserPersistenceAdapter;
+import com.stylo.api_agendamento.adapters.outbound.persistence.user.UserPersistenceAdapter;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.INotificationProvider;
 import com.stylo.api_agendamento.core.ports.IUserRepository;

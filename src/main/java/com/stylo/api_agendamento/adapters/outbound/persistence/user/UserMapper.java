@@ -1,6 +1,5 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
+package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.UserEntity;
 import com.stylo.api_agendamento.core.domain.User;
 import org.mapstruct.Mapper;
 

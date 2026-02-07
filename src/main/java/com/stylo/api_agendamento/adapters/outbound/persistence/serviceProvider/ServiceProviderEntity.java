@@ -1,5 +1,7 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence;
+package com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.AddressVo;
+import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
