@@ -16,4 +16,6 @@ public interface IFinancialRepository {
     void registerRevenue(String providerId, BigDecimal amount, String description, LocalDateTime date);
 
     List<Expense> findAllExpensesByProviderIdAndPeriod(String providerId, LocalDate start, LocalDate end);
+
+    void deleteExpense(String expenseId);
 }

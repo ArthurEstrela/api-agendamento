@@ -1,4 +1,4 @@
-package com.stylo.api_agendamento.adapters.outbound.persistence.expense;
+package com.stylo.api_agendamento.adapters.outbound.persistence.financial;
 
 import jakarta.persistence.*;
 import lombok.*;

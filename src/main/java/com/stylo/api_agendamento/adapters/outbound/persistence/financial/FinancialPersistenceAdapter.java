@@ -1,15 +1,12 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.financial;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.appointment.JpaAppointmentRepository;
-import com.stylo.api_agendamento.adapters.outbound.persistence.expense.JpaExpenseRepository;
-import com.stylo.api_agendamento.adapters.outbound.persistence.expense.ExpenseMapper;
-import com.stylo.api_agendamento.adapters.outbound.persistence.appointment.AppointmentMapper;
-import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.Expense;
 import com.stylo.api_agendamento.core.ports.IFinancialRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -20,20 +17,23 @@ import java.util.stream.Collectors;
 public class FinancialPersistenceAdapter implements IFinancialRepository {
 
     private final JpaExpenseRepository jpaExpenseRepository;
-    private final JpaAppointmentRepository jpaAppointmentRepository;
     private final ExpenseMapper expenseMapper;
-    private final AppointmentMapper appointmentMapper;
 
     @Override
-    public Expense saveExpense(Expense expense) {
+    public void saveExpense(Expense expense) {
         var entity = expenseMapper.toEntity(expense);
-        var savedEntity = jpaExpenseRepository.save(entity);
-        return expenseMapper.toDomain(savedEntity);
+        jpaExpenseRepository.save(entity);
     }
 
     @Override
-    public List<Expense> findAllExpensesByProviderInPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
-        return jpaExpenseRepository.findAllByProviderIdAndDateBetween(
+    public void deleteExpense(String expenseId) {
+        // Implementação do método que estava faltando
+        jpaExpenseRepository.deleteById(UUID.fromString(expenseId));
+    }
+
+    @Override
+    public List<Expense> findExpensesByProvider(String providerId, LocalDateTime start, LocalDateTime end) {
+        return jpaExpenseRepository.findAllByServiceProviderIdAndDateBetween(
                 UUID.fromString(providerId), start, end)
                 .stream()
                 .map(expenseMapper::toDomain)
@@ -41,18 +41,14 @@ public class FinancialPersistenceAdapter implements IFinancialRepository {
     }
 
     @Override
-    public List<Appointment> findCompletedAppointmentsInPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
-        // Busca agendamentos com status COMPLETED para calcular a receita
-        // Nota: Certifique-se que o JpaAppointmentRepository tem este método
-        return jpaAppointmentRepository.findAllByProviderIdAndStatusAndStartTimeBetween(
-                UUID.fromString(providerId), "COMPLETED", start, end)
-                .stream()
-                .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+    public List<Expense> findAllExpensesByProviderIdAndPeriod(String providerId, LocalDate start, LocalDate end) {
+        // Converte o período do dia para LocalDateTime
+        return findExpensesByProvider(providerId, start.atStartOfDay(), end.atTime(23, 59, 59));
     }
 
     @Override
-    public void deleteExpense(String expenseId) {
-        jpaExpenseRepository.deleteById(UUID.fromString(expenseId));
+    public void registerRevenue(String providerId, BigDecimal amount, String description, LocalDateTime date) {
+        // Método exigido pela porta, mas que no seu fluxo atual 
+        // é suprido pelos agendamentos concluídos. Pode ficar vazio ou logar.
     }
 }
