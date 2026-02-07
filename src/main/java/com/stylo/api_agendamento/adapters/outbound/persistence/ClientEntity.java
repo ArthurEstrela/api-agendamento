@@ -9,7 +9,11 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "clients")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ClientEntity {
 
     @Id
@@ -22,10 +26,10 @@ public class ClientEntity {
     @Column(unique = true, nullable = false)
     private String email;
 
-    private String phoneNumber; // Valor extraído do VO ClientPhone
+    private String phoneNumber;
 
-    @Column(unique = true)
-    private String cpf;
+    @Embedded // Padronização: CPF do cliente agora é um DocumentVo
+    private DocumentVo document;
 
     private LocalDate dateOfBirth;
     private String gender;

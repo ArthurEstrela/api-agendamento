@@ -9,7 +9,11 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "service_providers")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ServiceProviderEntity {
 
     @Id
@@ -19,16 +23,16 @@ public class ServiceProviderEntity {
     @Column(nullable = false)
     private String businessName;
 
-    @Embedded // Mapeia os campos de logradouro, número, etc, do VO Address
+    @Embedded
     private AddressVo businessAddress;
 
-    @Column(unique = true, nullable = false)
-    private String documentNumber; // Extraído do VO Document (CPF ou CNPJ)
+    @Embedded // Agora usando o VO estruturado
+    private DocumentVo document;
 
     private String businessPhone;
 
     @Column(unique = true, nullable = false)
-    private String publicProfileSlug; // Extraído do VO Slug
+    private String publicProfileSlug;
 
     private String logoUrl;
     private String bannerUrl;
@@ -44,5 +48,5 @@ public class ServiceProviderEntity {
     private Integer cancellationMinHours;
 
     @Column(nullable = false)
-    private String subscriptionStatus; // ACTIVE, TRIAL, EXPIRED, CANCELED
+    private String subscriptionStatus;
 }
