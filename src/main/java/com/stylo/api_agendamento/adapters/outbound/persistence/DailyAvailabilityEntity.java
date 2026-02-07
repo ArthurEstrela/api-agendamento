@@ -2,28 +2,26 @@ package com.stylo.api_agendamento.adapters.outbound.persistence;
 
 import jakarta.persistence.*;
 import lombok.*;
-import java.util.List;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "professional_availabilities")
-@Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class DailyAvailabilityEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private UUID id;
 
-    private String professionalId; // FK para o profissional
-    
-    private String dayOfWeek; // "Monday", "Tuesday", etc. (conforme o types.ts)
-    private boolean isAvailable;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private DayOfWeek dayOfWeek;
 
-    @ElementCollection
-    @CollectionTable(
-        name = "professional_availability_slots", 
-        joinColumns = @JoinColumn(name = "availability_id")
-    )
-    private List<TimeSlotEntity> slots; // Lista de horários de início e fim
+    private boolean isOpen;
+
+    private LocalTime startTime;
+
+    private LocalTime endTime;
 }

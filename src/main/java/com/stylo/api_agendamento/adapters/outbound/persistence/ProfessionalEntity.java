@@ -3,39 +3,43 @@ package com.stylo.api_agendamento.adapters.outbound.persistence;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
-@Table(name = "tb_professionals")
-@PrimaryKeyJoinColumn(name = "user_id") // O ID aqui é o mesmo da tb_users
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString(callSuper = true)
-public class ProfessionalEntity extends UserEntity {
+@Table(name = "professionals")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ProfessionalEntity {
 
-    @Column(columnDefinition = "TEXT")
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private UUID serviceProviderId;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    private String avatarUrl;
+
+    @Column(length = 500)
     private String bio;
 
-    private boolean isOwner;
-
-    @Column(name = "slot_interval")
-    private Integer slotInterval;
-
-    // Relacionamento com a empresa/provedor
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_provider_id")
-    private ServiceProviderEntity serviceProvider;
-
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "tb_professional_services",
+        name = "professional_services",
         joinColumns = @JoinColumn(name = "professional_id"),
         inverseJoinColumns = @JoinColumn(name = "service_id")
     )
     private List<ServiceEntity> services;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JoinColumn(name = "professional_id")
     private List<DailyAvailabilityEntity> availability;
+
+    private Integer slotInterval;
+    private boolean isOwner;
 }

@@ -1,27 +1,39 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "reviews")
-@Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ReviewEntity {
+
     @Id
-    private String id;
-    private String appointmentId;
-    private String clientId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private UUID appointmentId;
+
+    @Column(nullable = false)
+    private UUID clientId;
     private String clientName;
-    private String serviceProviderId;
-    private String professionalId;
+
+    @Column(nullable = false)
+    private UUID serviceProviderId;
+
+    @Column(nullable = false)
+    private UUID professionalId;
     private String professionalName;
-    private Integer rating; // 1 a 5
+
+    @Column(nullable = false)
+    private int rating;
+
+    @Column(columnDefinition = "TEXT")
     private String comment;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 }

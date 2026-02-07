@@ -1,49 +1,69 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
+import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "appointments")
-@Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class AppointmentEntity {
+
     @Id
-    private String id;
-    private String clientId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    private UUID clientId; // Pode ser null em agendamentos manuais
     private String clientName;
-    private String clientPhone; // Para o prestador ligar se precisar
-    private String providerId;
-    private String professionalId;
+
+    private String clientPhone; // Persiste apenas o valor do VO ClientPhone
+
+    @Column(nullable = false)
+    private UUID providerId;
+
+    @Column(nullable = false)
+    private UUID professionalId;
+    
     private String professionalName;
-    private String serviceName; 
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "appointment_services",
+        joinColumns = @JoinColumn(name = "appointment_id"),
+        inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    private List<ServiceEntity> services;
+
+    @Column(nullable = false)
     private LocalDateTime startTime;
+
+    @Column(nullable = false)
     private LocalDateTime endTime;
-    private Integer totalDuration; 
-    
+
     @Enumerated(EnumType.STRING)
-    private AppointmentStatus status; // PENDING, SCHEDULED, COMPLETED, CANCELLED
-    
-    private String paymentMethod; // "pix", "credit_card", "cash"
+    private AppointmentStatus status;
+
+    @Enumerated(EnumType.STRING)
+    private PaymentMethod paymentMethod;
+
     private BigDecimal totalPrice;
-    private BigDecimal finalPrice; // Valor com possível desconto
+    private BigDecimal finalPrice;
     
     @Column(columnDefinition = "TEXT")
     private String notes;
-    
+
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
+    
+    private Integer reminderMinutes;
+    private boolean notified;
+    
+    @Column(nullable = false)
+    private boolean isPersonalBlock;
 }

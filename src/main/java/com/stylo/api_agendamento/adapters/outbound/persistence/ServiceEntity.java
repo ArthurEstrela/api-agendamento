@@ -1,23 +1,29 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
+
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Table(name = "services")
-@Data
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ServiceEntity {
+
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
     private String name;
-    private String description;
-    private Integer duration; // Alinhado com duration: number no TS
-    private BigDecimal price; // Alinhado com price: number no TS
-    private String providerId; // Relacionamento com o ServiceProvider
+
+    private BigDecimal price;
+
+    @Column(nullable = false)
+    private Integer duration; // em minutos, para o calculateEndTime do core
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "service_provider_id")
+    private ServiceProviderEntity serviceProvider;
 }

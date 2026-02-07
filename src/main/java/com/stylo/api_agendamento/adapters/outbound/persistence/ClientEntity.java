@@ -2,32 +2,36 @@ package com.stylo.api_agendamento.adapters.outbound.persistence;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
-@Table(name = "tb_clients")
-@PrimaryKeyJoinColumn(name = "user_id")
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString(callSuper = true)
-public class ClientEntity extends UserEntity {
+@Table(name = "clients")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ClientEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    private String phoneNumber; // Valor extraído do VO ClientPhone
 
     @Column(unique = true)
     private String cpf;
 
-    @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
-
     private String gender;
 
     @ElementCollection
-    @CollectionTable(
-        name = "tb_client_favorite_professionals", 
-        joinColumns = @JoinColumn(name = "client_id")
-    )
+    @CollectionTable(name = "client_favorite_professionals", joinColumns = @JoinColumn(name = "client_id"))
     @Column(name = "professional_id")
-    private List<String> favoriteProfessionals;
+    private List<UUID> favoriteProfessionals;
 }

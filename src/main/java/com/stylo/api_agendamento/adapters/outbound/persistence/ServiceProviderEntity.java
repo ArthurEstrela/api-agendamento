@@ -1,38 +1,48 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
-import java.util.List;
+import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
+import jakarta.persistence.*;
+import lombok.*;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Embedded;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.Data;
+import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "service_providers")
-@Data
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ServiceProviderEntity {
+
     @Id
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
     private String businessName;
-    
-    @Embedded
-    private AddressVo businessAddress; // Rua, número, cidade, etc.
-    
-    private String cnpj;
-    private String cpf;
-    private String documentType; // "CNPJ" ou "CPF"
-    
+
+    @Embedded // Mapeia os campos de logradouro, número, etc, do VO Address
+    private AddressVo businessAddress;
+
+    @Column(unique = true, nullable = false)
+    private String documentNumber; // Extraído do VO Document (CPF ou CNPJ)
+
     private String businessPhone;
-    
-    @Column(unique = true)
-    private String publicProfileSlug; // URL personalizada: stylo.com/barbearia-do-arthur
-    
+
+    @Column(unique = true, nullable = false)
+    private String publicProfileSlug; // Extraído do VO Slug
+
     private String logoUrl;
+    private String bannerUrl;
     private String pixKey;
     private String pixKeyType;
-    
-    private String subscriptionStatus; // "active", "trial", "expired"
+
+    @ElementCollection(targetClass = PaymentMethod.class)
+    @CollectionTable(name = "provider_payment_methods", joinColumns = @JoinColumn(name = "provider_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method")
+    private List<PaymentMethod> paymentMethods;
+
+    private Integer cancellationMinHours;
+
+    @Column(nullable = false)
+    private String subscriptionStatus; // ACTIVE, TRIAL, EXPIRED, CANCELED
 }

@@ -1,23 +1,32 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence;
 
+import jakarta.persistence.*;
+import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.Data;
+import java.util.UUID;
 
 @Entity
 @Table(name = "expenses")
-@Data
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class ExpenseEntity {
+
     @Id
-    private String id;
-    private String providerId;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(nullable = false)
+    private UUID providerId;
+
     private String description;
+
+    @Column(nullable = false)
     private BigDecimal amount;
+
+    @Column(nullable = false)
     private LocalDateTime date;
-    private String category; // Ex: "Aluguel", "Material"
-    private String type; // "one-time" ou "recurring"
+
+    private String category;
+    private String type; // ONE_TIME ou RECURRING
+    private String frequency;
 }
