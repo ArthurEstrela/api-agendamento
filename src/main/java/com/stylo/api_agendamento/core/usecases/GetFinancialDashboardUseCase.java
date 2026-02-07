@@ -27,6 +27,7 @@ public class GetFinancialDashboardUseCase {
                 .findAllByProviderIdAndPeriod(providerId, startDate.atStartOfDay(), endDate.atTime(23, 59))
                 .stream()
                 .filter(app -> app.getStatus() == AppointmentStatus.COMPLETED)
+                .filter(app -> !app.isPersonalBlock())
                 .toList();
 
         // 2. Busca despesas no período

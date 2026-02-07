@@ -35,11 +35,12 @@ public class Appointment {
     private LocalDateTime completedAt;
     private final Integer reminderMinutes;
     private boolean notified;
+    private final boolean isPersonalBlock;
 
     // Fábrica para agendamentos via APP (Pelo Cliente)
     public static Appointment create(String clientId, String clientName, ClientPhone phone,
-                                   String providerId, String profId, String profName,
-                                   List<Service> services, LocalDateTime start, Integer reminderMinutes) {
+            String providerId, String profId, String profName,
+            List<Service> services, LocalDateTime start, Integer reminderMinutes) {
 
         validateServices(services);
 
@@ -61,6 +62,7 @@ public class Appointment {
                 .finalPrice(total)
                 .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
                 .notified(false) // Garante que nasce sem notificação
+                .isPersonalBlock(false)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -70,8 +72,8 @@ public class Appointment {
 
     // Fábrica para agendamentos Manuais (Walk-in / Balcão)
     public static Appointment createManual(String clientName, ClientPhone phone,
-                                         String providerId, String profId, String profName,
-                                         List<Service> services, LocalDateTime start, String notes) {
+            String providerId, String profId, String profName,
+            List<Service> services, LocalDateTime start, String notes) {
 
         validateServices(services);
 
@@ -151,5 +153,25 @@ public class Appointment {
 
     public void markAsNotified() {
         this.notified = true;
+    }
+
+    public static Appointment createPersonalBlock(String profId, String profName, String providerId,
+            LocalDateTime start, LocalDateTime end, String reason) {
+        return Appointment.builder()
+                .professionalId(profId)
+                .professionalName(profName)
+                .providerId(providerId)
+                .startTime(start)
+                .endTime(end)
+                .status(AppointmentStatus.BLOCKED)
+                .isPersonalBlock(true) // Crucial para o Financeiro ignorar
+                .notes("BLOQUEIO PESSOAL: " + reason)
+                .totalPrice(BigDecimal.ZERO)
+                .finalPrice(BigDecimal.ZERO)
+                .services(Collections.emptyList())
+                .reminderMinutes(0)
+                .notified(false)
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 }

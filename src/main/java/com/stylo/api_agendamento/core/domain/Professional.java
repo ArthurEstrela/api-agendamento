@@ -76,15 +76,15 @@ public class Professional {
         this.bio = newBio;
     }
 
-    public void validateCanBlockTime(LocalDateTime start, LocalDateTime end, List<Appointment> existingAppointments) {
-        boolean hasConflict = existingAppointments.stream()
-                .anyMatch(app -> app.getStatus() == AppointmentStatus.SCHEDULED &&
+    public void validateCanBlockTime(LocalDateTime start, LocalDateTime end, List<Appointment> existing) {
+        boolean hasConflict = existing.stream()
+                .anyMatch(app -> (app.getStatus() == AppointmentStatus.SCHEDULED
+                        || app.getStatus() == AppointmentStatus.PENDING) &&
                         app.getStartTime().isBefore(end) &&
                         app.getEndTime().isAfter(start));
 
         if (hasConflict) {
-            throw new BusinessException(
-                    "Não é possível bloquear este horário pois já existem agendamentos confirmados.");
+            throw new BusinessException("Não é possível bloquear: você já tem um cliente agendado nesse horário.");
         }
     }
 
