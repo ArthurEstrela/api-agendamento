@@ -3,6 +3,7 @@ package com.stylo.api_agendamento.core.usecases;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
+import com.stylo.api_agendamento.core.ports.IPaymentProvider; // Adicionado
 import com.stylo.api_agendamento.core.usecases.dto.PaymentWebhookInput;
 import lombok.RequiredArgsConstructor;
 
@@ -10,30 +11,27 @@ import lombok.RequiredArgsConstructor;
 public class HandlePaymentWebhookUseCase {
 
     private final IServiceProviderRepository serviceProviderRepository;
+    private final IPaymentProvider paymentProvider; // Agora casa com o Bean
 
     public void execute(PaymentWebhookInput input) {
-        // 1. Busca o estabelecimento vinculado ao evento de pagamento
-        ServiceProvider provider = serviceProviderRepository.findById(input.providerId())
-                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado para o ID: " + input.providerId()));
+        // 1. Opcional: Validar a assinatura do Webhook usando o Provider (Segurança)
+        // paymentProvider.verifyWebhookSignature(input.rawPayload(), input.signature());
 
-        // 2. Lógica de Negócio: Trata o tipo de evento do Stripe
+        // 2. Busca o estabelecimento
+        ServiceProvider provider = serviceProviderRepository.findById(input.providerId())
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+
+        // 3. Lógica de Negócio (Stripe/MercadoPago)
         if ("checkout.session.completed".equals(input.eventType()) || "invoice.paid".equals(input.eventType())) {
-            
-            // Se o pagamento teve sucesso, ativa a assinatura
             if ("succeeded".equalsIgnoreCase(input.status()) || "paid".equalsIgnoreCase(input.status())) {
                 provider.updateSubscription("ACTIVE");
             }
         } 
-        
         else if ("invoice.payment_failed".equals(input.eventType())) {
-            // Se o pagamento falhou, podemos marcar como EXPIRED ou lançar um aviso
             provider.updateSubscription("EXPIRED");
         }
 
-        // 3. Persistência da mudança de estado no domínio
+        // 4. Salva a mudança
         serviceProviderRepository.save(provider);
-        
-        // DICA: Aqui você poderia disparar um evento para o INotificationProvider 
-        // avisando o dono do salão: "Parabéns! Sua assinatura Stylo está ativa."
     }
 }

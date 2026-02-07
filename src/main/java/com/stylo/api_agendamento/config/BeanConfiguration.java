@@ -1,25 +1,141 @@
 package com.stylo.api_agendamento.config;
 
+import com.stylo.api_agendamento.core.ports.*;
+import com.stylo.api_agendamento.core.usecases.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.user.UserPersistenceAdapter;
-import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
-import com.stylo.api_agendamento.core.ports.INotificationProvider;
-import com.stylo.api_agendamento.core.ports.IUserRepository;
-import com.stylo.api_agendamento.core.usecases.CreateAppointmentUseCase;
-
 @Configuration
 public class BeanConfiguration {
+
+    // --- DOMÍNIO: AGENDAMENTOS (APPOINTMENTS) ---
+
     @Bean
     public CreateAppointmentUseCase createAppointmentUseCase(
-            IAppointmentRepository repository,
-            INotificationProvider notificationProvider) {
-        return new CreateAppointmentUseCase(repository, notificationProvider);
+            IAppointmentRepository appointmentRepository,
+            IProfessionalRepository professionalRepository,
+            IServiceRepository serviceRepository,
+            IUserRepository userRepository) {
+        return new CreateAppointmentUseCase(
+                appointmentRepository,
+                professionalRepository,
+                serviceRepository,
+                userRepository);
     }
 
     @Bean
-    public IUserRepository userRepository(UserPersistenceAdapter userPersistenceAdapter) {
-        return userPersistenceAdapter;
+    public CreateManualAppointmentUseCase createManualAppointmentUseCase(
+            IAppointmentRepository appointmentRepository,
+            IProfessionalRepository professionalRepository,
+            IServiceRepository serviceRepository) {
+        return new CreateManualAppointmentUseCase(
+                appointmentRepository,
+                professionalRepository,
+                serviceRepository);
+    }
+
+    @Bean
+    public ConfirmAppointmentUseCase confirmAppointmentUseCase(IAppointmentRepository repository,
+            INotificationProvider notificationProvider) {
+        return new ConfirmAppointmentUseCase(repository, notificationProvider);
+    }
+
+    @Bean
+    public CompleteAppointmentUseCase completeAppointmentUseCase(IAppointmentRepository repository,
+            IFinancialRepository financialRepository) {
+        return new CompleteAppointmentUseCase(repository, financialRepository);
+    }
+
+    @Bean
+    public CancelAppointmentUseCase cancelAppointmentUseCase(
+            IAppointmentRepository appointmentRepository,
+            IServiceProviderRepository providerRepository) {
+        return new CancelAppointmentUseCase(appointmentRepository, providerRepository);
+    }
+
+    @Bean
+    public RescheduleAppointmentUseCase rescheduleAppointmentUseCase(
+            IAppointmentRepository appointmentRepository,
+            IProfessionalRepository professionalRepository,
+            IServiceProviderRepository serviceProviderRepository,
+            INotificationProvider notificationProvider) {
+        return new RescheduleAppointmentUseCase(appointmentRepository, professionalRepository,
+                serviceProviderRepository,
+                notificationProvider);
+    }
+
+    @Bean
+    public GetAvailableSlotsUseCase getAvailableSlotsUseCase(
+            IProfessionalRepository professionalRepository,
+            IAppointmentRepository appointmentRepository) {
+        return new GetAvailableSlotsUseCase(professionalRepository, appointmentRepository);
+    }
+
+    // --- DOMÍNIO: PROFISSIONAIS E SERVIÇOS ---
+
+    @Bean
+    public UpdateProfessionalAvailabilityUseCase updateProfessionalAvailabilityUseCase(
+            IProfessionalRepository repository) {
+        return new UpdateProfessionalAvailabilityUseCase(repository);
+    }
+
+    @Bean
+    public GetProfessionalProfileUseCase getProfessionalProfileUseCase(
+            IProfessionalRepository professionalRepository,
+            IReviewRepository reviewRepository) {
+        return new GetProfessionalProfileUseCase(professionalRepository, reviewRepository);
+    }
+
+    @Bean
+    public CreateServiceUseCase createServiceUseCase(IServiceRepository repository) {
+        return new CreateServiceUseCase(repository);
+    }
+
+    @Bean
+    public BlockProfessionalTimeUseCase blockProfessionalTimeUseCase(IProfessionalRepository professionalRepository,
+            IAppointmentRepository repository) {
+        return new BlockProfessionalTimeUseCase(professionalRepository, repository);
+    }
+
+    // --- DOMÍNIO: ESTABELECIMENTO (SERVICE PROVIDER) ---
+
+    @Bean
+    public RegisterServiceProviderUseCase registerServiceProviderUseCase(
+            IServiceProviderRepository providerRepository,
+            IProfessionalRepository professionalRepository,
+            IUserRepository userRepository) {
+        return new RegisterServiceProviderUseCase(providerRepository, professionalRepository, userRepository);
+    }
+
+    // --- DOMÍNIO: FINANCEIRO E AVALIAÇÕES ---
+
+    @Bean
+    public GetFinancialDashboardUseCase getFinancialDashboardUseCase(
+            IAppointmentRepository appointmentRepository,
+            IFinancialRepository financialRepository) {
+        return new GetFinancialDashboardUseCase(appointmentRepository, financialRepository);
+    }
+
+    @Bean
+    public CreateReviewUseCase createReviewUseCase(
+            IReviewRepository reviewRepository,
+            IAppointmentRepository appointmentRepository) {
+        return new CreateReviewUseCase(reviewRepository, appointmentRepository);
+    }
+
+    // --- DOMÍNIO: SISTEMA (NOTIFICAÇÕES E PAGAMENTOS) ---
+
+    @Bean
+    public SendRemindersUseCase sendRemindersUseCase(
+            IAppointmentRepository appointmentRepository,
+            INotificationProvider notificationProvider) {
+        return new SendRemindersUseCase(appointmentRepository, notificationProvider);
+    }
+
+    @Bean
+    public HandlePaymentWebhookUseCase handlePaymentWebhookUseCase(
+            IServiceProviderRepository serviceProviderRepository, // Ajustado o nome
+            IPaymentProvider paymentProvider) {
+        return new HandlePaymentWebhookUseCase(serviceProviderRepository, paymentProvider);
     }
 }
