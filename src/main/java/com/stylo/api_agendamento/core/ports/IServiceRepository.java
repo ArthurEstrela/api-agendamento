@@ -11,4 +11,6 @@ public interface IServiceRepository {
     void delete(String id);
     List<Service> findAllByIds(List<String> ids);
     List<Service> findAllByProviderId(String providerId);
+    List<Service> findAll(); 
+    List<Service> findByCategoryId(String categoryId);
 }

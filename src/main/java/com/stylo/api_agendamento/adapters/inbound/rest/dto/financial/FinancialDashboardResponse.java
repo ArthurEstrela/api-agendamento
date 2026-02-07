@@ -9,10 +9,11 @@ public record FinancialDashboardResponse(
     BigDecimal totalExpenses,
     BigDecimal netProfit,
     List<DailyCashFlowResponse> dailyFlow
-) {}
-
-record DailyCashFlowResponse(
-    LocalDate date,
-    BigDecimal revenue,
-    BigDecimal expense
-) {}
+) {
+    // Mova o record para dentro para permitir a referência estática
+    public record DailyCashFlowResponse(
+        LocalDate date,
+        BigDecimal revenue,
+        BigDecimal expense
+    ) {}
+}

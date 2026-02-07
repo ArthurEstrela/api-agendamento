@@ -2,7 +2,6 @@ package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.domain.Service;
 import com.stylo.api_agendamento.core.ports.IServiceRepository;
-import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
@@ -13,22 +12,24 @@ public class CreateServiceUseCase {
     private final IServiceRepository serviceRepository;
 
     public Service execute(CreateServiceInput input) {
-        // 1. Regra de Negócio: Criar a instância de domínio validada
+        // Certifique-se de que o método Service.create suporta esses parâmetros
         Service service = Service.create(
                 input.name(),
+                input.description(), // Adicionado
                 input.duration(),
                 input.price(),
-                input.providerId()
+                input.categoryId() // Alinhado com o input
         );
 
-        // 2. Persistência através da porta (Port)
         return serviceRepository.save(service);
     }
 
+    // Record atualizado para aceitar os 5 parâmetros do Controller
     public record CreateServiceInput(
             String name,
+            String description,
             Integer duration,
             BigDecimal price,
-            String providerId
+            String categoryId
     ) {}
 }
