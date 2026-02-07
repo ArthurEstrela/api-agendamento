@@ -9,4 +9,6 @@ public interface INotificationProvider {
     
     // Você também pode adicionar para cancelamentos futuramente
     void sendAppointmentCancelled(String clientId, String message);
+
+    void sendAppointmentReminder(String clientId, String message);
 }

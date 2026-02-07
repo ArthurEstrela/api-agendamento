@@ -24,7 +24,7 @@ public class Appointment {
     private final List<Service> services;
 
     private LocalDateTime startTime;
-    private LocalDateTime endTime;
+    private LocalDateTime endTime; // Essencial para validação de conflitos
     private AppointmentStatus status;
     private PaymentMethod paymentMethod;
 
@@ -33,12 +33,15 @@ public class Appointment {
     private String notes;
     private final LocalDateTime createdAt;
     private LocalDateTime completedAt;
+    private final Integer reminderMinutes;
+    private boolean notified;
 
-    // Fábrica estática: garante que todo agendamento nasça com status PENDING e
-    // cálculos feitos
+    // Fábrica para agendamentos via APP (Pelo Cliente)
     public static Appointment create(String clientId, String clientName, ClientPhone phone,
-            String providerId, String profId, String profName,
-            List<Service> services, LocalDateTime start) {
+                                   String providerId, String profId, String profName,
+                                   List<Service> services, LocalDateTime start, Integer reminderMinutes) {
+
+        validateServices(services);
 
         BigDecimal total = services.stream()
                 .map(Service::getPrice)
@@ -56,6 +59,8 @@ public class Appointment {
                 .status(AppointmentStatus.PENDING)
                 .totalPrice(total)
                 .finalPrice(total)
+                .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
+                .notified(false) // Garante que nasce sem notificação
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -63,18 +68,57 @@ public class Appointment {
         return appointment;
     }
 
-    // --- REGRAS DE NEGÓCIO (ENCAPSULAMENTO) ---
+    // Fábrica para agendamentos Manuais (Walk-in / Balcão)
+    public static Appointment createManual(String clientName, ClientPhone phone,
+                                         String providerId, String profId, String profName,
+                                         List<Service> services, LocalDateTime start, String notes) {
+
+        validateServices(services);
+
+        BigDecimal total = services.stream()
+                .map(Service::getPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Appointment appointment = Appointment.builder()
+                .clientId(null)
+                .clientName(clientName)
+                .clientPhone(phone)
+                .providerId(providerId)
+                .professionalId(profId)
+                .professionalName(profName)
+                .services(Collections.unmodifiableList(services))
+                .startTime(start)
+                .status(AppointmentStatus.SCHEDULED) // Manual já nasce confirmado
+                .totalPrice(total)
+                .finalPrice(total)
+                .reminderMinutes(0) // Walk-in geralmente não tem lembrete de app
+                .notified(false)
+                .notes(notes)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        appointment.calculateEndTime(); // <--- OBRIGATÓRIO AQUI TBM
+        return appointment;
+    }
+
+    // --- REGRAS DE NEGÓCIO ---
 
     private void calculateEndTime() {
         int duration = services.stream().mapToInt(Service::getDuration).sum();
         this.endTime = this.startTime.plusMinutes(duration);
     }
 
+    private static void validateServices(List<Service> services) {
+        if (services == null || services.isEmpty()) {
+            throw new BusinessException("Ao menos um serviço deve ser selecionado.");
+        }
+    }
+
     public void confirm() {
         if (this.status != AppointmentStatus.PENDING) {
-            throw new BusinessException("Apenas agendamentos pendentes podem ser confirmados."); //
+            throw new BusinessException("Apenas agendamentos pendentes podem ser confirmados.");
         }
-        this.status = AppointmentStatus.SCHEDULED; //
+        this.status = AppointmentStatus.SCHEDULED;
     }
 
     public void complete(PaymentMethod method, BigDecimal finalPrice) {
@@ -89,7 +133,7 @@ public class Appointment {
 
     public void cancel() {
         if (this.status == AppointmentStatus.COMPLETED) {
-            throw new IllegalStateException("Não é possível cancelar um agendamento já finalizado.");
+            throw new BusinessException("Não é possível cancelar um agendamento já finalizado.");
         }
         this.status = AppointmentStatus.CANCELLED;
     }
@@ -100,15 +144,12 @@ public class Appointment {
         }
         this.startTime = newStartTime;
         calculateEndTime();
-        this.status = AppointmentStatus.PENDING; // Volta para pendente para nova validação do profissional
+        this.status = AppointmentStatus.PENDING;
         this.completedAt = null;
         this.paymentMethod = null;
     }
 
-    public void applyDiscount(BigDecimal discountAmount) {
-        if (discountAmount.compareTo(totalPrice) > 0) {
-            throw new BusinessException("O desconto não pode ser maior que o valor total.");
-        }
-        this.finalPrice = this.totalPrice.subtract(discountAmount);
+    public void markAsNotified() {
+        this.notified = true;
     }
 }

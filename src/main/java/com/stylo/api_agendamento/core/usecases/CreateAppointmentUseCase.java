@@ -51,7 +51,8 @@ public class CreateAppointmentUseCase {
                 professional.getId(),
                 professional.getName(),
                 requestedServices,
-                input.startTime()
+                input.startTime(),
+                input.reminderMinutes()
         );
 
         // 7. Proteção Anti-Conflito (Double Booking)
@@ -75,6 +76,7 @@ public class CreateAppointmentUseCase {
             String clientId,
             String professionalId,
             List<String> serviceIds,
-            LocalDateTime startTime
+            LocalDateTime startTime,
+            Integer reminderMinutes
     ) {}
 }

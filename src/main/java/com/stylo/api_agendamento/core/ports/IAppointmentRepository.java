@@ -19,4 +19,6 @@ public interface IAppointmentRepository {
     boolean hasConflictingAppointment(String professionalId, LocalDateTime start, LocalDateTime end);
 
     List<Appointment> findAllByProviderIdAndPeriod(String providerId, LocalDateTime start, LocalDateTime end);
+
+    List<Appointment> findAppointmentsToNotify(LocalDateTime now);
 }
