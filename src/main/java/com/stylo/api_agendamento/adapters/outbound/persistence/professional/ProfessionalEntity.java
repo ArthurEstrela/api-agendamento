@@ -10,7 +10,11 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEn
 
 @Entity
 @Table(name = "professionals")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ProfessionalEntity {
 
     @Id
@@ -19,6 +23,9 @@ public class ProfessionalEntity {
 
     @Column(nullable = false)
     private UUID serviceProviderId;
+
+    @Column(name = "service_provider_name")
+    private String serviceProviderName;
 
     @Column(nullable = false)
     private String name;
@@ -32,11 +39,7 @@ public class ProfessionalEntity {
     private String bio;
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "professional_services",
-        joinColumns = @JoinColumn(name = "professional_id"),
-        inverseJoinColumns = @JoinColumn(name = "service_id")
-    )
+    @JoinTable(name = "professional_services", joinColumns = @JoinColumn(name = "professional_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     private List<ServiceEntity> services;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)

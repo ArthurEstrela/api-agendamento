@@ -44,16 +44,18 @@ public class CreateAppointmentUseCase {
         // 6. Criar a instância do Domínio (Usa a fábrica blindada)
         // O método 'create' já calcula o endTime e o totalPrice internamente
         Appointment appointment = Appointment.create(
-                client.getId(),
-                client.getName(),
-                new ClientPhone(client.getPhoneNumber()),
-                professional.getServiceProviderId(),
-                professional.getId(),
-                professional.getName(),
-                requestedServices,
-                input.startTime(),
-                input.reminderMinutes()
-        );
+            client.getId(),
+            client.getName(),
+            client.getEmail(), // <--- Passar o e-mail aqui
+            professional.getServiceProviderName(), // <--- Pegar o nome do salão/loja
+            new ClientPhone(client.getPhoneNumber()),
+            professional.getServiceProviderId(),
+            professional.getId(),
+            professional.getName(),
+            requestedServices,
+            input.startTime(),
+            input.reminderMinutes()
+    );
 
         // 7. Proteção Anti-Conflito (Double Booking)
         // Verificamos no banco se alguém agendou o mesmo intervalo enquanto o cliente escolhia

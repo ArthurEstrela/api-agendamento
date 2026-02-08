@@ -9,29 +9,34 @@ import java.util.UUID;
 
 public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntity, UUID> {
 
-    List<AppointmentEntity> findAllByProfessionalIdAndStartTimeBetween(UUID professionalId, LocalDateTime start,
-            LocalDateTime end);
+        List<AppointmentEntity> findAllByProfessionalIdAndStartTimeBetween(UUID professionalId, LocalDateTime start,
+                        LocalDateTime end);
 
-    List<AppointmentEntity> findAllByProviderIdAndStartTimeBetween(UUID providerId, LocalDateTime start,
-            LocalDateTime end);
+        List<AppointmentEntity> findAllByProviderIdAndStartTimeBetween(UUID providerId, LocalDateTime start,
+                        LocalDateTime end);
 
-    @Query("SELECT COUNT(a) > 0 FROM AppointmentEntity a " +
-            "WHERE a.professionalId = :profId " +
-            "AND a.status IN ('SCHEDULED', 'PENDING', 'BLOCKED') " +
-            "AND a.startTime < :end AND a.endTime > :start")
-    boolean existsOverlapping(@Param("profId") UUID professionalId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end);
+        @Query("SELECT COUNT(a) > 0 FROM AppointmentEntity a " +
+                        "WHERE a.professionalId = :profId " +
+                        "AND a.status IN ('SCHEDULED', 'PENDING', 'BLOCKED') " +
+                        "AND a.startTime < :end AND a.endTime > :start")
+        boolean existsOverlapping(@Param("profId") UUID professionalId,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
 
-    @Query("SELECT a FROM AppointmentEntity a " +
-            "WHERE a.notified = false " +
-            "AND a.status = 'SCHEDULED' " +
-            "AND a.startTime <= :threshold")
-    List<AppointmentEntity> findToNotify(@Param("threshold") LocalDateTime threshold);
+        @Query("SELECT a FROM AppointmentEntity a " +
+                        "WHERE a.notified = false " +
+                        "AND a.status = 'SCHEDULED' " +
+                        "AND a.startTime <= :threshold")
+        List<AppointmentEntity> findToNotify(@Param("threshold") LocalDateTime threshold);
 
-    @Query("SELECT a FROM AppointmentEntity a WHERE a.notified = false AND a.status = 'SCHEDULED'")
-    List<AppointmentEntity> findAllByNotifiedFalseAndStatusScheduled();
+        @Query("SELECT a FROM AppointmentEntity a WHERE a.notified = false AND a.status = 'SCHEDULED'")
+        List<AppointmentEntity> findAllByNotifiedFalseAndStatusScheduled();
 
-    List<AppointmentEntity> findAllByProviderIdAndStatusAndStartTimeBetween(UUID providerId, String status,
-            LocalDateTime start, LocalDateTime end);
+        List<AppointmentEntity> findAllByProviderIdAndStatusAndStartTimeBetween(UUID providerId, String status,
+                        LocalDateTime start, LocalDateTime end);
+
+        @Query("SELECT a FROM AppointmentEntity a WHERE a.status = 'CONFIRMED' " +
+                        "AND a.reminderSent = false " +
+                        "AND a.startTime <= :limit")
+        List<AppointmentEntity> findAppointmentsToRemind(@Param("limit") LocalDateTime limit);
 }

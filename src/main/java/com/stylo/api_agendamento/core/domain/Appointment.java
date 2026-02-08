@@ -17,6 +17,8 @@ public class Appointment {
     private final String id;
     private final String clientId;
     private final String clientName;
+    private final String clientEmail; // Adicionado para notificações
+    private final String businessName; // Adicionado para o corpo do e-mail
     private final ClientPhone clientPhone;
     private final String providerId;
     private final String professionalId;
@@ -34,11 +36,14 @@ public class Appointment {
     private final LocalDateTime createdAt;
     private LocalDateTime completedAt;
     private final Integer reminderMinutes;
+    private boolean reminderSent;
+
     private boolean notified;
     private final boolean isPersonalBlock;
 
     // Fábrica para agendamentos via APP (Pelo Cliente)
-    public static Appointment create(String clientId, String clientName, ClientPhone phone,
+    public static Appointment create(String clientId, String clientName, String clientEmail,
+            String businessName, ClientPhone phone,
             String providerId, String profId, String profName,
             List<Service> services, LocalDateTime start, Integer reminderMinutes) {
 
@@ -51,6 +56,8 @@ public class Appointment {
         Appointment appointment = Appointment.builder()
                 .clientId(clientId)
                 .clientName(clientName)
+                .clientEmail(clientEmail)
+                .businessName(businessName)
                 .clientPhone(phone)
                 .providerId(providerId)
                 .professionalId(profId)
@@ -61,6 +68,7 @@ public class Appointment {
                 .totalPrice(total)
                 .finalPrice(total)
                 .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
+                .reminderSent(false)
                 .notified(false) // Garante que nasce sem notificação
                 .isPersonalBlock(false)
                 .createdAt(LocalDateTime.now())
@@ -173,5 +181,9 @@ public class Appointment {
                 .notified(false)
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    public void markReminderAsSent() {
+        this.reminderSent = true;
     }
 }

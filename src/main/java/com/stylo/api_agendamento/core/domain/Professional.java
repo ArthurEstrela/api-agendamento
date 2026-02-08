@@ -14,6 +14,7 @@ import java.util.Collections;
 public class Professional {
     private final String id;
     private final String serviceProviderId; // Multi-tenant: Sempre vinculado a um salão
+    private final String serviceProviderName;
     private String name;
     private final String email;
     private String avatarUrl;
