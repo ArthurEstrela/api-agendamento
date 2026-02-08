@@ -23,4 +23,6 @@ public interface IAppointmentRepository {
     List<Appointment> findAppointmentsToNotify(LocalDateTime now);
 
     List<Appointment> findPendingReminders(LocalDateTime targetTime);
+
+    List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end);
 }

@@ -48,4 +48,17 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
                         AND (a.start_time - (a.reminder_minutes * interval '1 minute')) <= :now
                         """, nativeQuery = true)
         List<AppointmentEntity> findPendingReminders(@Param("now") LocalDateTime now);
+
+        // No arquivo JpaAppointmentRepository.java
+        @Query("""
+                            SELECT a FROM AppointmentEntity a
+                            WHERE a.providerId = :providerId
+                            AND a.status = 'COMPLETED'
+                            AND a.isPersonalBlock = false
+                            AND a.startTime BETWEEN :start AND :end
+                        """)
+        List<AppointmentEntity> findRevenueAppointments(
+                        @Param("providerId") UUID providerId,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
 }

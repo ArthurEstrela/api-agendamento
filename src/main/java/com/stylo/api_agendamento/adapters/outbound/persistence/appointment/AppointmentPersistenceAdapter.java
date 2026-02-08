@@ -36,7 +36,7 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
     public List<Appointment> findAllByProfessionalIdAndDate(String professionalId, LocalDate date) {
         var startOfDay = date.atStartOfDay();
         var endOfDay = date.atTime(23, 59, 59);
-        
+
         return jpaAppointmentRepository.findAllByProfessionalIdAndStartTimeBetween(
                 UUID.fromString(professionalId), startOfDay, endOfDay)
                 .stream()
@@ -72,6 +72,14 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
     @Override
     public List<Appointment> findAppointmentsToNotify(LocalDateTime threshold) {
         return jpaAppointmentRepository.findToNotify(threshold)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
+        return jpaAppointmentRepository.findRevenueAppointments(UUID.fromString(providerId), start, end)
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
