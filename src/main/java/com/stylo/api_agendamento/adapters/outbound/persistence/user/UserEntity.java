@@ -6,19 +6,21 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "users")
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id; // Alterado para String para manter consistência com o ID do Domínio
+    @Column(columnDefinition = "uuid", updatable = false, nullable = false)
+    private UUID id; // Mantém como UUID aqui para performance no banco
 
     @Column(unique = true, nullable = false, length = 150)
     private String email;
@@ -41,11 +43,11 @@ public class UserEntity {
     private LocalDateTime createdAt; // Gerado automaticamente pelo Hibernate
 
     private String phoneNumber;
-    
+
     private String profilePictureUrl;
 
     /**
-     * PrePersist garante que novos usuários sempre nasçam ativos 
+     * PrePersist garante que novos usuários sempre nasçam ativos
      * se o valor não for especificado.
      */
     @PrePersist

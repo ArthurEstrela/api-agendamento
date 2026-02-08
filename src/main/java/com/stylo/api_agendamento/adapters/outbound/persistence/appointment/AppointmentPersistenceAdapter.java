@@ -55,24 +55,25 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
 
     @Override
     public boolean hasConflictingAppointment(String professionalId, LocalDateTime start, LocalDateTime end) {
-        // Verifica se existe algum agendamento que sobrepõe o horário solicitado
-        // Regra: (Início solicitado < Fim existente) E (Fim solicitado > Início existente)
         return jpaAppointmentRepository.existsOverlapping(UUID.fromString(professionalId), start, end);
     }
 
+    // Implementação corrigida para satisfazer a interface
     @Override
-    public List<Appointment> findAppointmentsToNotify(LocalDateTime threshold) {
-        //Threshold é o tempo atual + reminderMinutes
-        return jpaAppointmentRepository.findToNotify(threshold)
+    public List<Appointment> findPendingReminders(LocalDateTime now) {
+        // Chamamos o JpaRepository passando o tempo atual para o cálculo da query
+        return jpaAppointmentRepository.findPendingReminders(now)
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
     }
 
-    public List<Appointment> findPendingReminders() {
-    return jpaAppointmentRepository.findAllByNotifiedFalseAndStatusScheduled()
-            .stream()
-            .map(appointmentMapper::toDomain)
-            .collect(Collectors.toList());
-}
+    // Método antigo/duplicado que pode ser removido se não estiver na interface
+    @Override
+    public List<Appointment> findAppointmentsToNotify(LocalDateTime threshold) {
+        return jpaAppointmentRepository.findToNotify(threshold)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }

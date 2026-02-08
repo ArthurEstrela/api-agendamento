@@ -39,4 +39,13 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
                         "AND a.reminderSent = false " +
                         "AND a.startTime <= :limit")
         List<AppointmentEntity> findAppointmentsToRemind(@Param("limit") LocalDateTime limit);
+
+        // No JpaAppointmentRepository.java
+        @Query(value = """
+                        SELECT * FROM appointments a
+                        WHERE a.status = 'SCHEDULED'
+                        AND a.reminder_sent = false
+                        AND (a.start_time - (a.reminder_minutes * interval '1 minute')) <= :now
+                        """, nativeQuery = true)
+        List<AppointmentEntity> findPendingReminders(@Param("now") LocalDateTime now);
 }
