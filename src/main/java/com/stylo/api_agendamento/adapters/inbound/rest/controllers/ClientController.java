@@ -19,6 +19,17 @@ public class ClientController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
-    
-    // Outros métodos como updateProfile seriam adicionados aqui
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<Client> updateProfile(
+            @PathVariable String id, 
+            @RequestBody Client updatedData) {
+        
+        return clientRepository.findById(id)
+                .map(client -> {
+                    // Lógica de atualização aqui
+                    return ResponseEntity.ok(clientRepository.save(client));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
 }

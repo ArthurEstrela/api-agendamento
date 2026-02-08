@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -18,11 +19,12 @@ import org.springframework.web.bind.annotation.*;
 public class ServiceProviderController {
 
     private final RegisterServiceProviderUseCase registerUseCase;
+    private final PasswordEncoder passwordEncoder; // Adicionado para segurança
 
     @PostMapping("/register")
     public ResponseEntity<ServiceProvider> register(@RequestBody @Valid RegisterServiceProviderRequest request) {
         
-        // Mapeamento para Value Objects do Domínio
+        // Mapeamento para Value Objects do Domínio utilizando o Builder do Address
         var address = Address.builder()
             .street(request.address().street())
             .number(request.address().number())
@@ -32,17 +34,25 @@ public class ServiceProviderController {
             .zipCode(request.address().zipCode())
             .build();
 
-        // Geração simples de Slug (ou poderia vir no request)
-        String generatedSlugValue = request.businessName().toLowerCase().replaceAll("\\s+", "-");
+        // Geração automática de Slug baseada no nome da empresa
+        String generatedSlugValue = request.businessName().toLowerCase()
+                .trim()
+                .replaceAll("[^a-z0-9\\s]", "")
+                .replaceAll("\\s+", "-");
 
+        // Criptografia da senha antes de enviar para a camada de Use Case
+        String encryptedPassword = passwordEncoder.encode(request.ownerPassword());
+
+        // Criação do Input corrigido para o RegisterServiceProviderUseCase
         var input = new RegisterServiceProviderUseCase.ServiceProviderInput(
             request.businessName(),
-            new Document(request.document(), "CNPJ"), // Assume CNPJ por padrão no cadastro de business
+            new Document(request.document(), "CNPJ"), 
             new Slug(generatedSlugValue),
             address,
             request.ownerName(),
             request.ownerEmail(),
-            true // Por padrão, o dono é criado como um profissional disponível na agenda
+            encryptedPassword, // Nova propriedade obrigatória de segurança
+            true 
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(registerUseCase.execute(input));

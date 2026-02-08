@@ -6,7 +6,6 @@ import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
-import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
@@ -23,7 +22,7 @@ public class RegisterServiceProviderUseCase {
     private final IUserRepository userRepository;
 
     public ServiceProvider execute(ServiceProviderInput input) {
-        // 1. Segurança e Integridade: Validar se o documento (CPF/CNPJ) ou Slug já existem
+        // 1. Validações de Unicidade
         if (providerRepository.existsByDocument(input.document())) {
             throw new BusinessException("Já existe um estabelecimento cadastrado com este documento.");
         }
@@ -32,45 +31,43 @@ public class RegisterServiceProviderUseCase {
             throw new BusinessException("Esta URL amigável já está em uso.");
         }
 
-        // 2. Criar a Identidade de Acesso (User)
+        // 2. Criar Usuário com Senha (input.password agora existe)
         User user = User.create(input.ownerName(), input.email(), UserRole.SERVICE_PROVIDER);
-        User savedUser = userRepository.save(user);
+        User.withPassword(user, input.password());
+        userRepository.save(user);
 
-        // 3. Criar o Estabelecimento (ServiceProvider)
+        // 3. Criar o Estabelecimento
         ServiceProvider provider = ServiceProvider.create(
-            input.businessName(),
-            input.document(),
-            input.slug(),
-            input.address()
-        );
+                input.businessName(),
+                input.document(),
+                input.slug(),
+                input.address());
+
         ServiceProvider savedProvider = providerRepository.save(provider);
 
-        // 4. Criar o Perfil de Profissional do Dono (Opcional, mas comum no Stylo)
-        // Isso garante que o dono apareça na agenda imediatamente se ele for um prestador
+        // 4. Perfil de Profissional (Opcional)
         if (input.ownerIsProfessional()) {
             Professional ownerProfile = Professional.create(
-                input.ownerName(),
-                input.email(),
-                savedProvider.getId(),
-                new ArrayList<>(), // Inicia sem serviços, ele adicionará depois
-                new ArrayList<>()  // Inicia sem disponibilidade, ele configurará
-            );
-            // Marcar como dono no perfil de profissional também
-            // (Assumindo que adicionamos o setter ou usamos o builder no domínio)
+                    input.ownerName(),
+                    input.email(),
+                    savedProvider.getId(),
+                    new ArrayList<>(),
+                    new ArrayList<>());
             professionalRepository.save(ownerProfile);
         }
 
         return savedProvider;
     }
 
-    // DTO de entrada para manter o Use Case limpo
+    // Record corrigido com o campo password
     public record ServiceProviderInput(
-        String businessName,
-        Document document,
-        Slug slug,
-        com.stylo.api_agendamento.core.domain.vo.Address address,
-        String ownerName,
-        String email,
-        boolean ownerIsProfessional
-    ) {}
+            String businessName,
+            Document document,
+            Slug slug,
+            com.stylo.api_agendamento.core.domain.vo.Address address,
+            String ownerName,
+            String email,
+            String password, // Adicionado para resolver o erro
+            boolean ownerIsProfessional) {
+    }
 }

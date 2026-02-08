@@ -17,9 +17,22 @@ public class ExpenseController {
     private final IFinancialRepository financialRepository;
 
     @PostMapping
-    public ResponseEntity<Expense> create(@RequestBody @Valid CreateExpenseRequest request) {
-        // O mapeamento seria feito aqui para o objeto de domínio Expense
-        // E salvo via repositório ou UseCase específico de criação
+    public ResponseEntity<Void> create(
+            @RequestHeader("X-Provider-ID") String providerId, 
+            @RequestBody @Valid CreateExpenseRequest request) {
+        
+        // Mapeamento corrigido para usar .providerId() conforme o domínio
+        Expense expense = Expense.builder()
+                .description(request.description())
+                .amount(request.amount())
+                .date(request.date())
+                .category(request.category())
+                .providerId(providerId)
+                .build();
+
+        // Como o port retorna void, executamos a ação e retornamos Created
+        financialRepository.saveExpense(expense);
+        
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 }
