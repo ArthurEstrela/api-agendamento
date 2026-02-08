@@ -1,15 +1,16 @@
 package com.stylo.api_agendamento.core.domain.vo;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.AllArgsConstructor;
 
-@Data
-@Builder
+@Getter
+@AllArgsConstructor
 public class Address {
-    private String street;
-    private String number;
-    private String neighborhood;
-    private String city;
-    private String state;
-    private String zipCode;
+    private final String street;
+    private final String number;
+    private final String complement;
+    private final String neighborhood;
+    private final String city;
+    private final String state;
+    private final String zipCode;
 }

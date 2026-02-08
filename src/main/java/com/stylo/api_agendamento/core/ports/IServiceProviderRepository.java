@@ -8,7 +8,12 @@ import com.stylo.api_agendamento.core.domain.vo.Slug;
 
 public interface IServiceProviderRepository {
     ServiceProvider save(ServiceProvider provider);
+
     Optional<ServiceProvider> findById(String id);
+
     Optional<ServiceProvider> findBySlug(Slug slug);
+
     boolean existsByDocument(Document document);
+
+    boolean existsBySlug(String slug);
 }

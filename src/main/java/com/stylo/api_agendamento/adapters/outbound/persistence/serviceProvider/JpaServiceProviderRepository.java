@@ -9,4 +9,6 @@ public interface JpaServiceProviderRepository extends JpaRepository<ServiceProvi
     Optional<ServiceProviderEntity> findByPublicProfileSlug(String slug);
 
     boolean existsByDocumentValue(String value);
+
+    boolean existsByPublicProfileSlug(String slug);
 }

@@ -15,6 +15,8 @@ public interface JpaServiceRepository extends JpaRepository<ServiceEntity, UUID>
     // Busca serviços específicos por ID dentro de um salão (segurança extra)
     List<ServiceEntity> findAllByIdInAndServiceProviderId(List<UUID> ids, UUID serviceProviderId);
 
+    List<ServiceEntity> findAllByCategoryId(UUID categoryId);
+
     // Caso queiras filtrar serviços ativos/inativos no futuro
     // List<ServiceEntity> findAllByServiceProviderIdAndActiveTrue(UUID serviceProviderId);
 }

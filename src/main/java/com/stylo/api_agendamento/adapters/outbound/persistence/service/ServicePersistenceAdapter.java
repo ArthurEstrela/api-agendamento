@@ -53,4 +53,23 @@ public class ServicePersistenceAdapter implements IServiceRepository {
                 .map(serviceMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    // Implementação do método findAll() requisitado pelo erro
+    @Override
+    public List<Service> findAll() {
+        return jpaServiceRepository.findAll()
+                .stream()
+                .map(serviceMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    // Implementação do método findByCategoryId(String) requisitado pelo erro
+    @Override
+    public List<Service> findByCategoryId(String categoryId) {
+        // Assume-se que o JpaServiceRepository possua um método de busca por categoria
+        return jpaServiceRepository.findAllByCategoryId(UUID.fromString(categoryId))
+                .stream()
+                .map(serviceMapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }

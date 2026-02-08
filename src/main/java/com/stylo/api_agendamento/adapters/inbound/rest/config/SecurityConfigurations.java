@@ -30,15 +30,16 @@ public class SecurityConfigurations {
                         .requestMatchers(HttpMethod.POST, "/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/v1/service-providers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/appointments/slots").permitAll() // Agenda pública
-                        .requestMatchers("/v1/financial/**").hasRole("SERVICE_PROVIDER") // Somente donos
-                        .anyRequest().authenticated()
-                )
+                        .requestMatchers("/v1/service-providers/settings/**").hasRole("SERVICE_PROVIDER")
+                        .requestMatchers("/v1/financial/**").hasRole("SERVICE_PROVIDER")
+                        .anyRequest().authenticated())
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration)
+            throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 

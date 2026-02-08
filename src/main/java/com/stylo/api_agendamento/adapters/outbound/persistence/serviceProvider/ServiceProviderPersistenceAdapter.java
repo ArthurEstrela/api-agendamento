@@ -32,15 +32,18 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
 
     @Override
     public Optional<ServiceProvider> findBySlug(Slug slug) {
-        // Extrai o valor String do Record Slug
         return jpaServiceProviderRepository.findByPublicProfileSlug(slug.value())
                 .map(serviceProviderMapper::toDomain);
     }
 
+    // Implementação do método que estava faltando
+    @Override
+    public boolean existsBySlug(String slug) {
+        return jpaServiceProviderRepository.existsByPublicProfileSlug(slug);
+    }
+
     @Override
     public boolean existsByDocument(Document document) {
-        // No seu JpaServiceProviderRepository você deve ter um método: 
-        // boolean existsByDocumentValue(String value);
         return jpaServiceProviderRepository.existsByDocumentValue(document.value());
     }
 }

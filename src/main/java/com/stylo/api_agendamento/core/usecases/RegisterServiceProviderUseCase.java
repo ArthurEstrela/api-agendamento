@@ -31,21 +31,22 @@ public class RegisterServiceProviderUseCase {
             throw new BusinessException("Esta URL amigável já está em uso.");
         }
 
-        // 2. Criar Usuário com Senha (input.password agora existe)
+        // 2. Criar Usuário com Senha
         User user = User.create(input.ownerName(), input.email(), UserRole.SERVICE_PROVIDER);
         User.withPassword(user, input.password());
         userRepository.save(user);
 
-        // 3. Criar o Estabelecimento
+        // 3. Criar o Estabelecimento (Passando input.email() como ownerEmail)
         ServiceProvider provider = ServiceProvider.create(
                 input.businessName(),
                 input.document(),
                 input.slug(),
-                input.address());
+                input.address(),
+                input.email()); // Mapeado do e-mail do dono
 
         ServiceProvider savedProvider = providerRepository.save(provider);
 
-        // 4. Perfil de Profissional (Opcional)
+        // 4. Perfil de Profissional Automático (Opcional)
         if (input.ownerIsProfessional()) {
             Professional ownerProfile = Professional.create(
                     input.ownerName(),
@@ -59,7 +60,6 @@ public class RegisterServiceProviderUseCase {
         return savedProvider;
     }
 
-    // Record corrigido com o campo password
     public record ServiceProviderInput(
             String businessName,
             Document document,
@@ -67,7 +67,7 @@ public class RegisterServiceProviderUseCase {
             com.stylo.api_agendamento.core.domain.vo.Address address,
             String ownerName,
             String email,
-            String password, // Adicionado para resolver o erro
+            String password,
             boolean ownerIsProfessional) {
     }
 }
