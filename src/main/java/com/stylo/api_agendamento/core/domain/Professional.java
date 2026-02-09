@@ -4,6 +4,8 @@ import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Collections;
@@ -19,6 +21,9 @@ public class Professional {
     private final String email;
     private String avatarUrl;
     private String bio;
+    private RemunerationType remunerationType;
+    private BigDecimal commissionRate; // ex: 0.40
+    private BigDecimal fixedValue; // ex: 20.00
 
     private final List<Service> services; // Serviços que ele está habilitado a fazer
     private List<DailyAvailability> availability; // Grade de horários semanal
@@ -104,5 +109,21 @@ public class Professional {
         }
 
         this.availability = newAvailability;
+    }
+
+    public void updateCommissionRate(BigDecimal newRate) {
+        if (newRate.compareTo(BigDecimal.ZERO) < 0 || newRate.compareTo(BigDecimal.valueOf(1)) > 0) {
+            throw new BusinessException("A taxa de comissão deve estar entre 0 e 1 (0% a 100%).");
+        }
+        this.commissionRate = newRate;
+    }
+
+    public BigDecimal calculateCommission(BigDecimal totalServiceValue) {
+        return switch (this.remunerationType) {
+            case COMMISSION -> totalServiceValue.multiply(this.commissionRate)
+                    .setScale(2, RoundingMode.HALF_UP);
+            case FIXED_FEE -> this.fixedValue;
+            case CHAIR_RENTAL -> totalServiceValue; // Profissional fica com tudo
+        };
     }
 }

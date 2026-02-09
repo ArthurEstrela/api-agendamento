@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.financial;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.appointment.JpaAppointmentRepository;
 import com.stylo.api_agendamento.core.domain.Expense;
 import com.stylo.api_agendamento.core.ports.IFinancialRepository;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,24 @@ public class FinancialPersistenceAdapter implements IFinancialRepository {
 
     @Override
     public void registerRevenue(String providerId, BigDecimal amount, String description, LocalDateTime date) {
-        // Método exigido pela porta, mas que no seu fluxo atual 
+        // Método exigido pela porta, mas que no seu fluxo atual
         // é suprido pelos agendamentos concluídos. Pode ficar vazio ou logar.
+    }
+
+    // FinancialPersistenceAdapter.java
+    private final JpaAppointmentRepository jpaAppointmentRepository;
+
+    public BigDecimal getNetProfit(String providerId, LocalDateTime start, LocalDateTime end) {
+        BigDecimal totalFees = jpaAppointmentRepository.sumNetRevenue(UUID.fromString(providerId), start, end);
+
+        // Busca despesas usando o repositório que você já tem
+        List<ExpenseEntity> expenses = jpaExpenseRepository.findAllByServiceProviderIdAndDateBetween(
+                UUID.fromString(providerId), start, end);
+
+        BigDecimal totalExpenses = expenses.stream()
+                .map(ExpenseEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return (totalFees != null ? totalFees : BigDecimal.ZERO).subtract(totalExpenses);
     }
 }

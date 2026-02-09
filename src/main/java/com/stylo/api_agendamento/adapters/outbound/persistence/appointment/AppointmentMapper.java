@@ -7,12 +7,12 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-@Mapper(componentModel = "spring", uses = {ServiceMapper.class})
+@Mapper(componentModel = "spring", uses = { ServiceMapper.class })
 public interface AppointmentMapper {
-
     @Mapping(target = "clientPhone", source = "clientPhone.value")
-    // Mapeia isPersonalBlock do domínio para o campo da entidade (ajuste o target conforme o nome na sua AppointmentEntity)
     @Mapping(target = "isPersonalBlock", source = "personalBlock")
+    // MapStruct mapeará professionalCommission e serviceProviderFee automaticamente
+    // por terem o mesmo nome
     AppointmentEntity toEntity(Appointment domain);
 
     @Mapping(target = "clientPhone", source = "clientPhone", qualifiedByName = "mapPhone")

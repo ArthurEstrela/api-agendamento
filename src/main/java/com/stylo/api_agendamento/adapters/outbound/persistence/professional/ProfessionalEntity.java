@@ -2,11 +2,14 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.professional;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
+import com.stylo.api_agendamento.core.domain.RemunerationType;
 
 @Entity
 @Table(name = "professionals")
@@ -48,4 +51,14 @@ public class ProfessionalEntity {
 
     private Integer slotInterval;
     private boolean isOwner;
+
+    // ProfessionalEntity.java
+    @Enumerated(EnumType.STRING)
+    private RemunerationType remunerationType;
+
+    @Column(precision = 5, scale = 2)
+    private BigDecimal commissionRate; // ex: 0.40 para 40%
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal fixedValue; // ex: 20.00
 }

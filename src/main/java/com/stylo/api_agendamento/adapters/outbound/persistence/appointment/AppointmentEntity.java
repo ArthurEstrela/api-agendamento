@@ -13,7 +13,11 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "appointments")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AppointmentEntity {
 
     @Id
@@ -30,15 +34,11 @@ public class AppointmentEntity {
 
     @Column(nullable = false)
     private UUID professionalId;
-    
+
     private String professionalName;
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "appointment_services",
-        joinColumns = @JoinColumn(name = "appointment_id"),
-        inverseJoinColumns = @JoinColumn(name = "service_id")
-    )
+    @JoinTable(name = "appointment_services", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     private List<ServiceEntity> services;
 
     @Column(nullable = false)
@@ -55,16 +55,23 @@ public class AppointmentEntity {
 
     private BigDecimal totalPrice;
     private BigDecimal finalPrice;
-    
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
-    
+
     private Integer reminderMinutes;
     private boolean notified;
-    
+
     @Column(nullable = false)
     private boolean isPersonalBlock;
+
+    // AppointmentEntity.java
+    @Column(precision = 10, scale = 2)
+    private BigDecimal professionalCommission; // Parte do profissional
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal serviceProviderFee; // Lucro do salão (SaaS Client)
 }

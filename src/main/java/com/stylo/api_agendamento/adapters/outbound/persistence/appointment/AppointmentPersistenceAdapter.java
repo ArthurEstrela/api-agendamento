@@ -5,6 +5,7 @@ import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -83,5 +84,14 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end) {
+        BigDecimal result = jpaAppointmentRepository.sumProfessionalCommissionByPeriod(
+                UUID.fromString(professionalId), start, end);
+
+        // Garantir que não retorne null caso não existam agendamentos no período
+        return result != null ? result : BigDecimal.ZERO;
     }
 }

@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.ports;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,4 +26,6 @@ public interface IAppointmentRepository {
     List<Appointment> findPendingReminders(LocalDateTime targetTime);
 
     List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end);
+
+    BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end);
 }

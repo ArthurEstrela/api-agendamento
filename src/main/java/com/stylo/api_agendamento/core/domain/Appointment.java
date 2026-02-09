@@ -8,6 +8,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Collections;
 
 @Getter
@@ -27,6 +28,8 @@ public class Appointment {
 
     private LocalDateTime startTime;
     private LocalDateTime endTime; // Essencial para validação de conflitos
+    private BigDecimal professionalCommission; // Valor em R$ para o profissional
+    private BigDecimal serviceProviderFee; // Valor em R$ para o salão
     private AppointmentStatus status;
     private PaymentMethod paymentMethod;
 
@@ -131,13 +134,18 @@ public class Appointment {
         this.status = AppointmentStatus.SCHEDULED;
     }
 
-    public void complete(PaymentMethod method, BigDecimal finalPrice) {
+    public void complete(Professional professional) {
         if (this.status != AppointmentStatus.SCHEDULED) {
-            throw new BusinessException("O agendamento deve estar confirmado para ser finalizado.");
+            throw new BusinessException("Apenas agendamentos confirmados podem ser finalizados.");
         }
+
+        // O agendamento pede ao profissional para calcular a parte dele
+        this.professionalCommission = professional.calculateCommission(this.totalPrice);
+
+        // O que sobra é do dono do SaaS (ServiceProvider)
+        this.serviceProviderFee = this.totalPrice.subtract(this.professionalCommission);
+
         this.status = AppointmentStatus.COMPLETED;
-        this.paymentMethod = method;
-        this.finalPrice = finalPrice;
         this.completedAt = LocalDateTime.now();
     }
 
