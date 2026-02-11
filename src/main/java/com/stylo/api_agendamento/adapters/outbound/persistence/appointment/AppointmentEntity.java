@@ -53,6 +53,9 @@ public class AppointmentEntity {
     @Enumerated(EnumType.STRING)
     private PaymentMethod paymentMethod;
 
+    @Column(name = "external_event_id")
+    private String externalEventId;
+
     private BigDecimal totalPrice;
     private BigDecimal finalPrice;
 

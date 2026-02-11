@@ -18,69 +18,73 @@ public class CreateAppointmentUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IServiceRepository serviceRepository;
     private final IUserRepository userRepository;
-    private final ICalendarProvider calendarProvider; // Porta para integração com Google Calendar
+    private final ICalendarProvider calendarProvider;
 
     public Appointment execute(CreateAppointmentInput input) {
-        // 1. Buscar o Profissional e validar existência
+        // 1. Validações Iniciais
         Professional professional = professionalRepository.findById(input.professionalId())
                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
-        // 2. Buscar o Cliente (Usuário) para obter nome e telefone
         User client = userRepository.findById(input.clientId())
                 .orElseThrow(() -> new BusinessException("Cliente não encontrado."));
 
-        // 3. Buscar e validar os serviços solicitados
         List<Service> requestedServices = serviceRepository.findAllByIds(input.serviceIds());
         if (requestedServices.isEmpty()) {
-            throw new BusinessException("É necessário selecionar ao menos um serviço válido.");
+            throw new BusinessException("Selecione ao menos um serviço.");
         }
 
-        // 4. Regra de Negócio: Validar se o profissional realiza esses serviços
+        // 2. Regras de Negócio de Disponibilidade
         professional.validateCanPerform(requestedServices);
 
-        // 5. Regra de Negócio: Validar se o horário está dentro da grade (isAvailable)
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
         if (!professional.isAvailable(input.startTime(), totalDuration)) {
-            throw new BusinessException("O profissional não está disponível ou está fechado neste horário.");
+            throw new BusinessException("Profissional indisponível neste horário.");
         }
 
-        // 6. Criar a instância do Domínio (Usa a fábrica blindada)
+        // 3. Criação do Objeto de Domínio
         Appointment appointment = Appointment.create(
-            client.getId(),
-            client.getName(),
-            client.getEmail(),
-            professional.getServiceProviderName(),
-            new ClientPhone(client.getPhoneNumber()),
-            professional.getServiceProviderId(),
-            professional.getId(),
-            professional.getName(),
-            requestedServices,
-            input.startTime(),
-            input.reminderMinutes()
-        );
+                client.getId(),
+                client.getName(),
+                client.getEmail(),
+                professional.getServiceProviderName(),
+                new ClientPhone(client.getPhoneNumber()),
+                professional.getServiceProviderId(),
+                professional.getId(),
+                professional.getName(),
+                requestedServices,
+                input.startTime(),
+                input.reminderMinutes());
 
-        // 7. Proteção Anti-Conflito (Double Booking)
+        // 4. Double Booking Check (Concorrência)
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 appointment.getProfessionalId(),
                 appointment.getStartTime(),
-                appointment.getEndTime()
-        );
+                appointment.getEndTime());
 
         if (hasConflict) {
-            throw new BusinessException("Este horário acabou de ser ocupado. Por favor, escolha outro.");
+            throw new BusinessException("Este horário acabou de ser ocupado.");
         }
 
-        // 8. Persistência no Banco de Dados (Prioridade do Sistema)
+        // 5. Primeira Persistência (Garante o ID do agendamento)
         Appointment savedAppointment = appointmentRepository.save(appointment);
 
-        // 9. Sincronização com Google Calendar (Resiliência SaaS)
-        // O uso de try-catch garante que se o Google falhar, o agendamento no Stylo permanece válido
+        // 6. Integração Google Calendar (Pós-persistência)
         try {
-            calendarProvider.createEvent(savedAppointment);
+            // Agora o método retorna String corretamente
+            String googleEventId = calendarProvider.createEvent(savedAppointment);
+
+            if (googleEventId != null) {
+                // Atualiza o objeto com o ID externo
+                savedAppointment.setExternalEventId(googleEventId);
+
+                // Salva novamente para persistir o vínculo
+                appointmentRepository.save(savedAppointment);
+
+                log.info("Sincronização Google OK. EventID: {}", googleEventId);
+            }
         } catch (Exception e) {
-            // Logamos o erro para monitoramento sem interromper a experiência do usuário
-            log.error("Falha ao sincronizar agendamento {} com Google Calendar: {}", 
-                savedAppointment.getId(), e.getMessage());
+            // Falha silenciosa para não cancelar o agendamento no sistema
+            log.error("Erro na sincronização com Google Calendar: {}", e.getMessage());
         }
 
         return savedAppointment;
@@ -91,6 +95,6 @@ public class CreateAppointmentUseCase {
             String professionalId,
             List<String> serviceIds,
             LocalDateTime startTime,
-            Integer reminderMinutes
-    ) {}
+            Integer reminderMinutes) {
+    }
 }

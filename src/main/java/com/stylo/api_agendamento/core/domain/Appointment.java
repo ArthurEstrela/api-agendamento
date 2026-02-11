@@ -41,6 +41,9 @@ public class Appointment {
     private final Integer reminderMinutes;
     private boolean reminderSent;
 
+    @Setter 
+    private String externalEventId;
+
     private boolean notified;
     private final boolean isPersonalBlock;
 

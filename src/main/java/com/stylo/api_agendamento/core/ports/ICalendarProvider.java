@@ -5,7 +5,11 @@ import com.stylo.api_agendamento.core.usecases.dto.ExternalEvent;
 import java.util.List;
 
 public interface ICalendarProvider {
-    void createEvent(Appointment appointment); 
+    String createEvent(Appointment appointment);
+
     List<ExternalEvent> fetchRecentEvents(String professionalId);
+
     void watchCalendar(String professionalId, String webhookUrl);
+
+    void deleteEvent(String professionalId, String externalEventId);
 }
