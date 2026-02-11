@@ -15,6 +15,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -44,53 +45,56 @@ public class CompleteAppointmentUseCase {
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 4. Lógica de Produtos
-        // Adiciona os produtos ao domínio para que ele calcule o total corretamente depois
+        // 4. Lógica de Produtos (Otimizada)
         if (input.soldProducts() != null && !input.soldProducts().isEmpty()) {
+            List<Product> productsToAdd = new ArrayList<>();
+            List<Integer> quantities = new ArrayList<>();
+
             for (ProductSaleItem item : input.soldProducts()) {
                 Product product = productRepository.findById(item.productId())
                         .orElseThrow(() -> new EntityNotFoundException("Produto não encontrado: " + item.productId()));
 
-                // Deduz estoque
+                // Deduz estoque e salva o produto atualizado
                 product.deductStock(item.quantity());
                 productRepository.save(product);
 
-                // Adiciona ao agendamento (Domínio)
-                // OBS: Criamos o método 'addProducts' no Appointment.java na resposta anterior
-                // Se não tiver, faça a soma manual aqui, mas o ideal é usar o domínio.
-                // Vou manter a lógica manual aqui para garantir compatibilidade caso não tenha atualizado o Appointment
+                // Prepara listas para o domínio
+                productsToAdd.add(product);
+                quantities.add(item.quantity());
             }
-            // OBS: O ideal seria chamar appointment.addProducts(...) aqui.
-        }
-        
-        // Recalculo manual dos produtos para somar no final (Fallback se não usar appointment.addProducts)
-        BigDecimal productsTotal = BigDecimal.ZERO;
-        if (input.soldProducts() != null) {
-             for (ProductSaleItem item : input.soldProducts()) {
-                Product p = productRepository.findById(item.productId()).orElseThrow();
-                productsTotal = productsTotal.add(p.getPrice().multiply(new BigDecimal(item.quantity())));
-             }
+            
+            // O PULO DO GATO: Passa para o domínio criar os AppointmentItems e calcular totais
+            appointment.addProducts(productsToAdd, quantities);
         }
 
-        // 5. Define valor final do SERVIÇO
-        // CORREÇÃO: Usamos appointment.getPrice() que já contém o total dos serviços (calculado na criação)
-        BigDecimal serviceFinalPrice = input.serviceFinalPrice() != null 
+        // 5. Finaliza (O domínio já tem o preço base somado em 'price')
+        // Se serviceFinalPrice vier nulo, usa o preço original dos serviços (calculado no create)
+        // OBS: appointment.getServices() soma o total original.
+        // Aqui assumimos que o input.serviceFinalPrice é o valor COBRADO pelo serviço (com desconto ou não).
+        BigDecimal finalServicePriceToCharge = input.serviceFinalPrice() != null 
                 ? input.serviceFinalPrice() 
-                : appointment.getPrice(); 
+                : appointment.getServices().stream().map(s -> s.getPrice()).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal grandTotal = serviceFinalPrice.add(productsTotal);
+        // Subtrai do total calculado pelo domínio a diferença (desconto) se houver, 
+        // ou passa o desconto explicitamente para o método complete.
+        // Simplificação: Passamos o desconto para o complete
+        
+        // Calculamos o desconto dado no serviço: (Preço Original Serviço - Preço Final Serviço)
+        BigDecimal originalServicePrice = appointment.getServices().stream()
+                .map(s -> s.getPrice())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal discount = originalServicePrice.subtract(finalServicePriceToCharge);
+        if (discount.compareTo(BigDecimal.ZERO) < 0) discount = BigDecimal.ZERO; // Evita desconto negativo (acréscimo)
 
-        // 6. Finaliza o Agendamento
-        appointment.setPrice(serviceFinalPrice); // Atualiza o preço base do serviço cobrado
-        appointment.complete(professional);
+        // 6. Finaliza o Agendamento no Domínio
+        appointment.complete(professional, discount);
         appointment.setPaymentMethod(input.paymentMethod());
-        // Se você tiver implementado a lista de produtos no Appointment, adicione-os aqui
 
-        // 7. Registro Financeiro
-        // CORREÇÃO: O método no repositório precisa aceitar PaymentMethod
+        // 7. Registro Financeiro (Usa o finalPrice calculado pelo domínio que já soma produtos + serviço com desconto)
         financialRepository.registerRevenue(
             appointment.getServiceProviderId(),
-            grandTotal,
+            appointment.getFinalPrice(), // Valor exato cobrado
             "Receita de Agendamento #" + appointment.getId(),
             input.paymentMethod()
         );
