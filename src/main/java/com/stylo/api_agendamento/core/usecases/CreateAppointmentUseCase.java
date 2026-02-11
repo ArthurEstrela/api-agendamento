@@ -5,17 +5,20 @@ import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 public class CreateAppointmentUseCase {
 
     private final IAppointmentRepository appointmentRepository;
     private final IProfessionalRepository professionalRepository;
     private final IServiceRepository serviceRepository;
-    private final IUserRepository userRepository; // Para buscar dados do cliente
+    private final IUserRepository userRepository;
+    private final ICalendarProvider calendarProvider; // Porta para integração com Google Calendar
 
     public Appointment execute(CreateAppointmentInput input) {
         // 1. Buscar o Profissional e validar existência
@@ -42,12 +45,11 @@ public class CreateAppointmentUseCase {
         }
 
         // 6. Criar a instância do Domínio (Usa a fábrica blindada)
-        // O método 'create' já calcula o endTime e o totalPrice internamente
         Appointment appointment = Appointment.create(
             client.getId(),
             client.getName(),
-            client.getEmail(), // <--- Passar o e-mail aqui
-            professional.getServiceProviderName(), // <--- Pegar o nome do salão/loja
+            client.getEmail(),
+            professional.getServiceProviderName(),
             new ClientPhone(client.getPhoneNumber()),
             professional.getServiceProviderId(),
             professional.getId(),
@@ -55,10 +57,9 @@ public class CreateAppointmentUseCase {
             requestedServices,
             input.startTime(),
             input.reminderMinutes()
-    );
+        );
 
         // 7. Proteção Anti-Conflito (Double Booking)
-        // Verificamos no banco se alguém agendou o mesmo intervalo enquanto o cliente escolhia
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 appointment.getProfessionalId(),
                 appointment.getStartTime(),
@@ -69,11 +70,22 @@ public class CreateAppointmentUseCase {
             throw new BusinessException("Este horário acabou de ser ocupado. Por favor, escolha outro.");
         }
 
-        // 8. Persistência
-        return appointmentRepository.save(appointment);
+        // 8. Persistência no Banco de Dados (Prioridade do Sistema)
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+
+        // 9. Sincronização com Google Calendar (Resiliência SaaS)
+        // O uso de try-catch garante que se o Google falhar, o agendamento no Stylo permanece válido
+        try {
+            calendarProvider.createEvent(savedAppointment);
+        } catch (Exception e) {
+            // Logamos o erro para monitoramento sem interromper a experiência do usuário
+            log.error("Falha ao sincronizar agendamento {} com Google Calendar: {}", 
+                savedAppointment.getId(), e.getMessage());
+        }
+
+        return savedAppointment;
     }
 
-    // DTO de entrada para manter o Use Case puro
     public record CreateAppointmentInput(
             String clientId,
             String professionalId,
