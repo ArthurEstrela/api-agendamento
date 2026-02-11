@@ -5,59 +5,80 @@ import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
-import java.time.LocalDateTime;
-import java.util.List;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.util.Collections;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Appointment {
-    private final String id;
-    private final String clientId;
-    private final String clientName;
-    private final String clientEmail; // Adicionado para notificações
-    private final String businessName; // Adicionado para o corpo do e-mail
-    private final ClientPhone clientPhone;
-    private final String providerId;
-    private final String professionalId;
-    private final String professionalName;
-    private final List<Service> services;
 
+    private String id;
+    private String clientId;
+    private String clientName;
+    private String clientEmail;
+    private String businessName;
+    private ClientPhone clientPhone;
+
+    private String serviceProviderId;
+    private String providerId;
+
+    private String professionalId;
+    private String professionalName;
+
+    @Builder.Default
+    private List<Service> services = new ArrayList<>();
+
+    @Builder.Default
+    private List<AppointmentItem> products = new ArrayList<>();
+
+    @Setter
     private LocalDateTime startTime;
-    private LocalDateTime endTime; // Essencial para validação de conflitos
-    private BigDecimal professionalCommission; // Valor em R$ para o profissional
-    private BigDecimal serviceProviderFee; // Valor em R$ para o salão
+    private LocalDateTime endTime;
+
+    // Financeiro
+    private BigDecimal professionalCommission;
+    private BigDecimal serviceProviderFee;
+
+    @Setter
+    private BigDecimal price; // Preço Base
+
+    @Setter
+    private BigDecimal finalPrice; // Preço Cobrado (Pode ter desconto)
+
+    @Setter
     private AppointmentStatus status;
+
+    @Setter
     private PaymentMethod paymentMethod;
 
-    private final BigDecimal totalPrice;
-    private BigDecimal finalPrice;
+    @Setter
     private String notes;
-    private final LocalDateTime createdAt;
-    private LocalDateTime completedAt;
-    private final Integer reminderMinutes;
-    private boolean reminderSent;
 
-    @Setter 
+    private LocalDateTime createdAt;
+    private LocalDateTime completedAt;
+
+    private Integer reminderMinutes;
+    private boolean reminderSent;
+    private boolean notified;
+
+    @Setter
     private String externalEventId;
 
-    private boolean notified;
-    private final boolean isPersonalBlock;
+    private boolean isPersonalBlock;
 
-    // Fábrica para agendamentos via APP (Pelo Cliente)
+    // --- FACTORIES ---
+
     public static Appointment create(String clientId, String clientName, String clientEmail,
             String businessName, ClientPhone phone,
-            String providerId, String profId, String profName,
+            String serviceProviderId, String profId, String profName,
             List<Service> services, LocalDateTime start, Integer reminderMinutes) {
 
         validateServices(services);
-
-        BigDecimal total = services.stream()
-                .map(Service::getPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal serviceTotal = calculateServiceTotal(services);
 
         Appointment appointment = Appointment.builder()
                 .clientId(clientId)
@@ -65,17 +86,18 @@ public class Appointment {
                 .clientEmail(clientEmail)
                 .businessName(businessName)
                 .clientPhone(phone)
-                .providerId(providerId)
+                .serviceProviderId(serviceProviderId)
                 .professionalId(profId)
                 .professionalName(profName)
-                .services(Collections.unmodifiableList(services))
+                .services(new ArrayList<>(services))
+                .products(new ArrayList<>())
                 .startTime(start)
                 .status(AppointmentStatus.PENDING)
-                .totalPrice(total)
-                .finalPrice(total)
+                .price(serviceTotal)
+                .finalPrice(serviceTotal)
                 .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
                 .reminderSent(false)
-                .notified(false) // Garante que nasce sem notificação
+                .notified(false)
                 .isPersonalBlock(false)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -84,72 +106,115 @@ public class Appointment {
         return appointment;
     }
 
-    // Fábrica para agendamentos Manuais (Walk-in / Balcão)
     public static Appointment createManual(String clientName, ClientPhone phone,
-            String providerId, String profId, String profName,
+            String serviceProviderId, String profId, String profName,
             List<Service> services, LocalDateTime start, String notes) {
 
         validateServices(services);
-
-        BigDecimal total = services.stream()
-                .map(Service::getPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal serviceTotal = calculateServiceTotal(services);
 
         Appointment appointment = Appointment.builder()
-                .clientId(null)
                 .clientName(clientName)
                 .clientPhone(phone)
-                .providerId(providerId)
+                .serviceProviderId(serviceProviderId)
                 .professionalId(profId)
                 .professionalName(profName)
-                .services(Collections.unmodifiableList(services))
+                .services(new ArrayList<>(services))
+                .products(new ArrayList<>())
                 .startTime(start)
-                .status(AppointmentStatus.SCHEDULED) // Manual já nasce confirmado
-                .totalPrice(total)
-                .finalPrice(total)
-                .reminderMinutes(0) // Walk-in geralmente não tem lembrete de app
-                .notified(false)
+                .status(AppointmentStatus.SCHEDULED)
+                .price(serviceTotal)
+                .finalPrice(serviceTotal)
                 .notes(notes)
+                .reminderMinutes(0)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        appointment.calculateEndTime(); // <--- OBRIGATÓRIO AQUI TBM
+        appointment.calculateEndTime();
         return appointment;
     }
 
-    // --- REGRAS DE NEGÓCIO ---
-
-    private void calculateEndTime() {
-        int duration = services.stream().mapToInt(Service::getDuration).sum();
-        this.endTime = this.startTime.plusMinutes(duration);
+    public static Appointment createPersonalBlock(String profId, String profName, String serviceProviderId,
+            LocalDateTime start, LocalDateTime end, String reason) {
+        return Appointment.builder()
+                .professionalId(profId)
+                .professionalName(profName)
+                .serviceProviderId(serviceProviderId)
+                .startTime(start)
+                .endTime(end)
+                .status(AppointmentStatus.BLOCKED)
+                .isPersonalBlock(true) // Importante para o financeiro ignorar
+                .notes("BLOQUEIO PESSOAL: " + reason)
+                .price(BigDecimal.ZERO)
+                .finalPrice(BigDecimal.ZERO)
+                .services(new ArrayList<>()) // Lista vazia para evitar NullPointerException
+                .products(new ArrayList<>())
+                .reminderMinutes(0)
+                .notified(false)
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
-    private static void validateServices(List<Service> services) {
-        if (services == null || services.isEmpty()) {
-            throw new BusinessException("Ao menos um serviço deve ser selecionado.");
-        }
-    }
+    // --- MÉTODOS DE NEGÓCIO (Aqui estavam os erros) ---
 
+    // [CORREÇÃO 1] O método que faltava para o ConfirmAppointmentUseCase
     public void confirm() {
+        // Permite reconfirmar se estiver pendente ou reagendado
         if (this.status != AppointmentStatus.PENDING) {
             throw new BusinessException("Apenas agendamentos pendentes podem ser confirmados.");
         }
         this.status = AppointmentStatus.SCHEDULED;
     }
 
-    public void complete(Professional professional) {
-        if (this.status != AppointmentStatus.SCHEDULED) {
-            throw new BusinessException("Apenas agendamentos confirmados podem ser finalizados.");
+    // [CORREÇÃO 2] O método que faltava para o SendRemindersUseCase
+    public void markReminderAsSent() {
+        this.reminderSent = true;
+    }
+
+    public void addProducts(List<Product> productsToAdd, List<Integer> quantities) {
+        if (productsToAdd.size() != quantities.size()) {
+            throw new BusinessException("Quantidade de produtos e quantidades não batem.");
         }
 
-        // O agendamento pede ao profissional para calcular a parte dele
-        this.professionalCommission = professional.calculateCommission(this.totalPrice);
+        for (int i = 0; i < productsToAdd.size(); i++) {
+            Product p = productsToAdd.get(i);
+            Integer qty = quantities.get(i);
 
-        // O que sobra é do dono do SaaS (ServiceProvider)
-        this.serviceProviderFee = this.totalPrice.subtract(this.professionalCommission);
+            this.products.add(AppointmentItem.builder()
+                    .productId(p.getId())
+                    .productName(p.getName())
+                    .unitPrice(p.getPrice())
+                    .quantity(qty)
+                    .build());
+        }
+        recalculateTotals();
+    }
+
+    public void complete(Professional professional, BigDecimal discountValue) {
+        if (this.status == AppointmentStatus.CANCELLED) {
+            throw new BusinessException("Não é possível finalizar um agendamento cancelado.");
+        }
+
+        recalculateTotals();
+
+        if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
+            this.finalPrice = this.price.subtract(discountValue);
+            if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0)
+                this.finalPrice = BigDecimal.ZERO;
+        } else {
+            this.finalPrice = this.price;
+        }
+
+        BigDecimal serviceTotal = calculateServiceTotal(this.services);
+        this.professionalCommission = professional.calculateCommission(serviceTotal);
+        this.serviceProviderFee = this.finalPrice.subtract(this.professionalCommission);
 
         this.status = AppointmentStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
+    }
+
+    public void complete(Professional professional) {
+        complete(professional, BigDecimal.ZERO);
     }
 
     public void cancel() {
@@ -174,27 +239,46 @@ public class Appointment {
         this.notified = true;
     }
 
-    public static Appointment createPersonalBlock(String profId, String profName, String providerId,
-            LocalDateTime start, LocalDateTime end, String reason) {
-        return Appointment.builder()
-                .professionalId(profId)
-                .professionalName(profName)
-                .providerId(providerId)
-                .startTime(start)
-                .endTime(end)
-                .status(AppointmentStatus.BLOCKED)
-                .isPersonalBlock(true) // Crucial para o Financeiro ignorar
-                .notes("BLOQUEIO PESSOAL: " + reason)
-                .totalPrice(BigDecimal.ZERO)
-                .finalPrice(BigDecimal.ZERO)
-                .services(Collections.emptyList())
-                .reminderMinutes(0)
-                .notified(false)
-                .createdAt(LocalDateTime.now())
-                .build();
+    private void calculateEndTime() {
+        int duration = services.stream().mapToInt(Service::getDuration).sum();
+        this.endTime = this.startTime.plusMinutes(duration);
     }
 
-    public void markReminderAsSent() {
-        this.reminderSent = true;
+    private void recalculateTotals() {
+        BigDecimal serviceTotal = calculateServiceTotal(this.services);
+
+        BigDecimal productTotal = this.products.stream()
+                .map(AppointmentItem::getTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        this.price = serviceTotal.add(productTotal);
+    }
+
+    private static BigDecimal calculateServiceTotal(List<Service> services) {
+        return services.stream()
+                .map(Service::getPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static void validateServices(List<Service> services) {
+        if (services == null || services.isEmpty()) {
+            throw new BusinessException("Ao menos um serviço deve ser selecionado.");
+        }
+    }
+
+    // --- Subclasses ---
+    @Getter
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class AppointmentItem {
+        private String productId;
+        private String productName;
+        private BigDecimal unitPrice;
+        private Integer quantity;
+
+        public BigDecimal getTotal() {
+            return unitPrice.multiply(new BigDecimal(quantity));
+        }
     }
 }

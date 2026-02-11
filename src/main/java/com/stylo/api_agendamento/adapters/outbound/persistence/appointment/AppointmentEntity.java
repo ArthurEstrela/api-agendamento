@@ -8,6 +8,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -77,4 +78,10 @@ public class AppointmentEntity {
 
     @Column(precision = 10, scale = 2)
     private BigDecimal serviceProviderFee; // Lucro do salão (SaaS Client)
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "appointment_id") // Cria a chave estrangeira na tabela appointment_items
+    @Builder.Default
+    private List<AppointmentItemEntity> items = new ArrayList<>();
+
 }
