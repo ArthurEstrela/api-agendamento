@@ -22,4 +22,8 @@ public interface IServiceProviderRepository {
     List<ServiceProvider> findExpiredTrials(LocalDateTime now);
 
     List<ServiceProvider> findAllWithPublicProfile();
+
+    List<ServiceProvider> findExpiredGracePeriods(LocalDateTime now);
+
+    List<ServiceProvider> findUpcomingExpirations(LocalDateTime threshold);
 }

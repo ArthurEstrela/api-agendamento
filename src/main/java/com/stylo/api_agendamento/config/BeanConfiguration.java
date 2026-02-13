@@ -216,4 +216,11 @@ public class BeanConfiguration {
             IAppointmentRepository appointmentRepository) {
         return new GetOccupancyReportUseCase(professionalRepository, appointmentRepository);
     }
+
+    @Bean
+    public ProcessSubscriptionStatusUseCase processSubscriptionStatusUseCase(
+            IServiceProviderRepository providerRepository,
+            INotificationProvider notificationProvider) {
+        return new ProcessSubscriptionStatusUseCase(providerRepository, notificationProvider);
+    }
 }
