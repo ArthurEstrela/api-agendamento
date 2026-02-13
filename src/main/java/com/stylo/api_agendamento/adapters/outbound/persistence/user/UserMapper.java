@@ -11,7 +11,6 @@ public class UserMapper {
         if (domain == null) return null;
 
         return UserEntity.builder()
-                // Converte String -> UUID (Trata null para novos registros)
                 .id(domain.getId() != null ? UUID.fromString(domain.getId()) : null)
                 .name(domain.getName())
                 .email(domain.getEmail())
@@ -21,6 +20,7 @@ public class UserMapper {
                 .profilePictureUrl(domain.getProfilePictureUrl())
                 .createdAt(domain.getCreatedAt())
                 .active(domain.isActive())
+                .fcmToken(domain.getFcmToken()) // ✨ Adicionado: Salva no banco
                 .build();
     }
 
@@ -28,7 +28,6 @@ public class UserMapper {
         if (entity == null) return null;
 
         return User.builder()
-                // Converte UUID -> String
                 .id(entity.getId() != null ? entity.getId().toString() : null)
                 .name(entity.getName())
                 .email(entity.getEmail())
@@ -38,6 +37,7 @@ public class UserMapper {
                 .profilePictureUrl(entity.getProfilePictureUrl())
                 .createdAt(entity.getCreatedAt())
                 .active(entity.isActive())
+                .fcmToken(entity.getFcmToken()) // ✨ Adicionado: Lê do banco
                 .build();
     }
 }

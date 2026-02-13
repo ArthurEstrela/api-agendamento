@@ -138,4 +138,9 @@ public class BeanConfiguration {
             IPaymentProvider paymentProvider) {
         return new HandlePaymentWebhookUseCase(serviceProviderRepository, paymentProvider);
     }
+
+    @Bean
+    public UpdateFcmTokenUseCase updateFcmTokenUseCase(IUserRepository userRepository) {
+        return new UpdateFcmTokenUseCase(userRepository);
+    }
 }

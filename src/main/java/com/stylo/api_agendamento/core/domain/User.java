@@ -17,12 +17,13 @@ public class User implements UserDetails {
     private final String id;
     private final String email;
     private String name;
-    private String password; // Essencial para UserDetails
-    private final UserRole role; // CLIENT, SERVICE_PROVIDER, PROFESSIONAL
+    private String password;
+    private final UserRole role;
     private final LocalDateTime createdAt;
     private String phoneNumber;
     private String profilePictureUrl;
-    private boolean active; // Para controle de banimento ou desativação
+    private boolean active;
+    private String fcmToken; // ✨ Mantido
 
     public static User create(String name, String email, UserRole role) {
         validateEmail(email);
@@ -35,10 +36,14 @@ public class User implements UserDetails {
                 .build();
     }
 
-    // Método para ser usado no fluxo de autenticação/banco
     public static User withPassword(User user, String encodedPassword) {
         user.password = encodedPassword;
         return user;
+    }
+
+    // ✨ Método para atualizar o token de forma expressiva
+    public void updateFcmToken(String token) {
+        this.fcmToken = token;
     }
 
     private static void validateEmail(String email) {
@@ -56,16 +61,14 @@ public class User implements UserDetails {
     }
 
     public void updateProfile(String name, String phoneNumber, String url) {
-        if (name != null && !name.isBlank()) this.name = name;
+        if (name != null && !name.isBlank())
+            this.name = name;
         this.phoneNumber = phoneNumber;
         this.profilePictureUrl = url;
     }
 
-    // --- Implementação Spring Security (UserDetails) ---
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // O padrão "ROLE_" é obrigatório para usar .hasRole() no Spring Security
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
@@ -86,7 +89,7 @@ public class User implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return this.active; // Se não estiver ativo, a conta está "travada"
+        return this.active;
     }
 
     @Override

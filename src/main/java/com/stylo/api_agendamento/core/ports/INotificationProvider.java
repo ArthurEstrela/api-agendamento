@@ -11,4 +11,6 @@ public interface INotificationProvider {
     void sendAppointmentCancelled(String clientId, String message);
 
     void sendAppointmentReminder(String to, String clientName, String businessName, String startTime);
+
+    void sendNotification(String userId, String title, String body);
 }

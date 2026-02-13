@@ -6,6 +6,7 @@ import com.stylo.api_agendamento.core.domain.User;
 public interface IUserRepository {
     Optional<User> findById(String id);
     Optional<User> findByEmail(String email);
+    Optional<User> findByProfessionalId(String professionalId);
     User save(User user);
     void updateProfile(User user);
     void delete(String id);

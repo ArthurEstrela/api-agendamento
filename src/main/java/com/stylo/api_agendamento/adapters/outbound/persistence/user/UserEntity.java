@@ -16,11 +16,10 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class UserEntity {
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
-    private UUID id; // Mantém como UUID aqui para performance no banco
+    private UUID id;
 
     @Column(unique = true, nullable = false, length = 150)
     private String email;
@@ -29,31 +28,28 @@ public class UserEntity {
     private String name;
 
     @Column(nullable = false)
-    private String password; // Adicionado para suportar Autenticação JWT
+    private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private UserRole role; // CLIENT, SERVICE_PROVIDER, PROFESSIONAL
+    private UserRole role;
 
     @Column(nullable = false)
-    private boolean active; // Adicionado para controle de acesso (bloqueio/desativação)
+    private boolean active;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
-    private LocalDateTime createdAt; // Gerado automaticamente pelo Hibernate
+    private LocalDateTime createdAt;
 
     private String phoneNumber;
-
     private String profilePictureUrl;
 
-    /**
-     * PrePersist garante que novos usuários sempre nasçam ativos
-     * se o valor não for especificado.
-     */
+    @Column(name = "fcm_token") // ✨ Mapeamento correto
+    private String fcmToken;
+
     @PrePersist
     protected void onCreate() {
-        if (!this.active) {
+        if (!this.active)
             this.active = true;
-        }
     }
 }
