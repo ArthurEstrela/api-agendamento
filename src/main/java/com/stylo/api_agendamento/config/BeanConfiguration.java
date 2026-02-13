@@ -183,4 +183,14 @@ public class BeanConfiguration {
             PasswordEncoder passwordEncoder) {
         return new ResetPasswordUseCase(userRepository, passwordEncoder);
     }
+
+    @Bean
+    public UpdateProfessionalCommissionUseCase updateProfessionalCommissionUseCase(IProfessionalRepository repository) {
+        return new UpdateProfessionalCommissionUseCase(repository);
+    }
+
+    @Bean
+    public UpdateServiceUseCase updateServiceUseCase(IServiceRepository repository) {
+        return new UpdateServiceUseCase(repository);
+    }
 }
