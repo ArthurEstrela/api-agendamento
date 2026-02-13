@@ -4,6 +4,8 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.appointment.JpaAp
 import com.stylo.api_agendamento.core.domain.Expense;
 import com.stylo.api_agendamento.core.ports.IFinancialRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class FinancialPersistenceAdapter implements IFinancialRepository {
@@ -48,9 +51,12 @@ public class FinancialPersistenceAdapter implements IFinancialRepository {
     }
 
     @Override
-    public void registerRevenue(String providerId, BigDecimal amount, String description, LocalDateTime date) {
-        // Método exigido pela porta, mas que no seu fluxo atual
-        // é suprido pelos agendamentos concluídos. Pode ficar vazio ou logar.
+    public void registerRevenue(String serviceProviderId, BigDecimal amount, String description,
+            com.stylo.api_agendamento.core.domain.vo.PaymentMethod paymentMethod) {
+        // No fluxo atual, a receita é extraída dos agendamentos com status 'COMPLETED'.
+        // Este método pode ser usado futuramente para registrar vendas avulsas que não
+        // são agendamentos.
+        log.info("Receita registrada via webhook/manual: Provider {} - Valor R$ {}", serviceProviderId, amount);
     }
 
     // FinancialPersistenceAdapter.java

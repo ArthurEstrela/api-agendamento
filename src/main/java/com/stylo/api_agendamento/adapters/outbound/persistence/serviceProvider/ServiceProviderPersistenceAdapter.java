@@ -7,8 +7,11 @@ import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -45,5 +48,22 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
     @Override
     public boolean existsByDocument(Document document) {
         return jpaServiceProviderRepository.existsByDocumentValue(document.value());
+    }
+
+    @Override
+    public List<ServiceProvider> findExpiredTrials(LocalDateTime now) {
+        return jpaServiceProviderRepository.findExpiredTrials(now)
+                .stream()
+                .map(serviceProviderMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ServiceProvider> findAllWithPublicProfile() {
+        // Assume que o JpaRepository tem um método que busca onde o slug não é nulo
+        return jpaServiceProviderRepository.findByPublicProfileSlugIsNotNull()
+                .stream()
+                .map(serviceProviderMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }

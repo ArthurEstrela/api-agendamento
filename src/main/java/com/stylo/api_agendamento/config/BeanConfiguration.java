@@ -16,12 +16,17 @@ public class BeanConfiguration {
             IAppointmentRepository appointmentRepository,
             IProfessionalRepository professionalRepository,
             IServiceRepository serviceRepository,
-            IUserRepository userRepository) {
+            IUserRepository userRepository,
+            ICalendarProvider calendarProvider, // ✨ Adicionado
+            INotificationProvider notificationProvider) { // ✨ Adicionado
         return new CreateAppointmentUseCase(
                 appointmentRepository,
                 professionalRepository,
                 serviceRepository,
-                userRepository);
+                userRepository,
+                calendarProvider, // ✨ Passado para o construtor
+                notificationProvider // ✨ Passado para o construtor
+        );
     }
 
     @Bean
@@ -44,9 +49,21 @@ public class BeanConfiguration {
     }
 
     @Bean
-    public CompleteAppointmentUseCase completeAppointmentUseCase(IAppointmentRepository repository,
-            IFinancialRepository financialRepository) {
-        return new CompleteAppointmentUseCase(repository, financialRepository);
+    public CompleteAppointmentUseCase completeAppointmentUseCase(
+            IAppointmentRepository appointmentRepository,
+            IProfessionalRepository professionalRepository,
+            IServiceProviderRepository serviceProviderRepository,
+            IProductRepository productRepository,
+            IFinancialRepository financialRepository,
+            INotificationProvider notificationProvider) {
+
+        return new CompleteAppointmentUseCase(
+                appointmentRepository,
+                professionalRepository,
+                serviceProviderRepository,
+                productRepository,
+                financialRepository,
+                notificationProvider);
     }
 
     @Bean
@@ -107,8 +124,13 @@ public class BeanConfiguration {
     public RegisterServiceProviderUseCase registerServiceProviderUseCase(
             IServiceProviderRepository providerRepository,
             IProfessionalRepository professionalRepository,
-            IUserRepository userRepository) {
-        return new RegisterServiceProviderUseCase(providerRepository, professionalRepository, userRepository);
+            IUserRepository userRepository,
+            INotificationProvider notificationProvider) {
+        return new RegisterServiceProviderUseCase(
+                providerRepository,
+                professionalRepository,
+                userRepository,
+                notificationProvider);
     }
 
     // --- DOMÍNIO: FINANCEIRO E AVALIAÇÕES ---
@@ -149,16 +171,16 @@ public class BeanConfiguration {
     }
 
     @Bean
-public RequestPasswordResetUseCase requestPasswordResetUseCase(
-        IUserRepository userRepository, 
-        INotificationProvider notificationProvider) {
-    return new RequestPasswordResetUseCase(userRepository, notificationProvider);
-}
+    public RequestPasswordResetUseCase requestPasswordResetUseCase(
+            IUserRepository userRepository,
+            INotificationProvider notificationProvider) {
+        return new RequestPasswordResetUseCase(userRepository, notificationProvider);
+    }
 
-@Bean
-public ResetPasswordUseCase resetPasswordUseCase(
-        IUserRepository userRepository, 
-        PasswordEncoder passwordEncoder) {
-    return new ResetPasswordUseCase(userRepository, passwordEncoder);
-}
+    @Bean
+    public ResetPasswordUseCase resetPasswordUseCase(
+            IUserRepository userRepository,
+            PasswordEncoder passwordEncoder) {
+        return new ResetPasswordUseCase(userRepository, passwordEncoder);
+    }
 }

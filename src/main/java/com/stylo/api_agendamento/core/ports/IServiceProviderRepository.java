@@ -20,4 +20,6 @@ public interface IServiceProviderRepository {
     boolean existsBySlug(String slug);
 
     List<ServiceProvider> findExpiredTrials(LocalDateTime now);
+
+    List<ServiceProvider> findAllWithPublicProfile();
 }

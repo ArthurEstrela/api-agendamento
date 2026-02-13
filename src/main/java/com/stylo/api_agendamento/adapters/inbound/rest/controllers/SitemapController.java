@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -32,9 +31,11 @@ public class SitemapController {
         addUrl(xml, "https://stylo.app.br/login", "0.8", "monthly");
 
         // Páginas Dinâmicas (Perfis)
+        // Páginas Dinâmicas (Perfis)
         for (ServiceProvider provider : providers) {
             if (provider.getPublicProfileSlug() != null) {
-                String url = "https://stylo.app.br/schedule/" + provider.getPublicProfileSlug().getValue();
+                // Alterado de getValue() para value()
+                String url = "https://stylo.app.br/schedule/" + provider.getPublicProfileSlug().value();
                 addUrl(xml, url, "0.9", "weekly");
             }
         }

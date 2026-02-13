@@ -18,4 +18,6 @@ public interface JpaServiceProviderRepository extends JpaRepository<ServiceProvi
 
     @Query("SELECT s FROM ServiceProviderEntity s WHERE s.subscriptionStatus = 'TRIAL' AND s.trialEndsAt < :now")
     List<ServiceProviderEntity> findExpiredTrials(@Param("now") LocalDateTime now);
+
+    List<ServiceProviderEntity> findByPublicProfileSlugIsNotNull();
 }

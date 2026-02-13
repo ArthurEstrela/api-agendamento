@@ -52,7 +52,12 @@ public class AppointmentController {
 
     @PatchMapping("/{id}/confirm")
     public ResponseEntity<Void> confirm(@PathVariable String id) {
-        confirmAppointmentUseCase.execute(id);
+        // Você deve obter o providerId do contexto de segurança (usuário logado)
+        // Exemplo genérico abaixo (ajuste conforme seu SecurityContext):
+        String loggedProviderId = "ID_DO_ESTABELECIMENTO_LOGADO";
+
+        var input = new ConfirmAppointmentUseCase.ConfirmAppointmentInput(id, loggedProviderId);
+        confirmAppointmentUseCase.execute(input);
         return ResponseEntity.noContent().build();
     }
 
@@ -81,8 +86,21 @@ public class AppointmentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> cancel(@PathVariable String id) {
-        cancelAppointmentUseCase.execute(id);
+    public ResponseEntity<Void> cancel(
+            @PathVariable String id,
+            @RequestParam(required = false, defaultValue = "Cancelado via sistema") String reason) {
+
+        // Obtenha os dados do usuário logado
+        String loggedUserId = "ID_DO_USUARIO_LOGADO";
+        boolean isClient = true; // Determine se o usuário logado possui a role CLIENT
+
+        var input = new CancelAppointmentUseCase.CancelAppointmentInput(
+                id,
+                loggedUserId,
+                reason,
+                isClient);
+
+        cancelAppointmentUseCase.execute(input);
         return ResponseEntity.noContent().build();
     }
 

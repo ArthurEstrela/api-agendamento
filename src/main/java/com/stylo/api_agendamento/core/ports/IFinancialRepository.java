@@ -15,7 +15,7 @@ public interface IFinancialRepository {
 
     // Aqui o UseCase vai buscar os Appointments pagos para calcular o lucro
     void registerRevenue(String serviceProviderId, BigDecimal amount, String description, PaymentMethod paymentMethod);
-
+        
     List<Expense> findAllExpensesByProviderIdAndPeriod(String providerId, LocalDate start, LocalDate end);
 
     void deleteExpense(String expenseId);
