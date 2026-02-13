@@ -1,9 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
-import com.stylo.api_agendamento.core.domain.Appointment;
-import com.stylo.api_agendamento.core.domain.AppointmentStatus;
-import com.stylo.api_agendamento.core.domain.Product;
-import com.stylo.api_agendamento.core.domain.Professional;
+import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
@@ -23,92 +20,92 @@ public class CompleteAppointmentUseCase {
 
     private final IAppointmentRepository appointmentRepository;
     private final IProfessionalRepository professionalRepository;
+    private final IServiceProviderRepository serviceProviderRepository; // ✨ Novo Repo necessário
     private final IProductRepository productRepository;
     private final IFinancialRepository financialRepository;
-    private final INotificationProvider notificationProvider; // ✨ Injetado para pedir Review
+    private final INotificationProvider notificationProvider;
 
     @Transactional
     public Appointment execute(CompleteAppointmentInput input) {
-        // 1. Busca o agendamento
+        // 1. Buscas Iniciais
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
                 .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
-        // 2. Validação de Estado
-        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            return appointment;
-        }
-        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
-            throw new BusinessException("Não é possível finalizar um agendamento cancelado.");
-        }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) return appointment;
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) 
+            throw new BusinessException("Não é possível finalizar agendamento cancelado.");
 
-        // 3. Busca o profissional
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 4. Lógica de Produtos (Estoque e Associação)
+        // ✨ Busca o Estabelecimento para ver se comissão está ativa
+        ServiceProvider provider = serviceProviderRepository.findById(appointment.getServiceProviderId())
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+
+        // 2. Lógica de Produtos (Estoque) - Mantida da versão anterior
         if (input.soldProducts() != null && !input.soldProducts().isEmpty()) {
             List<Product> productsToAdd = new ArrayList<>();
             List<Integer> quantities = new ArrayList<>();
-
             for (ProductSaleItem item : input.soldProducts()) {
                 Product product = productRepository.findById(item.productId())
-                        .orElseThrow(() -> new EntityNotFoundException("Produto não encontrado: " + item.productId()));
-
-                // Deduz estoque
+                        .orElseThrow(() -> new EntityNotFoundException("Produto " + item.productId()));
                 product.deductStock(item.quantity());
                 productRepository.save(product);
-
                 productsToAdd.add(product);
                 quantities.add(item.quantity());
             }
             appointment.addProducts(productsToAdd, quantities);
         }
 
-        // 5. Cálculo Financeiro e Descontos
-        BigDecimal finalServicePriceToCharge = input.serviceFinalPrice() != null 
+        // 3. Cálculos Financeiros (Preço Final)
+        BigDecimal finalServicePrice = input.serviceFinalPrice() != null 
                 ? input.serviceFinalPrice() 
-                : appointment.getServices().stream().map(s -> s.getPrice()).reduce(BigDecimal.ZERO, BigDecimal::add);
+                : appointment.calculateOriginalServiceTotal(); // Assume método auxiliar ou lógica de soma
 
-        BigDecimal originalServicePrice = appointment.getServices().stream()
-                .map(s -> s.getPrice())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        BigDecimal discount = originalServicePrice.subtract(finalServicePriceToCharge);
-        if (discount.compareTo(BigDecimal.ZERO) < 0) discount = BigDecimal.ZERO;
+        // Aplica desconto se houver
+        BigDecimal originalTotal = appointment.calculateOriginalServiceTotal();
+        BigDecimal discount = originalTotal.subtract(finalServicePrice).max(BigDecimal.ZERO);
 
-        // 6. Finaliza o Agendamento (Domínio)
-        appointment.complete(professional, discount);
+        // 4. ✨ CÁLCULO DA COMISSÃO (O Pulo do Gato)
+        BigDecimal commissionValue = BigDecimal.ZERO;
+
+        if (provider.areCommissionsEnabled()) {
+            // O profissional calcula baseado na estratégia (Porcentagem ou Fixo)
+            commissionValue = professional.calculateCommissionFor(finalServicePrice);
+        }
+
+        // 5. Finaliza o Agendamento (Domínio)
+        // O método complete() do Appointment deve receber a comissão para salvar o snapshot
+        appointment.complete(professional, discount, commissionValue); 
         appointment.setPaymentMethod(input.paymentMethod());
 
-        // 7. Registro Financeiro
+        // 6. Persistência e Financeiro
         financialRepository.registerRevenue(
             appointment.getServiceProviderId(),
             appointment.getFinalPrice(),
-            "Receita de Agendamento #" + appointment.getId(),
+            "Serviço #" + appointment.getId(),
             input.paymentMethod()
         );
+        
+        // Opcional: Registrar a saída (Despesa) da comissão imediatamente ou deixar para o fechamento
+        // financialRepository.registerExpense(... commissionValue ...); 
 
-        Appointment savedAppointment = appointmentRepository.save(appointment);
-        log.info("Agendamento {} finalizado com sucesso.", savedAppointment.getId());
+        Appointment saved = appointmentRepository.save(appointment);
+        log.info("Agendamento finalizado. Comissão gerada: R$ {}", commissionValue);
 
-        // ✨ 8. Pós-Venda: Solicitar Avaliação (Notificação com Deep Link)
-        requestClientReview(savedAppointment);
+        // 7. Notificação
+        requestClientReview(saved);
 
-        return savedAppointment;
+        return saved;
     }
 
     private void requestClientReview(Appointment appt) {
         try {
-            String title = "Como foi seu atendimento? ⭐";
-            String body = String.format("O serviço com %s foi concluído. Toque para avaliar!", 
-                    appt.getProfessionalName());
-            
-            // Deep Link para abrir o modal de review no App
-            String reviewLink = String.format("/dashboard?action=review&appointmentId=%s", appt.getId());
-
-            notificationProvider.sendNotification(appt.getClientId(), title, body, reviewLink);
+            String title = "Avalie seu atendimento ⭐";
+            String link = "/dashboard?action=review&appointmentId=" + appt.getId();
+            notificationProvider.sendNotification(appt.getClientId(), title, "Como foi sua experiência?", link);
         } catch (Exception e) {
-            log.error("Erro ao solicitar review: {}", e.getMessage());
+            log.error("Erro ao pedir review: {}", e.getMessage());
         }
     }
 
@@ -122,6 +119,5 @@ public class CompleteAppointmentUseCase {
             if (soldProducts == null) soldProducts = Collections.emptyList();
         }
     }
-
     public record ProductSaleItem(String productId, Integer quantity) {}
 }

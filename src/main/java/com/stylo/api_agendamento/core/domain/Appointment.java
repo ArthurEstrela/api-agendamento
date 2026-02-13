@@ -25,7 +25,7 @@ public class Appointment {
     private ClientPhone clientPhone;
 
     private String serviceProviderId;
-    private String providerId;
+    private String providerId; // (Se for o mesmo que serviceProviderId, pode remover um dos dois no futuro)
 
     private String professionalId;
     private String professionalName;
@@ -40,15 +40,14 @@ public class Appointment {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 
-    // Financeiro
-    private BigDecimal professionalCommission;
-    private BigDecimal serviceProviderFee;
-
+    // --- FINANCEIRO ---
+    private BigDecimal price; // Preço Base (Serviços + Produtos)
+    
     @Setter
-    private BigDecimal price; // Preço Base
-
-    @Setter
-    private BigDecimal finalPrice; // Preço Cobrado (Pode ter desconto)
+    private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
+    
+    private BigDecimal professionalCommission; // ✨ O campo que você pediu (Snapshot)
+    private BigDecimal serviceProviderFee;     // ✨ Quanto sobra para o salão
 
     @Setter
     private AppointmentStatus status;
@@ -147,11 +146,11 @@ public class Appointment {
                 .startTime(start)
                 .endTime(end)
                 .status(AppointmentStatus.BLOCKED)
-                .isPersonalBlock(true) // Importante para o financeiro ignorar
+                .isPersonalBlock(true)
                 .notes("BLOQUEIO PESSOAL: " + reason)
                 .price(BigDecimal.ZERO)
                 .finalPrice(BigDecimal.ZERO)
-                .services(new ArrayList<>()) // Lista vazia para evitar NullPointerException
+                .services(new ArrayList<>())
                 .products(new ArrayList<>())
                 .reminderMinutes(0)
                 .notified(false)
@@ -159,18 +158,15 @@ public class Appointment {
                 .build();
     }
 
-    // --- MÉTODOS DE NEGÓCIO (Aqui estavam os erros) ---
+    // --- MÉTODOS DE NEGÓCIO ---
 
-    // [CORREÇÃO 1] O método que faltava para o ConfirmAppointmentUseCase
     public void confirm() {
-        // Permite reconfirmar se estiver pendente ou reagendado
         if (this.status != AppointmentStatus.PENDING) {
             throw new BusinessException("Apenas agendamentos pendentes podem ser confirmados.");
         }
         this.status = AppointmentStatus.SCHEDULED;
     }
 
-    // [CORREÇÃO 2] O método que faltava para o SendRemindersUseCase
     public void markReminderAsSent() {
         this.reminderSent = true;
     }
@@ -191,34 +187,44 @@ public class Appointment {
                     .quantity(qty)
                     .build());
         }
+        // Recalcula o total (serviços + novos produtos)
         recalculateTotals();
     }
 
-    public void complete(Professional professional, BigDecimal discountValue) {
+    /**
+     * Finaliza o agendamento aplicando descontos e registrando a comissão calculada.
+     * * @param professional (Para fins de registro/auditoria se necessário)
+     * @param discountValue Valor do desconto a ser aplicado no total
+     * @param commissionValue Valor da comissão JÁ CALCULADA pelo UseCase (Snapshot Pattern)
+     */
+    public void complete(Professional professional, BigDecimal discountValue, BigDecimal commissionValue) {
         if (this.status == AppointmentStatus.CANCELLED) {
             throw new BusinessException("Não é possível finalizar um agendamento cancelado.");
         }
 
+        // 1. Garante que o preço base (services + products) está atualizado
         recalculateTotals();
 
+        // 2. Aplica Desconto no Preço Final
         if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
             this.finalPrice = this.price.subtract(discountValue);
-            if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0)
+            if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
                 this.finalPrice = BigDecimal.ZERO;
+            }
         } else {
             this.finalPrice = this.price;
         }
 
-        BigDecimal serviceTotal = calculateServiceTotal(this.services);
-        this.professionalCommission = professional.calculateCommission(serviceTotal);
+        // 3. Registra a Comissão (Snapshot do valor calculado no momento da conclusão)
+        this.professionalCommission = commissionValue != null ? commissionValue : BigDecimal.ZERO;
+
+        // 4. Calcula a taxa do salão (O que sobra)
+        // Fee = Final Price - Commission
         this.serviceProviderFee = this.finalPrice.subtract(this.professionalCommission);
 
+        // 5. Atualiza Status
         this.status = AppointmentStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
-    }
-
-    public void complete(Professional professional) {
-        complete(professional, BigDecimal.ZERO);
     }
 
     public void cancel() {
@@ -243,9 +249,18 @@ public class Appointment {
         this.notified = true;
     }
 
+    // ✨ Método auxiliar público para o UseCase calcular comissões apenas sobre serviços
+    public BigDecimal calculateOriginalServiceTotal() {
+        return calculateServiceTotal(this.services);
+    }
+
+    // --- MÉTODOS PRIVADOS ---
+
     private void calculateEndTime() {
-        int duration = services.stream().mapToInt(Service::getDuration).sum();
-        this.endTime = this.startTime.plusMinutes(duration);
+        if (services != null) {
+            int duration = services.stream().mapToInt(Service::getDuration).sum();
+            this.endTime = this.startTime.plusMinutes(duration);
+        }
     }
 
     private void recalculateTotals() {
@@ -256,9 +271,12 @@ public class Appointment {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         this.price = serviceTotal.add(productTotal);
+        // Reseta o finalPrice para o price base antes de aplicar descontos no complete()
+        this.finalPrice = this.price; 
     }
 
     private static BigDecimal calculateServiceTotal(List<Service> services) {
+        if (services == null) return BigDecimal.ZERO;
         return services.stream()
                 .map(Service::getPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -270,7 +288,7 @@ public class Appointment {
         }
     }
 
-    // --- Subclasses ---
+    // --- SUBCLASSES ---
     @Getter
     @Builder
     @AllArgsConstructor
@@ -282,6 +300,7 @@ public class Appointment {
         private Integer quantity;
 
         public BigDecimal getTotal() {
+            if (unitPrice == null || quantity == null) return BigDecimal.ZERO;
             return unitPrice.multiply(new BigDecimal(quantity));
         }
     }

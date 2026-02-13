@@ -52,13 +52,10 @@ public class ProfessionalEntity {
     private Integer slotInterval;
     private boolean isOwner;
 
-    // ProfessionalEntity.java
     @Enumerated(EnumType.STRING)
+    @Column(name = "remuneration_type")
     private RemunerationType remunerationType;
 
-    @Column(precision = 5, scale = 2)
-    private BigDecimal commissionRate; // ex: 0.40 para 40%
-
-    @Column(precision = 10, scale = 2)
-    private BigDecimal fixedValue; // ex: 20.00
+    @Column(name = "remuneration_value")
+    private BigDecimal remunerationValue;
 }

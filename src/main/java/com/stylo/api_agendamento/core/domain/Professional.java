@@ -5,7 +5,6 @@ import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Collections;
@@ -15,23 +14,23 @@ import java.util.Collections;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Professional {
     private final String id;
-    private final String serviceProviderId; // Multi-tenant: Sempre vinculado a um salão
+    private final String serviceProviderId;
     private final String serviceProviderName;
     private String name;
     private final String email;
     private String avatarUrl;
     private String bio;
-    private RemunerationType remunerationType;
-    private BigDecimal commissionRate; // ex: 0.40
-    private BigDecimal fixedValue; // ex: 20.00
 
-    private final List<Service> services; // Serviços que ele está habilitado a fazer
-    private List<DailyAvailability> availability; // Grade de horários semanal
+    // ✨ Apenas estes dois campos controlam todo o financeiro agora
+    private RemunerationType remunerationType; 
+    private BigDecimal remunerationValue; 
 
-    private final Integer slotInterval; // Ex: Atende de 30 em 30 min
+    private final List<Service> services;
+    private List<DailyAvailability> availability;
+
+    private final Integer slotInterval;
     private boolean isOwner;
 
-    // Fábrica para criar um profissional com segurança
     public static Professional create(String name, String email, String providerId,
             List<Service> services, List<DailyAvailability> availability) {
         if (services == null || services.isEmpty()) {
@@ -44,16 +43,16 @@ public class Professional {
                 .serviceProviderId(providerId)
                 .services(Collections.unmodifiableList(services))
                 .availability(availability)
-                .slotInterval(30) // Default
+                .slotInterval(30)
                 .isOwner(false)
+                // Padrão: Sem comissão definida inicialmente
+                .remunerationType(null)
+                .remunerationValue(BigDecimal.ZERO)
                 .build();
     }
 
     // --- REGRAS DE NEGÓCIO ---
 
-    /**
-     * Valida se o profissional trabalha no dia e hora solicitados
-     */
     public boolean isAvailable(LocalDateTime dateTime, int totalDuration) {
         return availability.stream()
                 .filter(a -> a.dayOfWeek() == dateTime.getDayOfWeek())
@@ -62,9 +61,6 @@ public class Professional {
                 .orElse(false);
     }
 
-    /**
-     * Verifica se o profissional é capaz de realizar a lista de serviços solicitada
-     */
     public void validateCanPerform(List<Service> requestedServices) {
         boolean allSupported = requestedServices.stream()
                 .allMatch(rs -> this.services.stream()
@@ -94,36 +90,40 @@ public class Professional {
         }
     }
 
-    // No seu Professional.java
     public void updateAvailability(List<DailyAvailability> newAvailability) {
         if (newAvailability == null || newAvailability.isEmpty()) {
             throw new BusinessException("O profissional deve ter pelo menos um dia de disponibilidade configurado.");
         }
 
-        // Validação lógica: startTime sempre antes de endTime
         for (DailyAvailability daily : newAvailability) {
             if (daily.isOpen() && !daily.startTime().isBefore(daily.endTime())) {
                 throw new BusinessException(
                         "O horário de início deve ser anterior ao horário de término para o dia: " + daily.dayOfWeek());
             }
         }
-
         this.availability = newAvailability;
     }
 
-    public void updateCommissionRate(BigDecimal newRate) {
-        if (newRate.compareTo(BigDecimal.ZERO) < 0 || newRate.compareTo(BigDecimal.valueOf(1)) > 0) {
-            throw new BusinessException("A taxa de comissão deve estar entre 0 e 1 (0% a 100%).");
+    // ✨ Método unificado para atualizar a comissão (Strategy)
+    public void updateCommissionSettings(RemunerationType type, BigDecimal value) {
+        if (value == null || value.compareTo(BigDecimal.ZERO) < 0) {
+             throw new BusinessException("O valor da remuneração não pode ser negativo.");
         }
-        this.commissionRate = newRate;
+        
+        // Validação específica se for porcentagem
+        if (type == RemunerationType.PERCENTAGE && value.compareTo(new BigDecimal("100")) > 0) {
+             throw new BusinessException("A porcentagem não pode ser maior que 100.");
+        }
+
+        this.remunerationType = type;
+        this.remunerationValue = value;
     }
 
-    public BigDecimal calculateCommission(BigDecimal totalServiceValue) {
-        return switch (this.remunerationType) {
-            case COMMISSION -> totalServiceValue.multiply(this.commissionRate)
-                    .setScale(2, RoundingMode.HALF_UP);
-            case FIXED_FEE -> this.fixedValue;
-            case CHAIR_RENTAL -> totalServiceValue; // Profissional fica com tudo
-        };
+    // ✨ O cálculo usa a estratégia definida no Enum
+    public BigDecimal calculateCommissionFor(BigDecimal finalPrice) {
+        if (this.remunerationType == null || this.remunerationValue == null) {
+            return BigDecimal.ZERO;
+        }
+        return this.remunerationType.calculate(finalPrice, this.remunerationValue);
     }
 }

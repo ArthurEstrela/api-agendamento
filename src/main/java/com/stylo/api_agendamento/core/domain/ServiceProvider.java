@@ -12,17 +12,15 @@ import java.util.Collections;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ServiceProvider {
+    
     private final String id;
     private String businessName;
     private Address businessAddress;
-
-    // Agrupamos o documento em um Value Object
     private final Document document;
-
     private String businessPhone;
     private Slug publicProfileSlug;
     private final String ownerEmail;
-
+    
     private String logoUrl;
     private String bannerUrl;
     private String pixKey;
@@ -31,13 +29,13 @@ public class ServiceProvider {
     private LocalDateTime trialEndsAt;
     private String stripeCustomerId;
 
-    // Usamos o Enum rico de PaymentMethod que criamos antes
     private List<PaymentMethod> paymentMethods;
-
     private Integer cancellationMinHours;
-    private String subscriptionStatus; // "ACTIVE", "TRIAL", "EXPIRED", "CANCELED"
+    private String subscriptionStatus;
 
-    // Fábrica estática para garantir que o estabelecimento nasça correto
+    // ✨ NOVO CAMPO: O "Interruptor" de Comissões
+    private boolean commissionsEnabled;
+
     public static ServiceProvider create(String businessName, Document doc, Slug slug, Address address,
             String ownerEmail) {
         return ServiceProvider.builder()
@@ -50,12 +48,29 @@ public class ServiceProvider {
                 .trialEndsAt(LocalDateTime.now().plusDays(15))
                 .cancellationMinHours(2)
                 .paymentMethods(Collections.emptyList())
+                .commissionsEnabled(false) // ✨ Nasce desligado por padrão (segurança)
                 .build();
     }
+
+    // --- MÉTODOS DE NEGÓCIO ---
+
     /**
-     * Valida se um agendamento ainda pode ser cancelado conforme a política do
-     * salão
+     * Verifica se o sistema de comissões está ativo para este estabelecimento.
+     * Usado pelo CompleteAppointmentUseCase.
      */
+    public boolean areCommissionsEnabled() {
+        return this.commissionsEnabled;
+    }
+
+    /**
+     * Ativa ou desativa o cálculo de comissões.
+     */
+    public void toggleCommissions(boolean enabled) {
+        this.commissionsEnabled = enabled;
+    }
+
+    // ... (Métodos de validação e update existentes mantidos abaixo) ...
+
     public void validateCancellationPolicy(LocalDateTime appointmentStartTime) {
         LocalDateTime limit = LocalDateTime.now().plusHours(this.cancellationMinHours);
         if (appointmentStartTime.isBefore(limit)) {
@@ -71,23 +86,18 @@ public class ServiceProvider {
     }
 
     public void updateSlug(Slug newSlug) {
-        if (newSlug == null)
-            throw new BusinessException("O endereço da URL não pode ser vazio.");
+        if (newSlug == null) throw new BusinessException("O endereço da URL não pode ser vazio.");
         this.publicProfileSlug = newSlug;
     }
 
     public void updateProfile(String name, String phone, String logo) {
-        if (name != null && !name.isBlank())
-            this.businessName = name;
-        if (phone != null && !phone.isBlank())
-            this.businessPhone = phone;
-        if (logo != null)
-            this.logoUrl = logo;
+        if (name != null && !name.isBlank()) this.businessName = name;
+        if (phone != null && !phone.isBlank()) this.businessPhone = phone;
+        if (logo != null) this.logoUrl = logo;
     }
 
     public void updateAddress(Address address) {
-        if (address != null)
-            this.businessAddress = address;
+        if (address != null) this.businessAddress = address;
     }
 
     public void updateSubscription(String newStatus) {

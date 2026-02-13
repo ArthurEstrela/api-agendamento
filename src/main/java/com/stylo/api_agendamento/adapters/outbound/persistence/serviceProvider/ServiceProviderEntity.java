@@ -77,6 +77,9 @@ public class ServiceProviderEntity {
     @Column(name = "stripe_customer_id")
     private String stripeCustomerId;
 
+    @Column(name = "commissions_enabled", nullable = false)
+    private boolean commissionsEnabled;
+
     // --- CAMPOS DE AUDITORIA (ESSENCIAIS PARA SAAS) ---
 
     @CreationTimestamp
