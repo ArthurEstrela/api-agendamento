@@ -35,9 +35,11 @@ public class BeanConfiguration {
     }
 
     @Bean
-    public ConfirmAppointmentUseCase confirmAppointmentUseCase(IAppointmentRepository repository,
-            INotificationProvider notificationProvider) {
-        return new ConfirmAppointmentUseCase(repository, notificationProvider);
+    public ConfirmAppointmentUseCase confirmAppointmentUseCase(
+            IAppointmentRepository appointmentRepository,
+            IProfessionalRepository professionalRepository,
+            INotificationProvider notificationProvider) { // ✨ Novo
+        return new ConfirmAppointmentUseCase(appointmentRepository, professionalRepository, notificationProvider);
     }
 
     @Bean
@@ -49,8 +51,9 @@ public class BeanConfiguration {
     @Bean
     public CancelAppointmentUseCase cancelAppointmentUseCase(
             IAppointmentRepository appointmentRepository,
-            IServiceProviderRepository providerRepository) {
-        return new CancelAppointmentUseCase(appointmentRepository, providerRepository);
+            IUserRepository userRepository, // ✨ Novo (para buscar o prof)
+            INotificationProvider notificationProvider) { // ✨ Novo
+        return new CancelAppointmentUseCase(appointmentRepository, userRepository, notificationProvider);
     }
 
     @Bean

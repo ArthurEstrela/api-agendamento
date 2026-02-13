@@ -6,13 +6,14 @@ import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.Notification;
-import com.stylo.api_agendamento.core.ports.INotificationProvider;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.io.FileInputStream;
 import java.io.IOException;
 
+@Slf4j
 @Component
 public class FcmNotificationAdapter {
 
@@ -20,34 +21,42 @@ public class FcmNotificationAdapter {
     public void initialize() {
         try {
             if (FirebaseApp.getApps().isEmpty()) {
-                FileInputStream serviceAccount = new FileInputStream("src/main/resources/serviceAccountKey.json");
-
                 FirebaseOptions options = FirebaseOptions.builder()
-                        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                        .setCredentials(GoogleCredentials.fromStream(
+                                new ClassPathResource("serviceAccountKey.json").getInputStream()))
                         .build();
 
                 FirebaseApp.initializeApp(options);
+                log.info("Firebase Admin SDK inicializado.");
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Erro ao inicializar Firebase: {}", e.getMessage());
         }
     }
 
-    public void sendPushNotification(String token, String title, String body) {
-        if (token == null || token.isEmpty()) return;
+    public void sendPush(String token, String title, String body, String actionUrl) {
+        if (token == null || token.isBlank()) return;
 
-        Message message = Message.builder()
-                .setToken(token)
-                .setNotification(Notification.builder()
-                        .setTitle(title)
-                        .setBody(body)
-                        .build())
+        var notification = Notification.builder()
+                .setTitle(title)
+                .setBody(body)
                 .build();
 
+        var messageBuilder = Message.builder()
+                .setToken(token)
+                .setNotification(notification);
+
+        // ✨ Adiciona o link no payload para o App navegar
+        if (actionUrl != null && !actionUrl.isBlank()) {
+            messageBuilder.putData("link", actionUrl);
+            messageBuilder.putData("click_action", "FLUTTER_NOTIFICATION_CLICK");
+        }
+
         try {
-            FirebaseMessaging.getInstance().send(message);
+            FirebaseMessaging.getInstance().send(messageBuilder.build());
+            log.info("Push enviado para token: {}...", token.substring(0, 10));
         } catch (Exception e) {
-            System.err.println("Erro ao enviar push: " + e.getMessage());
+            log.error("Erro ao enviar Push: {}", e.getMessage());
         }
     }
 }

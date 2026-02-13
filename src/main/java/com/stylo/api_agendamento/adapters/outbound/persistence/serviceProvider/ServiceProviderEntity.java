@@ -13,13 +13,10 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(
-    name = "service_providers",
-    indexes = {
+@Table(name = "service_providers", indexes = {
         @Index(name = "idx_provider_slug", columnList = "publicProfileSlug"),
         @Index(name = "idx_provider_email", columnList = "owner_email")
-    }
-)
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -62,11 +59,7 @@ public class ServiceProviderEntity {
     private String pixKeyType;
 
     @ElementCollection(targetClass = PaymentMethod.class)
-    @CollectionTable(
-        name = "provider_payment_methods", 
-        joinColumns = @JoinColumn(name = "provider_id"),
-        foreignKey = @ForeignKey(name = "fk_payment_methods_provider")
-    )
+    @CollectionTable(name = "provider_payment_methods", joinColumns = @JoinColumn(name = "provider_id"), foreignKey = @ForeignKey(name = "fk_payment_methods_provider"))
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method")
     private List<PaymentMethod> paymentMethods;
@@ -78,8 +71,14 @@ public class ServiceProviderEntity {
     @Column(nullable = false, length = 20)
     private String subscriptionStatus;
 
+    @Column(name = "trial_ends_at")
+    private LocalDateTime trialEndsAt;
+
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
+
     // --- CAMPOS DE AUDITORIA (ESSENCIAIS PARA SAAS) ---
-    
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -87,4 +86,12 @@ public class ServiceProviderEntity {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.subscriptionStatus == null) {
+            this.subscriptionStatus = "TRIAL";
+            this.trialEndsAt = LocalDateTime.now().plusDays(15); // ✨ Garante consistência
+        }
+    }
 }

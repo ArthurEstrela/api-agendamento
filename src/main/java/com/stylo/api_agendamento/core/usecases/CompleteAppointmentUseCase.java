@@ -7,18 +7,17 @@ import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
-import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
-import com.stylo.api_agendamento.core.ports.IFinancialRepository;
-import com.stylo.api_agendamento.core.ports.IProductRepository;
-import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
+import com.stylo.api_agendamento.core.ports.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+@Slf4j
 @RequiredArgsConstructor
 public class CompleteAppointmentUseCase {
 
@@ -26,6 +25,7 @@ public class CompleteAppointmentUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IProductRepository productRepository;
     private final IFinancialRepository financialRepository;
+    private final INotificationProvider notificationProvider; // ✨ Injetado para pedir Review
 
     @Transactional
     public Appointment execute(CompleteAppointmentInput input) {
@@ -45,7 +45,7 @@ public class CompleteAppointmentUseCase {
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 4. Lógica de Produtos (Otimizada)
+        // 4. Lógica de Produtos (Estoque e Associação)
         if (input.soldProducts() != null && !input.soldProducts().isEmpty()) {
             List<Product> productsToAdd = new ArrayList<>();
             List<Integer> quantities = new ArrayList<>();
@@ -54,52 +54,62 @@ public class CompleteAppointmentUseCase {
                 Product product = productRepository.findById(item.productId())
                         .orElseThrow(() -> new EntityNotFoundException("Produto não encontrado: " + item.productId()));
 
-                // Deduz estoque e salva o produto atualizado
+                // Deduz estoque
                 product.deductStock(item.quantity());
                 productRepository.save(product);
 
-                // Prepara listas para o domínio
                 productsToAdd.add(product);
                 quantities.add(item.quantity());
             }
-            
-            // O PULO DO GATO: Passa para o domínio criar os AppointmentItems e calcular totais
             appointment.addProducts(productsToAdd, quantities);
         }
 
-        // 5. Finaliza (O domínio já tem o preço base somado em 'price')
-        // Se serviceFinalPrice vier nulo, usa o preço original dos serviços (calculado no create)
-        // OBS: appointment.getServices() soma o total original.
-        // Aqui assumimos que o input.serviceFinalPrice é o valor COBRADO pelo serviço (com desconto ou não).
+        // 5. Cálculo Financeiro e Descontos
         BigDecimal finalServicePriceToCharge = input.serviceFinalPrice() != null 
                 ? input.serviceFinalPrice() 
                 : appointment.getServices().stream().map(s -> s.getPrice()).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Subtrai do total calculado pelo domínio a diferença (desconto) se houver, 
-        // ou passa o desconto explicitamente para o método complete.
-        // Simplificação: Passamos o desconto para o complete
-        
-        // Calculamos o desconto dado no serviço: (Preço Original Serviço - Preço Final Serviço)
         BigDecimal originalServicePrice = appointment.getServices().stream()
                 .map(s -> s.getPrice())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         
         BigDecimal discount = originalServicePrice.subtract(finalServicePriceToCharge);
-        if (discount.compareTo(BigDecimal.ZERO) < 0) discount = BigDecimal.ZERO; // Evita desconto negativo (acréscimo)
+        if (discount.compareTo(BigDecimal.ZERO) < 0) discount = BigDecimal.ZERO;
 
-        // 6. Finaliza o Agendamento no Domínio
+        // 6. Finaliza o Agendamento (Domínio)
         appointment.complete(professional, discount);
         appointment.setPaymentMethod(input.paymentMethod());
 
-        // 7. Registro Financeiro (Usa o finalPrice calculado pelo domínio que já soma produtos + serviço com desconto)
+        // 7. Registro Financeiro
         financialRepository.registerRevenue(
             appointment.getServiceProviderId(),
-            appointment.getFinalPrice(), // Valor exato cobrado
+            appointment.getFinalPrice(),
             "Receita de Agendamento #" + appointment.getId(),
             input.paymentMethod()
         );
 
-        return appointmentRepository.save(appointment);
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+        log.info("Agendamento {} finalizado com sucesso.", savedAppointment.getId());
+
+        // ✨ 8. Pós-Venda: Solicitar Avaliação (Notificação com Deep Link)
+        requestClientReview(savedAppointment);
+
+        return savedAppointment;
+    }
+
+    private void requestClientReview(Appointment appt) {
+        try {
+            String title = "Como foi seu atendimento? ⭐";
+            String body = String.format("O serviço com %s foi concluído. Toque para avaliar!", 
+                    appt.getProfessionalName());
+            
+            // Deep Link para abrir o modal de review no App
+            String reviewLink = String.format("/dashboard?action=review&appointmentId=%s", appt.getId());
+
+            notificationProvider.sendNotification(appt.getClientId(), title, body, reviewLink);
+        } catch (Exception e) {
+            log.error("Erro ao solicitar review: {}", e.getMessage());
+        }
     }
 
     public record CompleteAppointmentInput(

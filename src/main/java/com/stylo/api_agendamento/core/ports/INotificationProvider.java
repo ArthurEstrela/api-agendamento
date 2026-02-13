@@ -13,4 +13,8 @@ public interface INotificationProvider {
     void sendAppointmentReminder(String to, String clientName, String businessName, String startTime);
 
     void sendNotification(String userId, String title, String body);
+
+    void sendNotification(String userId, String title, String body, String actionUrl);
+
+    void sendWelcomeEmail(String email, String name);
 }

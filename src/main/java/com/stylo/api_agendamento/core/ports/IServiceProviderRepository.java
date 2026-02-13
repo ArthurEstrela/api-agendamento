@@ -1,5 +1,7 @@
 package com.stylo.api_agendamento.core.ports;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
@@ -16,4 +18,6 @@ public interface IServiceProviderRepository {
     boolean existsByDocument(Document document);
 
     boolean existsBySlug(String slug);
+
+    List<ServiceProvider> findExpiredTrials(LocalDateTime now);
 }

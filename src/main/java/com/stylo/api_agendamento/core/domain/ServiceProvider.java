@@ -28,6 +28,9 @@ public class ServiceProvider {
     private String pixKey;
     private String pixKeyType;
 
+    private LocalDateTime trialEndsAt;
+    private String stripeCustomerId;
+
     // Usamos o Enum rico de PaymentMethod que criamos antes
     private List<PaymentMethod> paymentMethods;
 
@@ -44,6 +47,7 @@ public class ServiceProvider {
                 .businessAddress(address)
                 .ownerEmail(ownerEmail)
                 .subscriptionStatus("TRIAL")
+                .trialEndsAt(LocalDateTime.now().plusDays(15))
                 .cancellationMinHours(2)
                 .paymentMethods(Collections.emptyList())
                 .build();

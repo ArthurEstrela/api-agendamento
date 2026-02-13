@@ -12,6 +12,7 @@ import java.util.List;
 
 @Getter
 @Builder
+@Setter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Appointment {
@@ -51,6 +52,9 @@ public class Appointment {
 
     @Setter
     private AppointmentStatus status;
+
+    private String cancellationReason;
+    private String cancelledBy;
 
     @Setter
     private PaymentMethod paymentMethod;

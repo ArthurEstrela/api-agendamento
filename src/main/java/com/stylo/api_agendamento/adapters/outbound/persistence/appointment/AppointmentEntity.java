@@ -72,6 +72,12 @@ public class AppointmentEntity {
     @Column(nullable = false)
     private boolean isPersonalBlock;
 
+    @Column(name = "cancellation_reason")
+    private String cancellationReason;
+
+    @Column(name = "cancelled_by")
+    private String cancelledBy;
+
     // AppointmentEntity.java
     @Column(precision = 10, scale = 2)
     private BigDecimal professionalCommission; // Parte do profissional
