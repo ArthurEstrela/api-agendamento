@@ -193,4 +193,20 @@ public class BeanConfiguration {
     public UpdateServiceUseCase updateServiceUseCase(IServiceRepository repository) {
         return new UpdateServiceUseCase(repository);
     }
+
+    @Bean
+    public GetClientHistoryUseCase getClientHistoryUseCase(IAppointmentRepository appointmentRepository) {
+        return new GetClientHistoryUseCase(appointmentRepository);
+    }
+
+    @Bean
+    public GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase(
+            IProfessionalRepository professionalRepository,
+            IAppointmentRepository appointmentRepository,
+            IServiceRepository serviceRepository) {
+        return new GetProfessionalAvailabilityUseCase(
+                professionalRepository,
+                appointmentRepository,
+                serviceRepository);
+    }
 }

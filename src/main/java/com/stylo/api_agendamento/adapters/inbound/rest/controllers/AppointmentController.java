@@ -6,6 +6,8 @@ import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.usecases.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +28,7 @@ public class AppointmentController {
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
     private final GetAvailableSlotsUseCase getAvailableSlotsUseCase;
+    private final GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase;
 
     @PostMapping
     public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
@@ -134,5 +137,19 @@ public class AppointmentController {
         );
 
         return ResponseEntity.ok(getAvailableSlotsUseCase.execute(input));
+    }
+
+    @GetMapping("/availability")
+    public ResponseEntity<List<LocalTime>> getAvailability(
+            @RequestParam String professionalId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam List<String> serviceIds) { // ✨ Recebe lista de IDs de serviços
+
+        var availability = getProfessionalAvailabilityUseCase.execute(
+                professionalId,
+                date,
+                serviceIds);
+
+        return ResponseEntity.ok(availability);
     }
 }

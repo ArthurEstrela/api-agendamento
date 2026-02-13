@@ -1,9 +1,13 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.core.domain.Client;
+import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IClientRepository;
+import com.stylo.api_agendamento.core.usecases.GetClientHistoryUseCase;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -12,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class ClientController {
 
     private final IClientRepository clientRepository;
+    private final GetClientHistoryUseCase getClientHistoryUseCase;
 
     @GetMapping("/{id}")
     public ResponseEntity<Client> getById(@PathVariable String id) {
@@ -22,14 +27,21 @@ public class ClientController {
 
     @PatchMapping("/{id}")
     public ResponseEntity<Client> updateProfile(
-            @PathVariable String id, 
+            @PathVariable String id,
             @RequestBody Client updatedData) {
-        
+
         return clientRepository.findById(id)
                 .map(client -> {
                     // Lógica de atualização aqui
                     return ResponseEntity.ok(clientRepository.save(client));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/history")
+    public ResponseEntity<GetClientHistoryUseCase.ClientHistoryResponse> getHistory(
+            @AuthenticationPrincipal User user) { // ✨ Segurança: Identifica o cliente logado
+
+        return ResponseEntity.ok(getClientHistoryUseCase.execute(user.getId()));
     }
 }

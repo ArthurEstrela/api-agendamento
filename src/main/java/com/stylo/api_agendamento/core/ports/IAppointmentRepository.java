@@ -28,4 +28,6 @@ public interface IAppointmentRepository {
     List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end);
 
     BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end);
+
+    List<Appointment> findAllByClientId(String clientId);
 }

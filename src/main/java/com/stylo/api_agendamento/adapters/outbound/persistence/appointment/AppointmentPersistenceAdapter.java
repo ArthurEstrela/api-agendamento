@@ -94,4 +94,13 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         // Garantir que não retorne null caso não existam agendamentos no período
         return result != null ? result : BigDecimal.ZERO;
     }
+
+    @Override
+    public List<Appointment> findAllByClientId(String clientId) {
+        // ✨ Converte a String ID para UUID e mapeia para o Domínio
+        return jpaAppointmentRepository.findAllByClientId(UUID.fromString(clientId))
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }
