@@ -47,13 +47,30 @@ public class ResendNotificationAdapter { // ✨ Não implementa mais a interface
                     <p>Estamos muito felizes em ter você conosco! O Stylo vai transformar a gestão do seu negócio.</p>
                     <p>Acesse seu painel para começar a configurar sua agenda.</p>
                     <div style="margin-top: 20px;">
-                        <a href="https://stylo.app.br/dashboard" 
+                        <a href="https://stylo.app.br/dashboard"
                            style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">
                            Ir para o Painel
                         </a>
                     </div>
                 </div>
-                """.formatted(name);
+                """
+                .formatted(name);
+        sendEmail(email, subject, body);
+    }
+
+    public void sendPasswordResetEmailDirect(String email, String name, String resetLink) {
+        String subject = "Recuperação de Senha - Stylo 🔒";
+        String body = """
+                <div style="font-family: sans-serif; padding: 20px;">
+                    <h2>Olá, %s!</h2>
+                    <p>Recebemos uma solicitação para redefinir sua senha.</p>
+                    <p>Se foi você, clique no botão abaixo para criar uma nova senha:</p>
+                    <a href="%s" style="background-color: #000; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Redefinir Senha</a>
+                    <p style="margin-top: 20px; font-size: 12px; color: #666;">Se não foi você, apenas ignore este e-mail.</p>
+                </div>
+                """
+                .formatted(name, resetLink);
+
         sendEmail(email, subject, body);
     }
 }

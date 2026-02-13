@@ -7,6 +7,10 @@ import com.stylo.api_agendamento.core.domain.Professional;
 
 public interface IProfessionalRepository {
     Professional save(Professional professional);
+
     List<Professional> findAllByProviderId(String providerId);
+
     Optional<Professional> findById(String id);
+
+    Optional<Professional> findByIdWithLock(String id);
 }

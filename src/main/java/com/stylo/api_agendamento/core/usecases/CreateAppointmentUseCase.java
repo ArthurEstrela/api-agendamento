@@ -3,7 +3,9 @@ package com.stylo.api_agendamento.core.usecases;
 import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.ScheduleConflictException; // Recomendo criar essa exception específica
 import com.stylo.api_agendamento.core.ports.*;
+import jakarta.transaction.Transactional; // ⚠️ Importante: Do pacote jakarta.transaction
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,11 +26,20 @@ public class CreateAppointmentUseCase {
     private final ICalendarProvider calendarProvider;
     private final INotificationProvider notificationProvider;
 
+    /**
+     * Executa a criação do agendamento com concorrência segura.
+     * O @Transactional garante que o Lock Pessimista dure até o return.
+     */
+    @Transactional
     public Appointment execute(CreateAppointmentInput input) {
-        // 1. Validações Iniciais
-        Professional professional = professionalRepository.findById(input.professionalId())
+        
+        // 1. Busca Profissional COM LOCK (Pessimistic Locking)
+        // Neste momento, se outro cliente tentar agendar para este mesmo profissional,
+        // ele ficará esperando no banco de dados até esta transação terminar.
+        Professional professional = professionalRepository.findByIdWithLock(input.professionalId())
                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
+        // 2. Validações Básicas
         User client = userRepository.findById(input.clientId())
                 .orElseThrow(() -> new BusinessException("Cliente não encontrado."));
 
@@ -37,15 +48,27 @@ public class CreateAppointmentUseCase {
             throw new BusinessException("Selecione ao menos um serviço.");
         }
 
-        // 2. Regras de Negócio de Disponibilidade
+        // 3. Validação de Competência e Horário de Trabalho
         professional.validateCanPerform(requestedServices);
 
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
         if (!professional.isAvailable(input.startTime(), totalDuration)) {
-            throw new BusinessException("Profissional indisponível neste horário.");
+            throw new BusinessException("Profissional indisponível neste horário (fora do expediente ou pausa).");
         }
 
-        // 3. Criação do Objeto de Domínio
+        // 4. Double Booking Check (Agora 100% Seguro devido ao Lock)
+        // Como o profissional está travado, ninguém mais pode estar inserindo um agendamento
+        // para ele neste exato momento. A leitura abaixo é garantida.
+        boolean hasConflict = appointmentRepository.hasConflictingAppointment(
+                input.professionalId(),
+                input.startTime(),
+                input.startTime().plusMinutes(totalDuration));
+
+        if (hasConflict) {
+            throw new ScheduleConflictException("Este horário acabou de ser ocupado por outro cliente.");
+        }
+
+        // 5. Criação do Objeto de Domínio
         Appointment appointment = Appointment.create(
                 client.getId(),
                 client.getName(),
@@ -59,43 +82,37 @@ public class CreateAppointmentUseCase {
                 input.startTime(),
                 input.reminderMinutes());
 
-        // 4. Double Booking Check
-        boolean hasConflict = appointmentRepository.hasConflictingAppointment(
-                appointment.getProfessionalId(),
-                appointment.getStartTime(),
-                appointment.getEndTime());
-
-        if (hasConflict) {
-            throw new BusinessException("Este horário acabou de ser ocupado.");
-        }
-
-        // 5. Persistência Principal
+        // 6. Persistência (Commit acontece após o return)
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        log.info("Agendamento criado com sucesso: ID {}", savedAppointment.getId());
+        log.info("Agendamento criado com sucesso e horário blindado: ID {}", savedAppointment.getId());
 
-        // 6. Integrações Externas
-        syncWithGoogleCalendar(savedAppointment);
-        triggerNotifications(savedAppointment, professional);
+        // 7. Integrações (Pós-persistência crítica)
+        // Nota: Se o Google Calendar falhar, o agendamento no banco NÃO é desfeito
+        // (idealmente, isso deveria ser assíncrono, mas síncrono funciona bem para MVP)
+        performExternalIntegrations(savedAppointment, professional);
 
         return savedAppointment;
     }
 
-    private void syncWithGoogleCalendar(Appointment appointment) {
+    private void performExternalIntegrations(Appointment appointment, Professional professional) {
+        // A. Sincronização Google Calendar
         try {
             String googleEventId = calendarProvider.createEvent(appointment);
             if (googleEventId != null) {
                 appointment.setExternalEventId(googleEventId);
-                appointmentRepository.save(appointment);
+                appointmentRepository.save(appointment); // Atualiza com o ID externo
                 log.info("Google Calendar sincronizado.");
             }
         } catch (Exception e) {
-            log.error("Erro na sincronização Google: {}", e.getMessage());
+            log.error("Erro não-bloqueante na sincronização Google: {}", e.getMessage());
         }
+
+        // B. Notificações
+        triggerNotifications(appointment, professional);
     }
 
     private void triggerNotifications(Appointment appt, Professional prof) {
         try {
-            // Ajuste aqui: Como pode ter vários serviços, pegamos o nome do primeiro para o texto
             String mainServiceName = appt.getServices().get(0).getName();
             if (appt.getServices().size() > 1) mainServiceName += "...";
 
@@ -105,18 +122,14 @@ public class CreateAppointmentUseCase {
                 appt.getClientName(), mainServiceName, dateFormatted);
 
             Set<String> recipientIds = new HashSet<>();
-            recipientIds.add(prof.getServiceProviderId());
+            recipientIds.add(prof.getServiceProviderId()); // Dono
             
-            // Agora o método existe na interface
             userRepository.findByProfessionalId(prof.getId())
-                .ifPresent(u -> recipientIds.add(u.getId()));
+                .ifPresent(u -> recipientIds.add(u.getId())); // Profissional (se tiver usuário)
 
             for (String userId : recipientIds) {
-                // Agora o método existe na interface
-                notificationProvider.sendNotification(userId, title, body);
+                notificationProvider.sendNotification(userId, title, body, "/dashboard/agenda");
             }
-            
-            log.info("Notificações enviadas.");
         } catch (Exception e) {
             log.error("Erro ao disparar notificações: {}", e.getMessage());
         }

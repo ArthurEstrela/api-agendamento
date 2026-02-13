@@ -1,11 +1,15 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.AuthenticationRequest;
+import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ForgotPasswordRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.RegisterClientRequest;
+import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ResetPasswordRequest;
 import com.stylo.api_agendamento.adapters.outbound.security.TokenService;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
+import com.stylo.api_agendamento.core.usecases.RequestPasswordResetUseCase;
+import com.stylo.api_agendamento.core.usecases.ResetPasswordUseCase;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +26,8 @@ public class AuthController {
     private final IUserRepository userRepository;
     private final TokenService tokenService; // Injeção necessária para resolver o erro
     private final PasswordEncoder passwordEncoder; // Injeção necessária para resolver o erro
+    private final RequestPasswordResetUseCase requestPasswordResetUseCase;
+    private final ResetPasswordUseCase resetPasswordUseCase;
 
     @PostMapping("/register/client")
     public ResponseEntity<User> register(@RequestBody @Valid RegisterClientRequest request) {
@@ -56,5 +62,17 @@ public class AuthController {
         String token = tokenService.generateToken(user);
 
         return ResponseEntity.ok(token);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        requestPasswordResetUseCase.execute(request.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordRequest request) {
+        resetPasswordUseCase.execute(request.token(), request.newPassword());
+        return ResponseEntity.noContent().build();
     }
 }

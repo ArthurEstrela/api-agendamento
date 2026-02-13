@@ -44,6 +44,12 @@ public class UserEntity {
     private String phoneNumber;
     private String profilePictureUrl;
 
+    @Column(name = "reset_password_token")
+    private String resetPasswordToken;
+
+    @Column(name = "reset_password_expires_at")
+    private LocalDateTime resetPasswordExpiresAt;
+
     @Column(name = "fcm_token") // ✨ Mapeamento correto
     private String fcmToken;
 

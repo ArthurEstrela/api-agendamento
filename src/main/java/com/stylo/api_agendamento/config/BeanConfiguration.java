@@ -4,6 +4,7 @@ import com.stylo.api_agendamento.core.ports.*;
 import com.stylo.api_agendamento.core.usecases.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 @Configuration
 public class BeanConfiguration {
@@ -146,4 +147,18 @@ public class BeanConfiguration {
     public UpdateFcmTokenUseCase updateFcmTokenUseCase(IUserRepository userRepository) {
         return new UpdateFcmTokenUseCase(userRepository);
     }
+
+    @Bean
+public RequestPasswordResetUseCase requestPasswordResetUseCase(
+        IUserRepository userRepository, 
+        INotificationProvider notificationProvider) {
+    return new RequestPasswordResetUseCase(userRepository, notificationProvider);
+}
+
+@Bean
+public ResetPasswordUseCase resetPasswordUseCase(
+        IUserRepository userRepository, 
+        PasswordEncoder passwordEncoder) {
+    return new ResetPasswordUseCase(userRepository, passwordEncoder);
+}
 }

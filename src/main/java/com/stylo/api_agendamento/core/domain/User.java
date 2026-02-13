@@ -24,6 +24,8 @@ public class User implements UserDetails {
     private String profilePictureUrl;
     private boolean active;
     private String fcmToken; // ✨ Mantido
+    private String resetPasswordToken;
+    private LocalDateTime resetPasswordExpiresAt;
 
     public static User create(String name, String email, UserRole role) {
         validateEmail(email);
@@ -100,5 +102,22 @@ public class User implements UserDetails {
     @Override
     public boolean isEnabled() {
         return this.active;
+    }
+
+    public void generatePasswordResetToken() {
+        this.resetPasswordToken = java.util.UUID.randomUUID().toString();
+        this.resetPasswordExpiresAt = LocalDateTime.now().plusHours(1); // Validade de 1 hora
+    }
+
+    public void clearPasswordResetToken() {
+        this.resetPasswordToken = null;
+        this.resetPasswordExpiresAt = null;
+    }
+
+    public boolean isResetTokenValid(String token) {
+        return token != null
+                && token.equals(this.resetPasswordToken)
+                && this.resetPasswordExpiresAt != null
+                && this.resetPasswordExpiresAt.isAfter(LocalDateTime.now());
     }
 }

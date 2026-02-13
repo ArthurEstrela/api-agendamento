@@ -17,4 +17,6 @@ public interface INotificationProvider {
     void sendNotification(String userId, String title, String body, String actionUrl);
 
     void sendWelcomeEmail(String email, String name);
+
+    void sendPasswordResetEmail(String email, String name, String resetLink);
 }

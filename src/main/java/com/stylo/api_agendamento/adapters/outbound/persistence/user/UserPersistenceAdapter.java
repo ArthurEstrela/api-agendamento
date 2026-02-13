@@ -45,4 +45,10 @@ public class UserPersistenceAdapter implements IUserRepository {
         return jpaUserRepository.findById(UUID.fromString(id))
                 .map(userMapper::toDomain);
     }
+
+    @Override
+    public Optional<User> findByResetPasswordToken(String token) {
+        return jpaUserRepository.findByResetPasswordToken(token)
+                .map(userMapper::toDomain);
+    }
 }

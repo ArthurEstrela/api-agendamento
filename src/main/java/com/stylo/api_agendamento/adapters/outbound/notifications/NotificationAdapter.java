@@ -28,7 +28,7 @@ public class NotificationAdapter implements INotificationProvider {
                 fcmAdapter.sendPush(user.getFcmToken(), title, body, actionUrl);
             }
             // 2. Email (se quiser mandar email para toda notificação, descomente abaixo)
-            // resendAdapter.sendEmail(user.getEmail(), title, body); 
+            // resendAdapter.sendEmail(user.getEmail(), title, body);
         });
     }
 
@@ -51,14 +51,17 @@ public class NotificationAdapter implements INotificationProvider {
     public void sendAppointmentReminder(String userId, String title, String body, String actionUrl) {
         sendNotification(userId, title, body, actionUrl);
         // Opcional: Mandar e-mail de lembrete também
-        userRepository.findById(userId).ifPresent(u -> 
-            resendAdapter.sendEmail(u.getEmail(), title, body)
-        );
+        userRepository.findById(userId).ifPresent(u -> resendAdapter.sendEmail(u.getEmail(), title, body));
     }
 
     @Override
     public void sendWelcomeEmail(String email, String name) {
         // ✨ Chama o método específico do especialista em e-mail
         resendAdapter.sendWelcomeEmail(email, name);
+    }
+
+    @Override
+    public void sendPasswordResetEmail(String email, String name, String resetLink) {
+        resendAdapter.sendPasswordResetEmailDirect(email, name, resetLink);
     }
 }

@@ -37,4 +37,10 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
                 .map(professionalMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public Optional<Professional> findByIdWithLock(String id) {
+        return jpaProfessionalRepository.findByIdWithLock(UUID.fromString(id))
+                .map(professionalMapper::toDomain);
+    }
 }
