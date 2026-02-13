@@ -1,6 +1,5 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.user.UserMapper;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ public class UserPersistenceAdapter implements IUserRepository {
 
     @Override
     public void updateProfile(User user) {
-        // No JPA, o save() faz o merge se o ID já existir
         jpaUserRepository.save(userMapper.toEntity(user));
     }
 
@@ -43,6 +41,12 @@ public class UserPersistenceAdapter implements IUserRepository {
     @Override
     public Optional<User> findById(String id) {
         return jpaUserRepository.findById(UUID.fromString(id))
+                .map(userMapper::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByProfessionalId(String professionalId) {
+        return jpaUserRepository.findByProfessionalId(professionalId)
                 .map(userMapper::toDomain);
     }
 
