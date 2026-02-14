@@ -53,6 +53,9 @@ public class SecurityConfigurations {
                         .requestMatchers(HttpMethod.GET, "/v1/products/**").permitAll() // Ver produtos (se público)
                         .requestMatchers(HttpMethod.GET, "/v1/reviews/**").permitAll() // Ver avaliações públicas
 
+                        .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")
+                        .hasAnyRole("PROFESSIONAL", "ADMIN")
+
                         // --- INTEGRATIONS & WEBHOOKS (Stripe, Google) ---
                         .requestMatchers("/v1/webhooks/**").permitAll()
 

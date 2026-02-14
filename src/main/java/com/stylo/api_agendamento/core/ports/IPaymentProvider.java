@@ -6,4 +6,5 @@ import java.math.BigDecimal;
 public interface IPaymentProvider {
     boolean processPayment(String customerId, BigDecimal amount, String paymentMethodId);
     String generatePaymentLink(String appointmentId, BigDecimal amount);
+    void refund(String externalPaymentId, BigDecimal amount);
 }

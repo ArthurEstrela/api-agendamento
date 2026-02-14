@@ -223,4 +223,20 @@ public class BeanConfiguration {
             INotificationProvider notificationProvider) {
         return new ProcessSubscriptionStatusUseCase(providerRepository, notificationProvider);
     }
+
+    @Bean
+    public SendPendingRemindersUseCase sendPendingRemindersUseCase(
+            IAppointmentRepository appointmentRepository,
+            INotificationProvider notificationProvider,
+            IUserRepository userRepository) {
+        return new SendPendingRemindersUseCase(
+                appointmentRepository,
+                notificationProvider,
+                userRepository);
+    }
+
+    @Bean
+    public MarkNoShowUseCase markNoShowUseCase(IAppointmentRepository appointmentRepository) {
+        return new MarkNoShowUseCase(appointmentRepository);
+    }
 }

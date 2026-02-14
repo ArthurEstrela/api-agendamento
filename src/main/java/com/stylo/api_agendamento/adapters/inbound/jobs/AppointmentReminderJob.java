@@ -1,39 +1,46 @@
 package com.stylo.api_agendamento.adapters.inbound.jobs;
 
-import com.stylo.api_agendamento.core.usecases.SendRemindersUseCase;
+import com.stylo.api_agendamento.core.usecases.SendPendingRemindersUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-@Slf4j // ✨ Adicionado para logs profissionais
+
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AppointmentReminderJob {
 
-    private final SendRemindersUseCase sendRemindersUseCase;
+    // ✨ Atualizado para o Use Case de lembretes pendentes
+    private final SendPendingRemindersUseCase sendRemindersUseCase;
 
     /**
      * Executa a verificação de lembretes.
-     * fixedRateString permite que você configure o tempo via application.properties 
-     * sem precisar mexer no código depois.
+     * * MELHORIA: Trocamos fixedRate por fixedDelay. 
+     * O fixedDelay garante que a próxima execução só comece APÓS 
+     * o término da anterior, evitando sobreposição caso o servidor 
+     * de e-mail/push esteja lento.
      */
-    @Scheduled(fixedRateString = "${stylo.jobs.reminder-interval:60000}") 
+    @Scheduled(
+        fixedDelayString = "${stylo.jobs.reminder-interval:60000}", 
+        initialDelay = 10000 // Aguarda 10s após o boot para a primeira execução
+    )
     public void run() {
-        log.info("⏰ [Job] Iniciando processamento de lembretes precisos...");
+        log.info("⏰ [Job Reminders] Iniciando verificação de agendamentos próximos...");
         
-        long startTime = System.currentTimeMillis();
+        long start = System.currentTimeMillis();
 
         try {
-            // Executa o Use Case que busca agendamentos confirmados e dispara Push/Email
+            // Executa a lógica de domínio para buscar, disparar e marcar lembretes
             sendRemindersUseCase.execute();
             
-            long endTime = System.currentTimeMillis();
-            log.info("✅ [Job] Lembretes processados com sucesso em {}ms.", (endTime - startTime));
+            long duration = System.currentTimeMillis() - start;
+            log.info("✅ [Job Reminders] Lembretes processados com sucesso em {}ms.", duration);
             
         } catch (Exception e) {
-            // 🔥 Crucial: Evita que uma falha em um agendamento pare o agendador do Spring
-            log.error("❌ [Job] Erro crítico ao processar lembretes: {}", e.getMessage(), e);
+            // Log detalhado para rastrear falhas sem interromper o agendador do Spring
+            log.error("❌ [Job Reminders] Falha crítica ao processar ciclo de lembretes: {}", e.getMessage(), e);
         }
     }
 }

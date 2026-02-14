@@ -42,12 +42,12 @@ public class Appointment {
 
     // --- FINANCEIRO ---
     private BigDecimal price; // Preço Base (Serviços + Produtos)
-    
+
     @Setter
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
-    
+
     private BigDecimal professionalCommission; // ✨ O campo que você pediu (Snapshot)
-    private BigDecimal serviceProviderFee;     // ✨ Quanto sobra para o salão
+    private BigDecimal serviceProviderFee; // ✨ Quanto sobra para o salão
 
     @Setter
     private AppointmentStatus status;
@@ -72,6 +72,9 @@ public class Appointment {
     private String externalEventId;
 
     private boolean isPersonalBlock;
+
+    private boolean paid;
+    private String externalPaymentId;
 
     // --- FACTORIES ---
 
@@ -192,10 +195,13 @@ public class Appointment {
     }
 
     /**
-     * Finaliza o agendamento aplicando descontos e registrando a comissão calculada.
+     * Finaliza o agendamento aplicando descontos e registrando a comissão
+     * calculada.
      * * @param professional (Para fins de registro/auditoria se necessário)
-     * @param discountValue Valor do desconto a ser aplicado no total
-     * @param commissionValue Valor da comissão JÁ CALCULADA pelo UseCase (Snapshot Pattern)
+     * 
+     * @param discountValue   Valor do desconto a ser aplicado no total
+     * @param commissionValue Valor da comissão JÁ CALCULADA pelo UseCase (Snapshot
+     *                        Pattern)
      */
     public void complete(Professional professional, BigDecimal discountValue, BigDecimal commissionValue) {
         if (this.status == AppointmentStatus.CANCELLED) {
@@ -249,7 +255,8 @@ public class Appointment {
         this.notified = true;
     }
 
-    // ✨ Método auxiliar público para o UseCase calcular comissões apenas sobre serviços
+    // ✨ Método auxiliar público para o UseCase calcular comissões apenas sobre
+    // serviços
     public BigDecimal calculateOriginalServiceTotal() {
         return calculateServiceTotal(this.services);
     }
@@ -271,12 +278,14 @@ public class Appointment {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         this.price = serviceTotal.add(productTotal);
-        // Reseta o finalPrice para o price base antes de aplicar descontos no complete()
-        this.finalPrice = this.price; 
+        // Reseta o finalPrice para o price base antes de aplicar descontos no
+        // complete()
+        this.finalPrice = this.price;
     }
 
     private static BigDecimal calculateServiceTotal(List<Service> services) {
-        if (services == null) return BigDecimal.ZERO;
+        if (services == null)
+            return BigDecimal.ZERO;
         return services.stream()
                 .map(Service::getPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -300,8 +309,24 @@ public class Appointment {
         private Integer quantity;
 
         public BigDecimal getTotal() {
-            if (unitPrice == null || quantity == null) return BigDecimal.ZERO;
+            if (unitPrice == null || quantity == null)
+                return BigDecimal.ZERO;
             return unitPrice.multiply(new BigDecimal(quantity));
         }
+    }
+
+    public void markAsNoShow() {
+        if (this.status != AppointmentStatus.SCHEDULED) {
+            throw new BusinessException("Apenas agendamentos confirmados podem ser marcados como No-Show.");
+        }
+        this.status = AppointmentStatus.NO_SHOW;
+    }
+
+    public boolean isEligibleForRefund(int minHoursBefore) {
+        if (!this.paid || this.externalPaymentId == null)
+            return false;
+
+        LocalDateTime limit = LocalDateTime.now().plusHours(minHoursBefore);
+        return this.startTime.isAfter(limit);
     }
 }
