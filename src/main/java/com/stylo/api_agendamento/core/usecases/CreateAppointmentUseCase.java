@@ -1,19 +1,17 @@
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.domain.*;
+import com.stylo.api_agendamento.core.domain.events.AppointmentCreatedEvent;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
-import com.stylo.api_agendamento.core.exceptions.ScheduleConflictException; // Recomendo criar essa exception específica
+import com.stylo.api_agendamento.core.exceptions.ScheduleConflictException;
 import com.stylo.api_agendamento.core.ports.*;
-import jakarta.transaction.Transactional; // ⚠️ Importante: Do pacote jakarta.transaction
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -23,8 +21,10 @@ public class CreateAppointmentUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IServiceRepository serviceRepository;
     private final IUserRepository userRepository;
-    private final ICalendarProvider calendarProvider;
-    private final INotificationProvider notificationProvider;
+    
+    // ✨ Mudança: Agora dependemos apenas de um publicador de eventos,
+    // desacoplando o Core das ferramentas externas (Google/Firebase).
+    private final IEventPublisher eventPublisher;
 
     /**
      * Executa a criação do agendamento com concorrência segura.
@@ -56,9 +56,7 @@ public class CreateAppointmentUseCase {
             throw new BusinessException("Profissional indisponível neste horário (fora do expediente ou pausa).");
         }
 
-        // 4. Double Booking Check (Agora 100% Seguro devido ao Lock)
-        // Como o profissional está travado, ninguém mais pode estar inserindo um agendamento
-        // para ele neste exato momento. A leitura abaixo é garantida.
+        // 4. Double Booking Check (100% Seguro devido ao Lock)
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 input.professionalId(),
                 input.startTime(),
@@ -82,59 +80,24 @@ public class CreateAppointmentUseCase {
                 input.startTime(),
                 input.reminderMinutes());
 
-        // 6. Persistência (Commit acontece após o return)
+        // 6. Persistência (O registro é salvo e garantido no banco)
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        log.info("Agendamento criado com sucesso e horário blindado: ID {}", savedAppointment.getId());
+        log.info("Agendamento salvo no banco (Transação Ativa). ID: {}", savedAppointment.getId());
 
-        // 7. Integrações (Pós-persistência crítica)
-        // Nota: Se o Google Calendar falhar, o agendamento no banco NÃO é desfeito
-        // (idealmente, isso deveria ser assíncrono, mas síncrono funciona bem para MVP)
-        performExternalIntegrations(savedAppointment, professional);
+        // 7. Publicação do Evento (Assíncrono)
+        // Isso coloca uma mensagem na memória do Spring. O Listener só vai pegar essa mensagem
+        // DEPOIS que essa transação fizer o commit (AFTER_COMMIT), garantindo consistência.
+        eventPublisher.publish(new AppointmentCreatedEvent(
+                savedAppointment.getId(),
+                professional.getId(),
+                client.getName(),
+                savedAppointment.getStartTime()
+        ));
 
         return savedAppointment;
     }
 
-    private void performExternalIntegrations(Appointment appointment, Professional professional) {
-        // A. Sincronização Google Calendar
-        try {
-            String googleEventId = calendarProvider.createEvent(appointment);
-            if (googleEventId != null) {
-                appointment.setExternalEventId(googleEventId);
-                appointmentRepository.save(appointment); // Atualiza com o ID externo
-                log.info("Google Calendar sincronizado.");
-            }
-        } catch (Exception e) {
-            log.error("Erro não-bloqueante na sincronização Google: {}", e.getMessage());
-        }
-
-        // B. Notificações
-        triggerNotifications(appointment, professional);
-    }
-
-    private void triggerNotifications(Appointment appt, Professional prof) {
-        try {
-            String mainServiceName = appt.getServices().get(0).getName();
-            if (appt.getServices().size() > 1) mainServiceName += "...";
-
-            String dateFormatted = appt.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm"));
-            String title = "📅 Novo Agendamento!";
-            String body = String.format("%s agendou %s para %s", 
-                appt.getClientName(), mainServiceName, dateFormatted);
-
-            Set<String> recipientIds = new HashSet<>();
-            recipientIds.add(prof.getServiceProviderId()); // Dono
-            
-            userRepository.findByProfessionalId(prof.getId())
-                .ifPresent(u -> recipientIds.add(u.getId())); // Profissional (se tiver usuário)
-
-            for (String userId : recipientIds) {
-                notificationProvider.sendNotification(userId, title, body, "/dashboard/agenda");
-            }
-        } catch (Exception e) {
-            log.error("Erro ao disparar notificações: {}", e.getMessage());
-        }
-    }
-
+    // Input DTO (Record)
     public record CreateAppointmentInput(
             String clientId,
             String professionalId,

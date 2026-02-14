@@ -17,15 +17,15 @@ public class BeanConfiguration {
             IProfessionalRepository professionalRepository,
             IServiceRepository serviceRepository,
             IUserRepository userRepository,
-            ICalendarProvider calendarProvider, // ✨ Adicionado
-            INotificationProvider notificationProvider) { // ✨ Adicionado
+            IEventPublisher eventPublisher // ✨ Injetando a nova porta
+    // Removido calendarProvider e notificationProvider daqui
+    ) {
         return new CreateAppointmentUseCase(
                 appointmentRepository,
                 professionalRepository,
                 serviceRepository,
                 userRepository,
-                calendarProvider, // ✨ Passado para o construtor
-                notificationProvider // ✨ Passado para o construtor
+                eventPublisher // ✨ Passando para o construtor
         );
     }
 
