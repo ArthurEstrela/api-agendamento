@@ -17,27 +17,31 @@ public class BeanConfiguration {
             IProfessionalRepository professionalRepository,
             IServiceRepository serviceRepository,
             IUserRepository userRepository,
-            IEventPublisher eventPublisher // ✨ Injetando a nova porta
-    // Removido calendarProvider e notificationProvider daqui
-    ) {
+            IServiceProviderRepository serviceProviderRepository, // <--- Novo parametro
+            IEventPublisher eventPublisher) {
         return new CreateAppointmentUseCase(
                 appointmentRepository,
                 professionalRepository,
                 serviceRepository,
                 userRepository,
-                eventPublisher // ✨ Passando para o construtor
-        );
+                serviceProviderRepository, // <--- Passando pro construtor
+                eventPublisher);
     }
 
     @Bean
     public CreateManualAppointmentUseCase createManualAppointmentUseCase(
             IAppointmentRepository appointmentRepository,
             IProfessionalRepository professionalRepository,
-            IServiceRepository serviceRepository) {
+            IServiceRepository serviceRepository,
+            IServiceProviderRepository serviceProviderRepository, // ✨ Nova dependência
+            IEventPublisher eventPublisher // ✨ Nova dependência
+    ) {
         return new CreateManualAppointmentUseCase(
                 appointmentRepository,
                 professionalRepository,
-                serviceRepository);
+                serviceRepository,
+                serviceProviderRepository,
+                eventPublisher);
     }
 
     @Bean
@@ -120,9 +124,17 @@ public class BeanConfiguration {
     }
 
     @Bean
-    public BlockProfessionalTimeUseCase blockProfessionalTimeUseCase(IProfessionalRepository professionalRepository,
-            IAppointmentRepository repository) {
-        return new BlockProfessionalTimeUseCase(professionalRepository, repository);
+    public BlockProfessionalTimeUseCase blockProfessionalTimeUseCase(
+            IProfessionalRepository professionalRepository,
+            IAppointmentRepository appointmentRepository,
+            IServiceProviderRepository serviceProviderRepository, // ✨ Nova dependência
+            IEventPublisher eventPublisher // ✨ Nova dependência (Opcional, mas boa prática)
+    ) {
+        return new BlockProfessionalTimeUseCase(
+                professionalRepository,
+                appointmentRepository,
+                serviceProviderRepository,
+                eventPublisher);
     }
 
     // --- DOMÍNIO: ESTABELECIMENTO (SERVICE PROVIDER) ---

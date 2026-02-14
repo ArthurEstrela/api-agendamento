@@ -22,33 +22,29 @@ public class CreateAppointmentUseCase {
     private final IServiceRepository serviceRepository;
     private final IUserRepository userRepository;
     
-    // ✨ Mudança: Agora dependemos apenas de um publicador de eventos,
-    // desacoplando o Core das ferramentas externas (Google/Firebase).
+    // ✨ ADICIONADO: Precisamos buscar o dono do salão para saber o Fuso Horário
+    private final IServiceProviderRepository serviceProviderRepository;
+
     private final IEventPublisher eventPublisher;
 
-    /**
-     * Executa a criação do agendamento com concorrência segura.
-     * O @Transactional garante que o Lock Pessimista dure até o return.
-     */
     @Transactional
     public Appointment execute(CreateAppointmentInput input) {
         
-        // 1. Busca Profissional COM LOCK (Pessimistic Locking)
-        // Neste momento, se outro cliente tentar agendar para este mesmo profissional,
-        // ele ficará esperando no banco de dados até esta transação terminar.
+        // 1. Busca Profissional
         Professional professional = professionalRepository.findByIdWithLock(input.professionalId())
                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
-        // 2. Validações Básicas
+        // 2. Validações de Cliente
         User client = userRepository.findById(input.clientId())
                 .orElseThrow(() -> new BusinessException("Cliente não encontrado."));
 
+        // 3. Validação de Serviços
         List<Service> requestedServices = serviceRepository.findAllByIds(input.serviceIds());
         if (requestedServices.isEmpty()) {
             throw new BusinessException("Selecione ao menos um serviço.");
         }
 
-        // 3. Validação de Competência e Horário de Trabalho
+        // 4. Validação de Disponibilidade
         professional.validateCanPerform(requestedServices);
 
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
@@ -56,7 +52,7 @@ public class CreateAppointmentUseCase {
             throw new BusinessException("Profissional indisponível neste horário (fora do expediente ou pausa).");
         }
 
-        // 4. Double Booking Check (100% Seguro devido ao Lock)
+        // 5. Verificação de Conflito
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 input.professionalId(),
                 input.startTime(),
@@ -66,7 +62,13 @@ public class CreateAppointmentUseCase {
             throw new ScheduleConflictException("Este horário acabou de ser ocupado por outro cliente.");
         }
 
-        // 5. Criação do Objeto de Domínio
+        // 6. Recuperação do TimeZone (CORRIGIDO)
+        // Buscamos o ServiceProvider usando o ID que está no Profissional
+        String timeZone = serviceProviderRepository.findById(professional.getServiceProviderId())
+                .map(ServiceProvider::getTimeZone)
+                .orElse("America/Sao_Paulo"); // Fallback se não encontrar (raro)
+
+        // 7. Criação do Objeto de Domínio
         Appointment appointment = Appointment.create(
                 client.getId(),
                 client.getName(),
@@ -78,15 +80,15 @@ public class CreateAppointmentUseCase {
                 professional.getName(),
                 requestedServices,
                 input.startTime(),
-                input.reminderMinutes());
+                input.reminderMinutes(),
+                timeZone // ✨ Passando o TimeZone recuperado
+        );
 
-        // 6. Persistência (O registro é salvo e garantido no banco)
+        // 8. Persistência
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        log.info("Agendamento salvo no banco (Transação Ativa). ID: {}", savedAppointment.getId());
+        log.info("Agendamento criado (ID: {}). TimeZone: {}", savedAppointment.getId(), timeZone);
 
-        // 7. Publicação do Evento (Assíncrono)
-        // Isso coloca uma mensagem na memória do Spring. O Listener só vai pegar essa mensagem
-        // DEPOIS que essa transação fizer o commit (AFTER_COMMIT), garantindo consistência.
+        // 9. Publicação do Evento Assíncrono
         eventPublisher.publish(new AppointmentCreatedEvent(
                 savedAppointment.getId(),
                 professional.getId(),
@@ -97,7 +99,6 @@ public class CreateAppointmentUseCase {
         return savedAppointment;
     }
 
-    // Input DTO (Record)
     public record CreateAppointmentInput(
             String clientId,
             String professionalId,

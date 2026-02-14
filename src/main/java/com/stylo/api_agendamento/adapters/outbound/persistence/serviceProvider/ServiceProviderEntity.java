@@ -92,6 +92,9 @@ public class ServiceProviderEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "time_zone")
+    private String timeZone;
+
     @PrePersist
     protected void onCreate() {
         if (this.subscriptionStatus == null) {

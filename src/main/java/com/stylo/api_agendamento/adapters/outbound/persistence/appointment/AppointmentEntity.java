@@ -80,6 +80,9 @@ public class AppointmentEntity {
 
     private boolean commissionSettled;
 
+    @Column(name = "time_zone")
+    private String timeZone;
+
     // AppointmentEntity.java
     @Column(precision = 10, scale = 2)
     private BigDecimal professionalCommission; // Parte do profissional

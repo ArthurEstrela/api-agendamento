@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class Appointment {
     private ClientPhone clientPhone;
 
     private String serviceProviderId;
-    private String providerId; // (Se for o mesmo que serviceProviderId, pode remover um dos dois no futuro)
+    private String providerId; 
 
     private String professionalId;
     private String professionalName;
@@ -35,6 +36,11 @@ public class Appointment {
 
     @Builder.Default
     private List<AppointmentItem> products = new ArrayList<>();
+
+    // ✨ TIMEZONE & DATES
+    // As datas aqui são persistidas sem fuso no banco (LocalDateTime),
+    // mas SEMPRE devem ser interpretadas no contexto do timeZone abaixo.
+    private String timeZone; 
 
     @Setter
     private LocalDateTime startTime;
@@ -46,8 +52,8 @@ public class Appointment {
     @Setter
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
 
-    private BigDecimal professionalCommission; // ✨ O campo que você pediu (Snapshot)
-    private BigDecimal serviceProviderFee; // ✨ Quanto sobra para o salão
+    private BigDecimal professionalCommission; 
+    private BigDecimal serviceProviderFee; 
 
     @Setter
     private AppointmentStatus status;
@@ -79,12 +85,13 @@ public class Appointment {
     private boolean commissionSettled;
     private LocalDateTime settledAt;
 
-    // --- FACTORIES ---
+    // --- FACTORIES (Atualizadas com TimeZone) ---
 
     public static Appointment create(String clientId, String clientName, String clientEmail,
             String businessName, ClientPhone phone,
             String serviceProviderId, String profId, String profName,
-            List<Service> services, LocalDateTime start, Integer reminderMinutes) {
+            List<Service> services, LocalDateTime start, Integer reminderMinutes,
+            String timeZone) { // ✨ Novo parâmetro obrigatório
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
@@ -101,6 +108,7 @@ public class Appointment {
                 .services(new ArrayList<>(services))
                 .products(new ArrayList<>())
                 .startTime(start)
+                .timeZone(timeZone != null ? timeZone : "America/Sao_Paulo") // Fallback seguro
                 .status(AppointmentStatus.PENDING)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
@@ -117,7 +125,8 @@ public class Appointment {
 
     public static Appointment createManual(String clientName, ClientPhone phone,
             String serviceProviderId, String profId, String profName,
-            List<Service> services, LocalDateTime start, String notes) {
+            List<Service> services, LocalDateTime start, String notes,
+            String timeZone) { // ✨ Novo parâmetro
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
@@ -131,6 +140,7 @@ public class Appointment {
                 .services(new ArrayList<>(services))
                 .products(new ArrayList<>())
                 .startTime(start)
+                .timeZone(timeZone != null ? timeZone : "America/Sao_Paulo")
                 .status(AppointmentStatus.SCHEDULED)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
@@ -144,13 +154,15 @@ public class Appointment {
     }
 
     public static Appointment createPersonalBlock(String profId, String profName, String serviceProviderId,
-            LocalDateTime start, LocalDateTime end, String reason) {
+            LocalDateTime start, LocalDateTime end, String reason, String timeZone) {
+        
         return Appointment.builder()
                 .professionalId(profId)
                 .professionalName(profName)
                 .serviceProviderId(serviceProviderId)
                 .startTime(start)
                 .endTime(end)
+                .timeZone(timeZone != null ? timeZone : "America/Sao_Paulo")
                 .status(AppointmentStatus.BLOCKED)
                 .isPersonalBlock(true)
                 .notes("BLOQUEIO PESSOAL: " + reason)
@@ -162,6 +174,20 @@ public class Appointment {
                 .notified(false)
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    // --- MÉTODOS AUXILIARES DE DATA ---
+
+    /**
+     * Retorna o ZoneId configurado para este agendamento.
+     * Útil para integrações com Google Calendar e cálculos de disponibilidade.
+     */
+    public ZoneId getZoneId() {
+        try {
+            return ZoneId.of(this.timeZone);
+        } catch (Exception e) {
+            return ZoneId.of("America/Sao_Paulo"); // Fallback padrão
+        }
     }
 
     // --- MÉTODOS DE NEGÓCIO ---
@@ -193,28 +219,17 @@ public class Appointment {
                     .quantity(qty)
                     .build());
         }
-        // Recalcula o total (serviços + novos produtos)
         recalculateTotals();
     }
 
-    /**
-     * Finaliza o agendamento aplicando descontos e registrando a comissão
-     * calculada.
-     * * @param professional (Para fins de registro/auditoria se necessário)
-     * 
-     * @param discountValue   Valor do desconto a ser aplicado no total
-     * @param commissionValue Valor da comissão JÁ CALCULADA pelo UseCase (Snapshot
-     *                        Pattern)
-     */
     public void complete(Professional professional, BigDecimal discountValue, BigDecimal commissionValue) {
         if (this.status == AppointmentStatus.CANCELLED) {
             throw new BusinessException("Não é possível finalizar um agendamento cancelado.");
         }
 
-        // 1. Garante que o preço base (services + products) está atualizado
         recalculateTotals();
 
-        // 2. Aplica Desconto no Preço Final
+        // Aplica Desconto
         if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
             this.finalPrice = this.price.subtract(discountValue);
             if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
@@ -224,14 +239,10 @@ public class Appointment {
             this.finalPrice = this.price;
         }
 
-        // 3. Registra a Comissão (Snapshot do valor calculado no momento da conclusão)
+        // Registra Comissão e Taxa do Salão
         this.professionalCommission = commissionValue != null ? commissionValue : BigDecimal.ZERO;
-
-        // 4. Calcula a taxa do salão (O que sobra)
-        // Fee = Final Price - Commission
         this.serviceProviderFee = this.finalPrice.subtract(this.professionalCommission);
 
-        // 5. Atualiza Status
         this.status = AppointmentStatus.COMPLETED;
         this.completedAt = LocalDateTime.now();
     }
@@ -258,8 +269,6 @@ public class Appointment {
         this.notified = true;
     }
 
-    // ✨ Método auxiliar público para o UseCase calcular comissões apenas sobre
-    // serviços
     public BigDecimal calculateOriginalServiceTotal() {
         return calculateServiceTotal(this.services);
     }
@@ -267,7 +276,7 @@ public class Appointment {
     // --- MÉTODOS PRIVADOS ---
 
     private void calculateEndTime() {
-        if (services != null) {
+        if (services != null && startTime != null) {
             int duration = services.stream().mapToInt(Service::getDuration).sum();
             this.endTime = this.startTime.plusMinutes(duration);
         }
@@ -281,8 +290,6 @@ public class Appointment {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         this.price = serviceTotal.add(productTotal);
-        // Reseta o finalPrice para o price base antes de aplicar descontos no
-        // complete()
         this.finalPrice = this.price;
     }
 

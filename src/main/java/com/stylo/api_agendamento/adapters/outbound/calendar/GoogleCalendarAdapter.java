@@ -14,17 +14,21 @@ import com.google.api.services.calendar.model.Event;
 import com.google.api.services.calendar.model.EventDateTime;
 import com.google.api.services.calendar.model.Events;
 import com.stylo.api_agendamento.core.domain.Appointment;
+import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.ICalendarProvider;
 import com.stylo.api_agendamento.core.ports.IGoogleTokenRepository;
+import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
 import com.stylo.api_agendamento.core.usecases.dto.ExternalEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +40,8 @@ import java.util.stream.Collectors;
 public class GoogleCalendarAdapter implements ICalendarProvider {
 
     private final IGoogleTokenRepository tokenRepository;
+    // ✨ Injetado para buscar o TimeZone correto ao ler eventos (fetchRecentEvents)
+    private final IProfessionalRepository professionalRepository;
 
     @Value("${google.calendar.client-id}")
     private String clientId;
@@ -48,52 +54,67 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
 
     private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
     private static final String APPLICATION_NAME = "Stylo SaaS";
+    private static final String DEFAULT_TIMEZONE = "America/Sao_Paulo";
 
     @Override
     public String createEvent(Appointment appointment) {
         try {
             Calendar service = getGoogleServiceForProfessional(appointment.getProfessionalId());
 
-            Event event = new Event()
-                    .setSummary(appointment.getBusinessName() + " - " + appointment.getProfessionalName())
-                    .setDescription("Serviços: " + appointment.getServices().stream()
-                            .map(com.stylo.api_agendamento.core.domain.Service::getName)
-                            .reduce((a, b) -> a + ", " + b).orElse(""))
-                    .setLocation("Agendado via Stylo App");
+            // 1. Definição do Fuso Horário
+            // Usa o ZoneId armazenado no agendamento. Se não houver, usa fallback.
+            ZoneId zoneId = appointment.getZoneId();
 
-            // Formatação correta RFC3339
-            event.setStart(
-                    new EventDateTime().setDateTime(new DateTime(appointment.getStartTime().toString() + ":00Z")));
-            event.setEnd(new EventDateTime().setDateTime(new DateTime(appointment.getEndTime().toString() + ":00Z")));
+            // 2. Conversão de LocalDateTime (sem fuso) para ZonedDateTime (com fuso)
+            // Isso diz: "Essa data/hora (10:00) é no fuso de São Paulo"
+            ZonedDateTime startZoned = appointment.getStartTime().atZone(zoneId);
+            ZonedDateTime endZoned = appointment.getEndTime().atZone(zoneId);
+
+            Event event = new Event()
+                    .setSummary("✂️ " + appointment.getClientName() + " - " + appointment.getServices().get(0).getName())
+                    .setDescription(buildDescription(appointment))
+                    .setLocation("Stylo - " + appointment.getBusinessName());
+
+            // 3. Criação do EventDateTime do Google
+            // Convertemos para Epoch Millis (UTC absoluto) mas enviamos o TimeZone junto.
+            // Isso garante que o Google mostre a hora certa, independente de onde esteja o servidor.
+            EventDateTime start = new EventDateTime()
+                    .setDateTime(new DateTime(startZoned.toInstant().toEpochMilli()))
+                    .setTimeZone(zoneId.getId());
+
+            EventDateTime end = new EventDateTime()
+                    .setDateTime(new DateTime(endZoned.toInstant().toEpochMilli()))
+                    .setTimeZone(zoneId.getId());
+
+            event.setStart(start);
+            event.setEnd(end);
 
             Event executedEvent = service.events().insert("primary", event).execute();
-            log.info("Evento criado no Google Calendar. ID: {}", executedEvent.getId());
+            log.info("Evento Google criado com sucesso. ID: {} | Fuso: {}", executedEvent.getId(), zoneId);
 
-            return executedEvent.getId(); // Retorna o ID para ser salvo na Entity
+            return executedEvent.getId();
+
         } catch (Exception e) {
+            // Loga o erro mas não quebra o fluxo (O agendamento no Stylo já existe)
             log.error("Erro ao criar evento no Google Calendar: {}", e.getMessage());
-            return null; // Retorna null para não quebrar o fluxo principal, mas avisa no log
+            return null;
         }
     }
 
     @Override
     public void deleteEvent(String professionalId, String externalEventId) {
-        if (externalEventId == null || externalEventId.isBlank())
-            return;
+        if (externalEventId == null || externalEventId.isBlank()) return;
 
         try {
             Calendar service = getGoogleServiceForProfessional(professionalId);
-
-            // "primary" refere-se à agenda principal do usuário
             service.events().delete("primary", externalEventId).execute();
             log.info("Evento removido do Google Calendar. ID: {}", externalEventId);
 
         } catch (Exception e) {
-            // Se o erro conter 404 ou 410, significa que já foi deletado (Idempotência)
             if (e.getMessage() != null && (e.getMessage().contains("404") || e.getMessage().contains("410"))) {
-                log.warn("Tentativa de deletar evento que já não existe no Google: {}", externalEventId);
+                log.warn("Evento Google já não existe (Idempotência): {}", externalEventId);
             } else {
-                log.error("Falha ao deletar evento no Google Calendar: {}", e.getMessage());
+                log.error("Falha ao deletar evento Google: {}", e.getMessage());
             }
         }
     }
@@ -103,21 +124,26 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
         try {
             Calendar service = getGoogleServiceForProfessional(professionalId);
 
+            // ✨ Busca o fuso do profissional para interpretar corretamente os eventos lidos
+            ZoneId professionalZone = getProfessionalTimeZone(professionalId);
+
             DateTime now = new DateTime(System.currentTimeMillis());
+            
+            // Busca eventos a partir de agora
             Events events = service.events().list("primary")
                     .setTimeMin(now)
                     .setOrderBy("startTime")
                     .setSingleEvents(true)
                     .execute();
 
-            if (events.getItems() == null)
-                return Collections.emptyList();
+            if (events.getItems() == null) return Collections.emptyList();
 
             return events.getItems().stream()
-                    .map(this::toExternalEvent)
+                    .map(evt -> toExternalEvent(evt, professionalZone))
                     .collect(Collectors.toList());
+
         } catch (Exception e) {
-            log.error("Erro ao buscar eventos do Google para o profissional {}: {}", professionalId, e.getMessage());
+            log.error("Erro ao buscar eventos Google para {}: {}", professionalId, e.getMessage());
             return Collections.emptyList();
         }
     }
@@ -126,45 +152,83 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
     public void watchCalendar(String professionalId, String webhookUrl) {
         try {
             Calendar service = getGoogleServiceForProfessional(professionalId);
-
             Channel channel = new Channel()
                     .setId(UUID.randomUUID().toString())
                     .setType("web_hook")
                     .setAddress(webhookUrl)
-                    .setToken(webhookSecret); // <--- AQUI ESTÁ A SEGURANÇA
+                    .setToken(webhookSecret); 
 
             service.events().watch("primary", channel).execute();
-            log.info("Webhook ativado com token de segurança para o profissional: {}", professionalId);
+            log.info("Webhook Google ativado para: {}", professionalId);
         } catch (Exception e) {
-            log.error("Erro ao configurar watch no Google Calendar: {}", e.getMessage());
+            log.error("Erro ao configurar watch no Google: {}", e.getMessage());
         }
     }
 
-    private ExternalEvent toExternalEvent(Event googleEvent) {
+    // --- Métodos Privados ---
+
+    private String buildDescription(Appointment appt) {
+        String services = appt.getServices().stream()
+                .map(com.stylo.api_agendamento.core.domain.Service::getName)
+                .reduce((a, b) -> a + ", " + b).orElse("");
+        return "Cliente: " + appt.getClientName() + "\n" +
+               "Serviços: " + services + "\n" +
+               "Telefone: " + appt.getClientPhone().getNumber();
+    }
+
+    /**
+     * Converte o evento do Google (que pode estar em qualquer fuso ou UTC)
+     * para o LocalDateTime do sistema, respeitando o fuso do Profissional.
+     */
+    private ExternalEvent toExternalEvent(Event googleEvent, ZoneId zoneId) {
         var googleStart = googleEvent.getStart().getDateTime();
         var googleEnd = googleEvent.getEnd().getDateTime();
 
-        // Tratamento para eventos de dia inteiro (que não têm DateTime, apenas Date)
-        if (googleStart == null) {
-            // Lógica simples: se for dia inteiro, consideramos inicio do dia no fuso do
-            // sistema
-            return new ExternalEvent(googleEvent.getId(), googleEvent.getSummary(), LocalDateTime.now(),
-                    LocalDateTime.now());
-        }
+        LocalDateTime start;
+        LocalDateTime end;
 
-        LocalDateTime start = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(googleStart.getValue()), ZoneId.systemDefault());
-        LocalDateTime end = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(googleEnd.getValue()), ZoneId.systemDefault());
+        // Tratamento para eventos de dia inteiro (All-day events)
+        if (googleStart == null) {
+            // Se for dia inteiro, o Google manda 'date' (yyyy-MM-dd)
+            // Assumimos início do dia no fuso do profissional
+            if (googleEvent.getStart().getDate() != null) {
+                 // Lógica simplificada para dia inteiro
+                 long startMillis = googleEvent.getStart().getDate().getValue();
+                 start = Instant.ofEpochMilli(startMillis).atZone(zoneId).toLocalDateTime();
+                 end = start.plusDays(1); // Dia inteiro dura 1 dia
+            } else {
+                 // Fallback extremo
+                 start = LocalDateTime.now();
+                 end = LocalDateTime.now().plusHours(1);
+            }
+        } else {
+            // Evento normal com hora marcada
+            // Convertemos o Instant (UTC Millis) para o LocalDateTime no fuso do profissional
+            start = Instant.ofEpochMilli(googleStart.getValue()).atZone(zoneId).toLocalDateTime();
+            end = Instant.ofEpochMilli(googleEnd.getValue()).atZone(zoneId).toLocalDateTime();
+        }
 
         return new ExternalEvent(googleEvent.getId(), googleEvent.getSummary(), start, end);
     }
 
+    private ZoneId getProfessionalTimeZone(String professionalId) {
+        return professionalRepository.findById(professionalId)
+                .map(Professional::getServiceProvider) // Assume que Profissional tem ServiceProvider carregado
+                .map(sp -> {
+                    try {
+                        return ZoneId.of(sp.getTimeZone());
+                    } catch (Exception e) {
+                        return ZoneId.of(DEFAULT_TIMEZONE);
+                    }
+                })
+                .orElse(ZoneId.of(DEFAULT_TIMEZONE));
+    }
+
     private Calendar getGoogleServiceForProfessional(String professionalId) {
         var tokenData = tokenRepository.findByProfessionalId(professionalId)
-                .orElseThrow(() -> new BusinessException("Google Calendar não conectado para este profissional."));
+                .orElseThrow(() -> new BusinessException("Google Calendar não conectado."));
 
-        if (tokenData.expiresAt().isBefore(LocalDateTime.now().plusMinutes(1))) {
+        if (tokenData.expiresAt().isBefore(LocalDateTime.now().plusMinutes(5))) {
             tokenData = refreshGoogleToken(professionalId, tokenData.refreshToken());
         }
 
@@ -181,20 +245,19 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
                     .setApplicationName(APPLICATION_NAME)
                     .build();
         } catch (Exception e) {
-            log.error("Erro ao instanciar cliente Google Calendar: {}", e.getMessage());
-            throw new BusinessException("Falha na comunicação com o Google.");
+            throw new BusinessException("Falha interna ao criar cliente Google.");
         }
     }
 
     private IGoogleTokenRepository.TokenData refreshGoogleToken(String professionalId, String refreshToken) {
         try {
             var transport = GoogleNetHttpTransport.newTrustedTransport();
-
             TokenResponse response = new GoogleRefreshTokenRequest(
                     transport, JSON_FACTORY, refreshToken, clientId, clientSecret)
                     .execute();
 
-            LocalDateTime newExpiresAt = LocalDateTime.now().plusSeconds(response.getExpiresInSeconds());
+            // Adiciona margem de segurança
+            LocalDateTime newExpiresAt = LocalDateTime.now().plusSeconds(response.getExpiresInSeconds() - 60);
 
             tokenRepository.saveTokens(
                     professionalId,
@@ -205,23 +268,13 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             return new IGoogleTokenRepository.TokenData(response.getAccessToken(), refreshToken, newExpiresAt);
 
         } catch (com.google.api.client.http.HttpResponseException e) {
-            // Se recebermos um 400 ou 401 aqui, significa que o Refresh Token é
-            // inválido/revogado.
             if (e.getStatusCode() == 400 || e.getStatusCode() == 401) {
-                log.error("Refresh Token revogado ou inválido para o profissional {}. Desconectando...",
-                        professionalId);
-                // Opcional: tokenRepository.deleteByProfessionalId(professionalId);
-                // Opcional: notificationProvider.sendAlert(professionalId, "Sua conexão com o
-                // Google expirou.");
+                log.error("Token Google revogado para: {}", professionalId);
+                // Aqui seria ideal disparar um evento de "Desconexão" para atualizar o status no banco
             }
-            throw new BusinessException(
-                    "Sua conexão com o Google expirou permanentemente. Por favor, reconecte sua agenda.");
-
+            throw new BusinessException("Conexão com Google expirada. Reconecte sua conta.");
         } catch (Exception e) {
-            log.error("Erro transitório ao renovar token Google para profissional {}: {}", professionalId,
-                    e.getMessage());
-            throw new BusinessException("Erro de comunicação com o Google. Tente novamente.");
+            throw new BusinessException("Erro ao renovar token Google.");
         }
     }
-
 }

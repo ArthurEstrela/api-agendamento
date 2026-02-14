@@ -5,6 +5,7 @@ import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Collections;
 
@@ -33,6 +34,8 @@ public class ServiceProvider {
     private Integer cancellationMinHours;
     private String subscriptionStatus;
     private LocalDateTime gracePeriodEndsAt;
+
+    private String timeZone;
 
     // ✨ NOVO CAMPO: O "Interruptor" de Comissões
     private boolean commissionsEnabled;
@@ -128,6 +131,19 @@ public class ServiceProvider {
         // Se voltar a ficar ativo, limpamos o prazo de carência
         if ("ACTIVE".equals(newStatus)) {
             this.gracePeriodEndsAt = null;
+        }
+    }
+
+    public String getTimeZone() {
+        return timeZone != null ? timeZone : "America/Sao_Paulo"; // Fallback seguro
+    }
+
+    // Método helper para facilitar conversão
+    public ZoneId getZoneId() {
+        try {
+            return ZoneId.of(getTimeZone());
+        } catch (Exception e) {
+            return ZoneId.of("America/Sao_Paulo");
         }
     }
 }
