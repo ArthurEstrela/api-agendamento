@@ -239,4 +239,18 @@ public class BeanConfiguration {
     public MarkNoShowUseCase markNoShowUseCase(IAppointmentRepository appointmentRepository) {
         return new MarkNoShowUseCase(appointmentRepository);
     }
+
+    @Bean
+    public CloseProfessionalPeriodUseCase closeProfessionalPeriodUseCase(
+            IAppointmentRepository appointmentRepository,
+            IFinancialRepository financialRepository) {
+        return new CloseProfessionalPeriodUseCase(appointmentRepository, financialRepository);
+    }
+
+    @Bean
+    public ProcessAutomaticSplitUseCase processAutomaticSplitUseCase(
+            IProfessionalRepository professionalRepository,
+            IPaymentProvider paymentProvider) {
+        return new ProcessAutomaticSplitUseCase(professionalRepository, paymentProvider);
+    }
 }

@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.stylo.api_agendamento.core.domain.Expense;
+import com.stylo.api_agendamento.core.domain.Payout;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 
 public interface IFinancialRepository {
@@ -15,8 +16,10 @@ public interface IFinancialRepository {
 
     // Aqui o UseCase vai buscar os Appointments pagos para calcular o lucro
     void registerRevenue(String serviceProviderId, BigDecimal amount, String description, PaymentMethod paymentMethod);
-        
+
     List<Expense> findAllExpensesByProviderIdAndPeriod(String providerId, LocalDate start, LocalDate end);
 
     void deleteExpense(String expenseId);
+
+    Payout savePayout(Payout payout);
 }

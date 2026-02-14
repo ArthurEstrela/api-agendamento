@@ -20,10 +20,11 @@ public class Professional {
     private final String email;
     private String avatarUrl;
     private String bio;
+    private String gatewayAccountId;
 
     // ✨ Apenas estes dois campos controlam todo o financeiro agora
-    private RemunerationType remunerationType; 
-    private BigDecimal remunerationValue; 
+    private RemunerationType remunerationType;
+    private BigDecimal remunerationValue;
 
     private final List<Service> services;
     private List<DailyAvailability> availability;
@@ -107,12 +108,12 @@ public class Professional {
     // ✨ Método unificado para atualizar a comissão (Strategy)
     public void updateCommissionSettings(RemunerationType type, BigDecimal value) {
         if (value == null || value.compareTo(BigDecimal.ZERO) < 0) {
-             throw new BusinessException("O valor da remuneração não pode ser negativo.");
+            throw new BusinessException("O valor da remuneração não pode ser negativo.");
         }
-        
+
         // Validação específica se for porcentagem
         if (type == RemunerationType.PERCENTAGE && value.compareTo(new BigDecimal("100")) > 0) {
-             throw new BusinessException("A porcentagem não pode ser maior que 100.");
+            throw new BusinessException("A porcentagem não pode ser maior que 100.");
         }
 
         this.remunerationType = type;
@@ -125,5 +126,16 @@ public class Professional {
             return BigDecimal.ZERO;
         }
         return this.remunerationType.calculate(finalPrice, this.remunerationValue);
+    }
+
+    public boolean hasConnectedAccount() {
+        return this.gatewayAccountId != null && !this.gatewayAccountId.isBlank();
+    }
+
+    /**
+     * Vincula o ID da conta do gateway ao profissional.
+     */
+    public void linkGatewayAccount(String accountId) {
+        this.gatewayAccountId = accountId;
     }
 }

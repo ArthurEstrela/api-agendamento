@@ -22,6 +22,8 @@ public class FinancialPersistenceAdapter implements IFinancialRepository {
 
     private final JpaExpenseRepository jpaExpenseRepository;
     private final ExpenseMapper expenseMapper;
+    private final JpaPayoutRepository jpaPayoutRepository;
+    private final PayoutMapper payoutMapper;
 
     @Override
     public void saveExpense(Expense expense) {
@@ -74,5 +76,18 @@ public class FinancialPersistenceAdapter implements IFinancialRepository {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return (totalFees != null ? totalFees : BigDecimal.ZERO).subtract(totalExpenses);
+    }
+
+    @Override
+    public com.stylo.api_agendamento.core.domain.Payout savePayout(
+            com.stylo.api_agendamento.core.domain.Payout payout) {
+        // 1. Converte o domínio para entidade JPA
+        var entity = payoutMapper.toEntity(payout);
+
+        // 2. Salva no banco de dados
+        var savedEntity = jpaPayoutRepository.save(entity);
+
+        // 3. Retorna o domínio convertido de volta para o Core
+        return payoutMapper.toDomain(savedEntity);
     }
 }

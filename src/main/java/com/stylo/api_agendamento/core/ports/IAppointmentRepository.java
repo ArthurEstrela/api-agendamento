@@ -30,4 +30,6 @@ public interface IAppointmentRepository {
     BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end);
 
     List<Appointment> findAllByClientId(String clientId);
+
+    List<Appointment> findPendingSettlementByProfessional(String professionalId);
 }

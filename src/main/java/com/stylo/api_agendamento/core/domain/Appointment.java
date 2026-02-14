@@ -76,6 +76,9 @@ public class Appointment {
     private boolean paid;
     private String externalPaymentId;
 
+    private boolean commissionSettled;
+    private LocalDateTime settledAt;
+
     // --- FACTORIES ---
 
     public static Appointment create(String clientId, String clientName, String clientEmail,
@@ -328,5 +331,14 @@ public class Appointment {
 
         LocalDateTime limit = LocalDateTime.now().plusHours(minHoursBefore);
         return this.startTime.isAfter(limit);
+    }
+
+    public void markCommissionAsSettled() {
+        this.commissionSettled = true;
+        this.settledAt = LocalDateTime.now();
+    }
+
+    public boolean isPaid() {
+        return this.externalPaymentId != null;
     }
 }
