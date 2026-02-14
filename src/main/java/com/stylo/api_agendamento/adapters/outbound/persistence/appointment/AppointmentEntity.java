@@ -78,6 +78,8 @@ public class AppointmentEntity {
     @Column(name = "cancelled_by")
     private String cancelledBy;
 
+    private boolean commissionSettled;
+
     // AppointmentEntity.java
     @Column(precision = 10, scale = 2)
     private BigDecimal professionalCommission; // Parte do profissional

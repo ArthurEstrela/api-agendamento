@@ -16,8 +16,16 @@ public interface JpaServiceProviderRepository extends JpaRepository<ServiceProvi
 
     boolean existsByPublicProfileSlug(String slug);
 
-    @Query("SELECT s FROM ServiceProviderEntity s WHERE s.subscriptionStatus = 'TRIAL' AND s.trialEndsAt < :now")
-    List<ServiceProviderEntity> findExpiredTrials(@Param("now") LocalDateTime now);
-
     List<ServiceProviderEntity> findByPublicProfileSlugIsNotNull();
+
+    @Query("SELECT s FROM ServiceProviderEntity s WHERE s.subscriptionStatus = 'GRACE_PERIOD' AND s.gracePeriodEndsAt <= :now")
+    List<ServiceProviderEntity> findExpiredGracePeriods(@Param("now") LocalDateTime now);
+
+    @Query("SELECT s FROM ServiceProviderEntity s WHERE s.subscriptionStatus = 'ACTIVE' AND s.trialEndsAt <= :threshold")
+    List<ServiceProviderEntity> findUpcomingExpirations(@Param("threshold") LocalDateTime threshold);
+
+    // ✨ Reutilizamos o método que já existe para Trials, mas garantindo que o
+    // status seja TRIAL
+    @Query("SELECT s FROM ServiceProviderEntity s WHERE s.subscriptionStatus = 'TRIAL' AND s.trialEndsAt <= :now")
+    List<ServiceProviderEntity> findExpiredTrials(@Param("now") LocalDateTime now);
 }

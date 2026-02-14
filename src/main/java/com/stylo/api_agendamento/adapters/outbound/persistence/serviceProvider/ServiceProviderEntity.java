@@ -80,6 +80,8 @@ public class ServiceProviderEntity {
     @Column(name = "commissions_enabled", nullable = false)
     private boolean commissionsEnabled;
 
+    private LocalDateTime gracePeriodEndsAt;
+
     // --- CAMPOS DE AUDITORIA (ESSENCIAIS PARA SAAS) ---
 
     @CreationTimestamp

@@ -103,4 +103,14 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<Appointment> findPendingSettlementByProfessional(String professionalId) {
+        // ✨ Converte ID, busca no banco e mapeia para o domínio
+        return jpaAppointmentRepository
+                .findAllByProfessionalIdAndCommissionSettledFalse(UUID.fromString(professionalId))
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }

@@ -69,9 +69,16 @@ public class BeanConfiguration {
     @Bean
     public CancelAppointmentUseCase cancelAppointmentUseCase(
             IAppointmentRepository appointmentRepository,
-            IUserRepository userRepository, // ✨ Novo (para buscar o prof)
-            INotificationProvider notificationProvider) { // ✨ Novo
-        return new CancelAppointmentUseCase(appointmentRepository, userRepository, notificationProvider);
+            IServiceProviderRepository providerRepository,
+            IUserRepository userRepository,
+            INotificationProvider notificationProvider,
+            IPaymentProvider paymentProvider) {
+        return new CancelAppointmentUseCase(
+                appointmentRepository,
+                providerRepository,
+                userRepository,
+                notificationProvider,
+                paymentProvider);
     }
 
     @Bean
@@ -250,7 +257,11 @@ public class BeanConfiguration {
     @Bean
     public ProcessAutomaticSplitUseCase processAutomaticSplitUseCase(
             IProfessionalRepository professionalRepository,
+            IAppointmentRepository appointmentRepository, // ✨ Adicionado
             IPaymentProvider paymentProvider) {
-        return new ProcessAutomaticSplitUseCase(professionalRepository, paymentProvider);
+        return new ProcessAutomaticSplitUseCase(
+                professionalRepository,
+                appointmentRepository,
+                paymentProvider);
     }
 }

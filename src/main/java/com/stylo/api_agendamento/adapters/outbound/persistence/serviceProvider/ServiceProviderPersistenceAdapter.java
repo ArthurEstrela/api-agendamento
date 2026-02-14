@@ -66,4 +66,20 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
                 .map(serviceProviderMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<ServiceProvider> findExpiredGracePeriods(LocalDateTime now) {
+        return jpaServiceProviderRepository.findExpiredGracePeriods(now)
+                .stream()
+                .map(serviceProviderMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ServiceProvider> findUpcomingExpirations(LocalDateTime threshold) {
+        return jpaServiceProviderRepository.findUpcomingExpirations(threshold)
+                .stream()
+                .map(serviceProviderMapper::toDomain)
+                .collect(Collectors.toList());
+    }
 }
