@@ -2,7 +2,9 @@ package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.appointment.*;
 import com.stylo.api_agendamento.core.domain.Appointment;
+import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
+import com.stylo.api_agendamento.core.ports.IUserContext; // ✨ Import novo
 import com.stylo.api_agendamento.core.usecases.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,147 +23,147 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AppointmentController {
 
-        private final CreateAppointmentUseCase createAppointmentUseCase;
-        private final CreateManualAppointmentUseCase createManualAppointmentUseCase;
-        private final ConfirmAppointmentUseCase confirmAppointmentUseCase;
-        private final CompleteAppointmentUseCase completeAppointmentUseCase;
-        private final CancelAppointmentUseCase cancelAppointmentUseCase;
-        private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
-        private final GetAvailableSlotsUseCase getAvailableSlotsUseCase;
-        private final GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase;
-        private final MarkNoShowUseCase markNoShowUseCase;
+    private final CreateAppointmentUseCase createAppointmentUseCase;
+    private final CreateManualAppointmentUseCase createManualAppointmentUseCase;
+    private final ConfirmAppointmentUseCase confirmAppointmentUseCase;
+    private final CompleteAppointmentUseCase completeAppointmentUseCase;
+    private final CancelAppointmentUseCase cancelAppointmentUseCase;
+    private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
+    private final GetAvailableSlotsUseCase getAvailableSlotsUseCase;
+    private final GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase;
+    private final MarkNoShowUseCase markNoShowUseCase;
+    
+    // ✨ Injeção do Contexto de Usuário
+    private final IUserContext userContext; 
 
-        @PostMapping
-        public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
-                var input = new CreateAppointmentUseCase.CreateAppointmentInput(
-                                request.clientId(),
-                                request.professionalId(),
-                                request.serviceIds(),
-                                request.startTime(),
-                                request.reminderMinutes());
-                return ResponseEntity.status(HttpStatus.CREATED).body(createAppointmentUseCase.execute(input));
-        }
+    @PostMapping
+    public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
+        // ✨ Segurança: Forçamos o ID do cliente logado, ignorando o que vier no JSON se for diferente.
+        // Ou validamos se o usuário logado é o mesmo do request.
+        String loggedUserId = userContext.getCurrentUserId();
+        
+        // Se for um CLIENT criando, usamos o ID dele. 
+        // Se for ADMIN/PROFESSIONAL criando para outro, poderíamos permitir o request.clientId().
+        // Assumindo fluxo padrão de app mobile (Cliente agendando):
+        String clientIdToUse = loggedUserId; 
 
-        @PostMapping("/manual")
-        public ResponseEntity<Appointment> createManual(@RequestBody @Valid CreateManualAppointmentRequest request) {
-                var input = new CreateManualAppointmentUseCase.ManualInput(
-                                request.professionalId(),
-                                request.clientName(),
-                                request.clientPhone(),
-                                request.serviceIds(),
-                                request.startTime(),
-                                request.notes());
-                return ResponseEntity.status(HttpStatus.CREATED).body(createManualAppointmentUseCase.execute(input));
-        }
+        var input = new CreateAppointmentUseCase.CreateAppointmentInput(
+                clientIdToUse,
+                request.professionalId(),
+                request.serviceIds(),
+                request.startTime(),
+                request.reminderMinutes());
+        return ResponseEntity.status(HttpStatus.CREATED).body(createAppointmentUseCase.execute(input));
+    }
 
-        @PatchMapping("/{id}/confirm")
-        public ResponseEntity<Void> confirm(@PathVariable String id) {
-                // Você deve obter o providerId do contexto de segurança (usuário logado)
-                // Exemplo genérico abaixo (ajuste conforme seu SecurityContext):
-                String loggedProviderId = "ID_DO_ESTABELECIMENTO_LOGADO";
+    @PostMapping("/manual")
+    public ResponseEntity<Appointment> createManual(@RequestBody @Valid CreateManualAppointmentRequest request) {
+        // Apenas profissionais podem criar manual, validação já feita pelo SecurityConfig (Role)
+        var input = new CreateManualAppointmentUseCase.ManualInput(
+                request.professionalId(),
+                request.clientName(),
+                request.clientPhone(),
+                request.serviceIds(),
+                request.startTime(),
+                request.notes());
+        return ResponseEntity.status(HttpStatus.CREATED).body(createManualAppointmentUseCase.execute(input));
+    }
 
-                var input = new ConfirmAppointmentUseCase.ConfirmAppointmentInput(id, loggedProviderId);
-                confirmAppointmentUseCase.execute(input);
-                return ResponseEntity.noContent().build();
-        }
+    @PatchMapping("/{id}/confirm")
+    public ResponseEntity<Void> confirm(@PathVariable String id) {
+        // ✨ Obtendo o ID real do usuário logado (que é o provider/profissional)
+        String loggedUserId = userContext.getCurrentUserId();
 
-        @PatchMapping("/{id}/complete")
-        public ResponseEntity<Void> complete(
-                        @PathVariable String id,
-                        @RequestBody @Valid CompleteAppointmentRequest request) {
+        var input = new ConfirmAppointmentUseCase.ConfirmAppointmentInput(id, loggedUserId);
+        confirmAppointmentUseCase.execute(input);
+        return ResponseEntity.noContent().build();
+    }
 
-                // 1. Converter os itens do Request (DTO) para os itens do UseCase (Input)
-                var productItems = request.soldProducts() != null
-                                ? request.soldProducts().stream()
-                                                .map(p -> new CompleteAppointmentUseCase.ProductSaleItem(p.productId(),
-                                                                p.quantity()))
-                                                .toList()
-                                : List.<CompleteAppointmentUseCase.ProductSaleItem>of();
+    @PatchMapping("/{id}/complete")
+    public ResponseEntity<Void> complete(
+            @PathVariable String id,
+            @RequestBody @Valid CompleteAppointmentRequest request) {
 
-                // 2. Criar o input com os 4 argumentos corretos
-                var input = new CompleteAppointmentUseCase.CompleteAppointmentInput(
-                                id,
-                                PaymentMethod.valueOf(request.paymentMethod()),
-                                request.serviceFinalPrice(), // <--- Correção: Usa serviceFinalPrice()
-                                productItems // <--- Correção: Passa a lista de produtos
-                );
+        var productItems = request.soldProducts() != null
+                ? request.soldProducts().stream()
+                .map(p -> new CompleteAppointmentUseCase.ProductSaleItem(p.productId(),
+                        p.quantity()))
+                .toList()
+                : List.<CompleteAppointmentUseCase.ProductSaleItem>of();
 
-                completeAppointmentUseCase.execute(input);
-                return ResponseEntity.noContent().build();
-        }
+        var input = new CompleteAppointmentUseCase.CompleteAppointmentInput(
+                id,
+                PaymentMethod.valueOf(request.paymentMethod()),
+                request.serviceFinalPrice(),
+                productItems
+        );
 
-        @DeleteMapping("/{id}")
-        public ResponseEntity<Void> cancel(
-                        @PathVariable String id,
-                        @RequestParam(required = false, defaultValue = "Cancelado via sistema") String reason) {
+        completeAppointmentUseCase.execute(input);
+        return ResponseEntity.noContent().build();
+    }
 
-                // Obtenha os dados do usuário logado
-                String loggedUserId = "ID_DO_USUARIO_LOGADO";
-                boolean isClient = true; // Determine se o usuário logado possui a role CLIENT
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> cancel(
+            @PathVariable String id,
+            @RequestParam(required = false, defaultValue = "Cancelado via sistema") String reason) {
 
-                var input = new CancelAppointmentUseCase.CancelAppointmentInput(
-                                id,
-                                loggedUserId,
-                                reason,
-                                isClient);
+        // ✨ Recuperação segura do usuário
+        String loggedUserId = userContext.getCurrentUserId();
+        UserRole role = userContext.getCurrentUserRole();
+        
+        // ✨ Lógica inteligente: Se for CLIENT, é cancelamento pelo cliente. Se não, é pelo estabelecimento.
+        boolean isClient = (role == UserRole.CLIENT);
 
-                cancelAppointmentUseCase.execute(input);
-                return ResponseEntity.noContent().build();
-        }
+        var input = new CancelAppointmentUseCase.CancelAppointmentInput(
+                id,
+                loggedUserId,
+                reason,
+                isClient);
 
-        @PutMapping("/{id}/reschedule")
-        public ResponseEntity<Appointment> reschedule(
-                        @PathVariable String id,
-                        @RequestBody @Valid RescheduleAppointmentRequest request) {
+        cancelAppointmentUseCase.execute(input);
+        return ResponseEntity.noContent().build();
+    }
+    
+    // ... (restante dos métodos mantém-se igual, pois são GET públicos ou não dependem de user ID crítico)
+    
+    @PutMapping("/{id}/reschedule")
+    public ResponseEntity<Appointment> reschedule(
+                    @PathVariable String id,
+                    @RequestBody @Valid RescheduleAppointmentRequest request) {
+            // Nota: Adicione validação aqui se quiser garantir que só o dono do agendamento pode reagendar
+            var input = new RescheduleAppointmentUseCase.RescheduleInput(
+                            id,
+                            request.newStartTime());
+            return ResponseEntity.ok(rescheduleAppointmentUseCase.execute(input));
+    }
 
-                // CORREÇÃO: RescheduleAppointmentUseCase exige o Record RescheduleInput
-                var input = new RescheduleAppointmentUseCase.RescheduleInput(
-                                id,
-                                request.newStartTime());
+    @GetMapping("/slots")
+    public ResponseEntity<List<LocalTime>> getAvailableSlots(
+                    @RequestParam String professionalId,
+                    @RequestParam String date) {
+            var input = new GetAvailableSlotsUseCase.AvailableSlotsInput(
+                            professionalId,
+                            LocalDate.parse(date),
+                            List.of() 
+            );
+            return ResponseEntity.ok(getAvailableSlotsUseCase.execute(input));
+    }
 
-                return ResponseEntity.ok(rescheduleAppointmentUseCase.execute(input));
-        }
+    @GetMapping("/availability")
+    public ResponseEntity<List<LocalTime>> getAvailability(
+                    @RequestParam String professionalId,
+                    @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                    @RequestParam List<String> serviceIds) { 
+            var availability = getProfessionalAvailabilityUseCase.execute(
+                            professionalId,
+                            date,
+                            serviceIds);
+            return ResponseEntity.ok(availability);
+    }
 
-        @GetMapping("/slots")
-        public ResponseEntity<List<LocalTime>> getAvailableSlots(
-                        @RequestParam String professionalId,
-                        @RequestParam String date) {
-
-                // CORREÇÃO: GetAvailableSlotsUseCase exige o Record AvailableSlotsInput
-                // Obs: Como o Controller recebe String, precisamos converter para LocalDate.
-                // E para os serviços, você precisaria buscar a lista de domínios ou ajustar o
-                // Input para IDs.
-                var input = new GetAvailableSlotsUseCase.AvailableSlotsInput(
-                                professionalId,
-                                LocalDate.parse(date),
-                                List.of() // Aqui você deve passar os serviços vindos do request ou uma lista vazia para
-                                          // busca geral
-                );
-
-                return ResponseEntity.ok(getAvailableSlotsUseCase.execute(input));
-        }
-
-        @GetMapping("/availability")
-        public ResponseEntity<List<LocalTime>> getAvailability(
-                        @RequestParam String professionalId,
-                        @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-                        @RequestParam List<String> serviceIds) { // ✨ Recebe lista de IDs de serviços
-
-                var availability = getProfessionalAvailabilityUseCase.execute(
-                                professionalId,
-                                date,
-                                serviceIds);
-
-                return ResponseEntity.ok(availability);
-        }
-
-        @PatchMapping("/{id}/no-show")
-        public ResponseEntity<Void> markNoShow(@PathVariable String id) {
-                // ✨ Executa a regra de negócio do No-Show
-                markNoShowUseCase.execute(id);
-
-                // Retornamos 204 No Content pois a operação foi bem sucedida e não há corpo na
-                // resposta
-                return ResponseEntity.noContent().build();
-        }
+    @PatchMapping("/{id}/no-show")
+    public ResponseEntity<Void> markNoShow(@PathVariable String id) {
+            markNoShowUseCase.execute(id);
+            return ResponseEntity.noContent().build();
+    }
 }
