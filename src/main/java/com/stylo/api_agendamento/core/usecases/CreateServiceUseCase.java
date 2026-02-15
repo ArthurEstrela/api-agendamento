@@ -1,11 +1,13 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Service;
 import com.stylo.api_agendamento.core.ports.IServiceRepository;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
 
+@UseCase
 @RequiredArgsConstructor
 public class CreateServiceUseCase {
 

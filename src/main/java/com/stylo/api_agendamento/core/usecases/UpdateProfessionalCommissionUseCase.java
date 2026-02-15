@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.domain.RemunerationType;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
 
+@UseCase
 @RequiredArgsConstructor
 public class UpdateProfessionalCommissionUseCase {
 

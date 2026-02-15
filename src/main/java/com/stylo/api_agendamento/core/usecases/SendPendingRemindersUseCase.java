@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.INotificationProvider;
@@ -12,6 +13,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class SendPendingRemindersUseCase {
 

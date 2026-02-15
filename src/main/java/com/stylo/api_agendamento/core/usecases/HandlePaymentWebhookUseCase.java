@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class HandlePaymentWebhookUseCase {
 

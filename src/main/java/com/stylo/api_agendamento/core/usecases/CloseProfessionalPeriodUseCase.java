@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.Payout;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime; // ✨ Import necessário
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class CloseProfessionalPeriodUseCase {
 

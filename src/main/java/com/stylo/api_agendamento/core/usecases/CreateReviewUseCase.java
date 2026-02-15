@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.Review;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -8,6 +9,7 @@ import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.IReviewRepository;
 import lombok.RequiredArgsConstructor;
 
+@UseCase
 @RequiredArgsConstructor
 public class CreateReviewUseCase {
 

@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.events.AppointmentCreatedEvent;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class CreateAppointmentUseCase {
 

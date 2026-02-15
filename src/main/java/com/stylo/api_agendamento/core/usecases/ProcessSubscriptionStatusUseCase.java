@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import com.stylo.api_agendamento.core.ports.INotificationProvider;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class ProcessSubscriptionStatusUseCase {
 

@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.domain.Review;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+@UseCase
 @RequiredArgsConstructor
 public class GetProfessionalProfileUseCase {
 

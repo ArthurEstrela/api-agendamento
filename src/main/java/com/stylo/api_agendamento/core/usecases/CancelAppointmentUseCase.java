@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
@@ -14,6 +15,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class CancelAppointmentUseCase {
 

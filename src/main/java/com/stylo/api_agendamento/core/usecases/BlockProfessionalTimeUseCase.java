@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
@@ -17,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class BlockProfessionalTimeUseCase {
 

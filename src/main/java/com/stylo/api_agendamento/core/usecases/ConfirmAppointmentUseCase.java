@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.domain.Professional;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.format.DateTimeFormatter;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class ConfirmAppointmentUseCase {
 

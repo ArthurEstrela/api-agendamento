@@ -37,9 +37,6 @@ public class Appointment {
     @Builder.Default
     private List<AppointmentItem> products = new ArrayList<>();
 
-    // ✨ TIMEZONE & DATES
-    // As datas aqui são persistidas sem fuso no banco (LocalDateTime),
-    // mas SEMPRE devem ser interpretadas no contexto do timeZone abaixo.
     private String timeZone; 
 
     @Setter
@@ -85,16 +82,21 @@ public class Appointment {
     private boolean commissionSettled;
     private LocalDateTime settledAt;
 
-    // --- FACTORIES (Atualizadas com TimeZone) ---
+    // --- FACTORIES (Atualizadas com Validações de Negócio) ---
 
     public static Appointment create(String clientId, String clientName, String clientEmail,
             String businessName, ClientPhone phone,
             String serviceProviderId, String profId, String profName,
             List<Service> services, LocalDateTime start, Integer reminderMinutes,
-            String timeZone) { // ✨ Novo parâmetro obrigatório
+            String timeZone) {
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
+
+        // ✨ VALIDAÇÃO 1: Preço Negativo (Defesa do Domínio)
+        if (serviceTotal.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException("O valor total dos serviços não pode ser negativo.");
+        }
 
         Appointment appointment = Appointment.builder()
                 .clientId(clientId)
@@ -108,7 +110,7 @@ public class Appointment {
                 .services(new ArrayList<>(services))
                 .products(new ArrayList<>())
                 .startTime(start)
-                .timeZone(timeZone != null ? timeZone : "America/Sao_Paulo") // Fallback seguro
+                .timeZone(timeZone != null ? timeZone : "America/Sao_Paulo")
                 .status(AppointmentStatus.PENDING)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
@@ -120,16 +122,28 @@ public class Appointment {
                 .build();
 
         appointment.calculateEndTime();
+
+        // ✨ VALIDAÇÃO 2: Coerência Temporal
+        // Garante que a soma das durações dos serviços resultou em um tempo positivo
+        if (!appointment.getEndTime().isAfter(appointment.getStartTime())) {
+            throw new BusinessException("A duração total do agendamento deve ser maior que zero.");
+        }
+
         return appointment;
     }
 
     public static Appointment createManual(String clientName, ClientPhone phone,
             String serviceProviderId, String profId, String profName,
             List<Service> services, LocalDateTime start, String notes,
-            String timeZone) { // ✨ Novo parâmetro
+            String timeZone) {
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
+
+        // ✨ VALIDAÇÃO 1 (Manual)
+        if (serviceTotal.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException("O valor total dos serviços não pode ser negativo.");
+        }
 
         Appointment appointment = Appointment.builder()
                 .clientName(clientName)
@@ -150,12 +164,23 @@ public class Appointment {
                 .build();
 
         appointment.calculateEndTime();
+
+        // ✨ VALIDAÇÃO 2 (Manual)
+        if (!appointment.getEndTime().isAfter(appointment.getStartTime())) {
+            throw new BusinessException("A duração total do agendamento deve ser maior que zero.");
+        }
+
         return appointment;
     }
 
     public static Appointment createPersonalBlock(String profId, String profName, String serviceProviderId,
             LocalDateTime start, LocalDateTime end, String reason, String timeZone) {
         
+        // ✨ VALIDAÇÃO EXTRA: Para bloqueios, o input de fim vem direto do usuário
+        if (end == null || !end.isAfter(start)) {
+            throw new BusinessException("O horário de término do bloqueio deve ser posterior ao início.");
+        }
+
         return Appointment.builder()
                 .professionalId(profId)
                 .professionalName(profName)
@@ -178,15 +203,11 @@ public class Appointment {
 
     // --- MÉTODOS AUXILIARES DE DATA ---
 
-    /**
-     * Retorna o ZoneId configurado para este agendamento.
-     * Útil para integrações com Google Calendar e cálculos de disponibilidade.
-     */
     public ZoneId getZoneId() {
         try {
             return ZoneId.of(this.timeZone);
         } catch (Exception e) {
-            return ZoneId.of("America/Sao_Paulo"); // Fallback padrão
+            return ZoneId.of("America/Sao_Paulo");
         }
     }
 
@@ -231,12 +252,18 @@ public class Appointment {
 
         // Aplica Desconto
         if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
-            this.finalPrice = this.price.subtract(discountValue);
-            if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
-                this.finalPrice = BigDecimal.ZERO;
+            // ✨ VALIDAÇÃO: Desconto não pode ser maior que o preço
+            if (discountValue.compareTo(this.price) > 0) {
+                 throw new BusinessException("O desconto não pode ser maior que o valor total.");
             }
+            this.finalPrice = this.price.subtract(discountValue);
         } else {
             this.finalPrice = this.price;
+        }
+        
+        // Garante que finalPrice nunca fique negativo (Redundância de segurança)
+        if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
+            this.finalPrice = BigDecimal.ZERO;
         }
 
         // Registra Comissão e Taxa do Salão
@@ -260,6 +287,12 @@ public class Appointment {
         }
         this.startTime = newStartTime;
         calculateEndTime();
+        
+        // ✨ VALIDAÇÃO NO REAGENDAMENTO TAMBÉM
+        if (!this.endTime.isAfter(this.startTime)) {
+             throw new BusinessException("Erro ao reagendar: duração inválida.");
+        }
+
         this.status = AppointmentStatus.PENDING;
         this.completedAt = null;
         this.paymentMethod = null;

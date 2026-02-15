@@ -2,6 +2,7 @@ package com.stylo.api_agendamento.core.usecases;
 
 import java.util.List;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.ICalendarProvider;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
@@ -9,6 +10,7 @@ import com.stylo.api_agendamento.core.usecases.dto.ExternalEvent;
 
 import lombok.RequiredArgsConstructor;
 
+@UseCase
 @RequiredArgsConstructor
 public class SyncExternalCalendarUseCase {
     private final ICalendarProvider calendarProvider;

@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -15,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class CompleteAppointmentUseCase {
 

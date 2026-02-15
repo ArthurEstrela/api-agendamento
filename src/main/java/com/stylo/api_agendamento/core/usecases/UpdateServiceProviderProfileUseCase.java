@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -8,6 +9,7 @@ import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.Updat
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+@UseCase
 @RequiredArgsConstructor
 public class UpdateServiceProviderProfileUseCase {
 
