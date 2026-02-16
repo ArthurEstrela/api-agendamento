@@ -66,6 +66,8 @@ public class SecurityConfigurations {
                         .requestMatchers("/v1/financial/**").hasRole("SERVICE_PROVIDER")
                         .requestMatchers("/v1/service-providers/settings/**").hasRole("SERVICE_PROVIDER")
 
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
                         // Qualquer outra requisição precisa de Token JWT
                         .anyRequest().authenticated())
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
