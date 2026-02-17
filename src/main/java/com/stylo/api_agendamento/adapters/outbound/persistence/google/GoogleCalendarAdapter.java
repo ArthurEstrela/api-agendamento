@@ -1,10 +1,11 @@
-package com.stylo.api_agendamento.adapters.outbound.calendar;
+package com.stylo.api_agendamento.adapters.outbound.persistence.google;
 
 import com.google.api.client.auth.oauth2.BearerToken;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.auth.oauth2.TokenResponse;
 import com.google.api.client.googleapis.auth.oauth2.GoogleRefreshTokenRequest;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpResponseException;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.DateTime;
@@ -20,7 +21,7 @@ import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.ICalendarProvider;
 import com.stylo.api_agendamento.core.ports.IGoogleTokenRepository;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
-import com.stylo.api_agendamento.core.ports.IServiceProviderRepository; // ✨ Import necessário
+import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import com.stylo.api_agendamento.core.usecases.dto.ExternalEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,6 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
 
     private final IGoogleTokenRepository tokenRepository;
     private final IProfessionalRepository professionalRepository;
-    // ✨ Injeção necessária para buscar o TimeZone do estabelecimento
     private final IServiceProviderRepository serviceProviderRepository;
 
     @Value("${google.calendar.client-id}")
@@ -90,11 +90,14 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             return executedEvent.getId();
 
         } catch (BusinessException be) {
-            log.warn("Integração Google ignorada: {}", be.getMessage());
-            return null;
+            // ✨ MELHORIA: Erros de regra de negócio (Token revogado/desconectado) não devem gerar retry
+            log.warn("Integração Google pausada para o profissional {}: {}", appointment.getProfessionalId(), be.getMessage());
+            throw be; 
         } catch (Exception e) {
-            log.error("Erro inesperado ao criar evento Google: {}", e.getMessage());
-            return null;
+            // ✨ MELHORIA: Erros técnicos (Timeout, 500, Rede) são relançados 
+            // para que o AppointmentEventListener capture e agende o Retry.
+            log.error("Erro técnico ao criar evento Google: {}", e.getMessage());
+            throw new RuntimeException("Falha na integração Google: " + e.getMessage(), e);
         }
     }
 
@@ -109,12 +112,18 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
 
         } catch (BusinessException be) {
             log.warn("Não foi possível deletar evento Google (status desconectado): {}", be.getMessage());
-        } catch (Exception e) {
-            if (e.getMessage() != null && (e.getMessage().contains("404") || e.getMessage().contains("410"))) {
-                log.warn("Evento Google já não existe (Idempotência): {}", externalEventId);
+            // Não relançamos aqui pois deletar é "best effort" neste contexto
+        } catch (HttpResponseException e) {
+            // ✨ MELHORIA: Idempotência
+            if (e.getStatusCode() == 404 || e.getStatusCode() == 410) {
+                log.info("Evento Google já não existe (404/410), considerado deletado: {}", externalEventId);
             } else {
-                log.error("Falha ao deletar evento Google: {}", e.getMessage());
+                log.error("Erro HTTP Google ao deletar: {}", e.getStatusCode());
+                throw new RuntimeException("Erro ao deletar evento Google", e);
             }
+        } catch (Exception e) {
+            log.error("Falha genérica ao deletar evento Google: {}", e.getMessage());
+            throw new RuntimeException("Erro ao deletar evento Google", e);
         }
     }
 
@@ -137,9 +146,13 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
                     .map(evt -> toExternalEvent(evt, professionalZone))
                     .collect(Collectors.toList());
 
+        } catch (BusinessException be) {
+             // Se não estiver conectado, retorna lista vazia sem erro
+             return Collections.emptyList();
         } catch (Exception e) {
             log.error("Erro ao buscar eventos Google para {}: {}", professionalId, e.getMessage());
-            return Collections.emptyList();
+            // Para leitura, preferimos retornar vazio a quebrar a tela do usuário
+            return Collections.emptyList(); 
         }
     }
 
@@ -157,6 +170,7 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             log.info("Webhook Google ativado para: {}", professionalId);
         } catch (Exception e) {
             log.error("Erro ao configurar watch no Google: {}", e.getMessage());
+            // Webhook falhando não deve travar o sistema, apenas logamos
         }
     }
 
@@ -167,7 +181,6 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
                 .map(com.stylo.api_agendamento.core.domain.Service::getName)
                 .reduce((a, b) -> a + ", " + b).orElse("");
         
-        // ✨ CORREÇÃO 1: Usa .getValue() pois ClientPhone é um ValueObject com @Getter do Lombok
         return "Cliente: " + appt.getClientName() + "\n" +
                "Serviços: " + services + "\n" +
                "Telefone: " + appt.getClientPhone().getValue();
@@ -179,11 +192,13 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
         LocalDateTime start;
         LocalDateTime end;
 
+        // Lógica para lidar com eventos de "Dia Inteiro" (All Day Events)
         if (googleStart == null) {
             if (googleEvent.getStart().getDate() != null) {
                  long startMillis = googleEvent.getStart().getDate().getValue();
                  start = Instant.ofEpochMilli(startMillis).atZone(zoneId).toLocalDateTime();
-                 end = start.plusDays(1); 
+                 // Eventos de dia inteiro no Google terminam no início do dia seguinte, mas para display ajustamos
+                 end = start.plusDays(1).minusMinutes(1); 
             } else {
                  start = LocalDateTime.now();
                  end = LocalDateTime.now().plusHours(1);
@@ -195,15 +210,10 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
         return new ExternalEvent(googleEvent.getId(), googleEvent.getSummary(), start, end);
     }
 
-    // ✨ CORREÇÃO 2: Lógica robusta para buscar TimeZone
-    // 1. Busca Profissional
-    // 2. Pega ID do Estabelecimento
-    // 3. Busca Estabelecimento no Repositório
-    // 4. Pega TimeZone ou usa Default
     private ZoneId getProfessionalTimeZone(String professionalId) {
         return professionalRepository.findById(professionalId)
-                .map(Professional::getServiceProviderId) // Pega apenas o ID (que existe no Professional)
-                .flatMap(serviceProviderRepository::findById) // Busca o objeto completo no banco
+                .map(Professional::getServiceProviderId) 
+                .flatMap(serviceProviderRepository::findById) 
                 .map(sp -> {
                     try { return ZoneId.of(sp.getTimeZone()); } 
                     catch (Exception e) { return ZoneId.of(DEFAULT_TIMEZONE); }
@@ -219,6 +229,7 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             throw new BusinessException("Integração Google pausada. Token inválido.");
         }
 
+        // Renova token se expirar em menos de 1 minuto
         if (tokenData.expiresAt().isBefore(LocalDateTime.now().plusMinutes(1))) {
             tokenData = refreshGoogleToken(professionalId, tokenData.refreshToken());
         }
@@ -261,7 +272,8 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
                     newExpiresAt, 
                     GoogleConnectionStatus.CONNECTED);
 
-        } catch (com.google.api.client.http.HttpResponseException e) {
+        } catch (HttpResponseException e) {
+            // ✨ MELHORIA: Tratamento específico para revogação de acesso
             if (e.getStatusCode() == 400 || e.getStatusCode() == 401) {
                 log.warn("Token Google revogado ou inválido para o profissional {}. Marcando como DESCONECTADO.", professionalId);
                 
@@ -269,11 +281,12 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
                 
                 throw new BusinessException("A conexão com o Google expirou. Por favor, reconecte sua conta.");
             }
-            throw new BusinessException("Erro de comunicação com o Google. Tente novamente.");
+            // Outros erros HTTP (500, etc) são relançados para tentativa posterior
+            throw new RuntimeException("Erro de comunicação com o Google ao renovar token.", e);
 
         } catch (Exception e) {
             log.error("Erro desconhecido ao renovar token Google: {}", e.getMessage());
-            throw new BusinessException("Falha ao renovar token Google.");
+            throw new RuntimeException("Falha ao renovar token Google.", e);
         }
     }
 }
