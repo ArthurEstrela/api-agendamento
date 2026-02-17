@@ -4,12 +4,12 @@ import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
+import com.stylo.api_agendamento.core.domain.events.AppointmentCancelledEvent; // ✨ Import novo
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Set;
@@ -20,10 +20,12 @@ import java.util.Set;
 public class CancelAppointmentUseCase {
 
     private final IAppointmentRepository appointmentRepository;
-    private final IServiceProviderRepository providerRepository; // ✨ Novo: Para políticas
+    private final IServiceProviderRepository providerRepository;
     private final IUserRepository userRepository;
     private final INotificationProvider notificationProvider;
-    private final IPaymentProvider paymentProvider; // ✨ Novo: Para estornos
+    private final IPaymentProvider paymentProvider;
+    private final ICalendarProvider calendarProvider; // ✨ Necessário para remover do Google
+    private final IEventPublisher eventPublisher;     // ✨ Necessário para avisar a Waitlist
 
     public void execute(CancelAppointmentInput input) {
         // 1. Busca e validação básica
@@ -41,28 +43,37 @@ public class CancelAppointmentUseCase {
         // 3. Processamento Financeiro (Regra de Estorno Inteligente)
         handleFinancialRefund(appointment, provider, input.isClient());
 
-        // 4. Executa o cancelamento no domínio (Regras de transição de status)
-        appointment.cancel(); // ✨ Usa o método do domínio para consistência
+        // 4. Executa o cancelamento no domínio
+        appointment.cancel();
         appointment.setCancellationReason(input.reason());
         appointment.setCancelledBy(input.userId());
         
         // 5. Persistência
         appointmentRepository.save(appointment);
         
+        // 6. Remove do Google Calendar (Síncrono ou Assíncrono, aqui mantemos direto para garantir)
+        if (appointment.getExternalEventId() != null) {
+            calendarProvider.deleteEvent(appointment.getProfessionalId(), appointment.getExternalEventId());
+        }
+
         log.info("✅ Agendamento {} cancelado com sucesso por {}.", appointment.getId(), input.userId());
 
-        // 6. Notificação Cruzada
+        // 7. Notificação Cruzada (Partes envolvidas)
         notifyParties(appointment, input.userId());
+
+        // 8. ✨ DISPARO DE EVENTO PARA WAITLIST
+        // Isso ativa o WaitlistListener em segundo plano
+        eventPublisher.publish(new AppointmentCancelledEvent(
+                appointment.getId(),
+                appointment.getProfessionalId(),
+                appointment.getStartTime(),
+                appointment.getEndTime()
+        ));
     }
 
     private void handleFinancialRefund(Appointment appt, ServiceProvider provider, boolean isClientAction) {
-        // Se não foi pago online, não há o que estornar
         if (!appt.isPaid() || appt.getExternalPaymentId() == null) return;
 
-        // REGRA DE OURO:
-        // Estornamos se:
-        // A) Foi o profissional/dono que cancelou (isClientAction = false)
-        // B) O cliente cancelou dentro do prazo permitido (isEligibleForRefund)
         boolean shouldRefund = !isClientAction || appt.isEligibleForRefund(provider.getCancellationMinHours());
 
         if (shouldRefund) {
@@ -70,12 +81,10 @@ public class CancelAppointmentUseCase {
                 log.info("💸 Iniciando estorno de R${} para o agendamento {}", appt.getFinalPrice(), appt.getId());
                 paymentProvider.refund(appt.getExternalPaymentId(), appt.getFinalPrice());
             } catch (Exception e) {
-                // Se o estorno falhar no gateway, logamos o erro crítico mas não travamos o cancelamento.
-                // Isso deve ser tratado em uma fila de retentativas ou manualmente.
                 log.error("🔥 FALHA CRÍTICA no estorno do agendamento {}: {}", appt.getId(), e.getMessage());
             }
         } else {
-            log.warn("⚠️ Cancelamento tardio pelo cliente {}. Valor retido como multa conforme política do salão.", appt.getClientName());
+            log.warn("⚠️ Cancelamento tardio pelo cliente {}. Valor retido como multa.", appt.getClientName());
         }
     }
 
@@ -88,10 +97,8 @@ public class CancelAppointmentUseCase {
             boolean isClientCancelled = cancelledById.equals(appt.getClientId());
 
             if (isClientCancelled) {
-                // Dono e Profissional recebem alerta de agenda livre
                 String title = "⚠️ Agenda Liberada - Cancelamento";
-                String body = String.format("%s cancelou o horário de %s em %s.", 
-                        appt.getClientName(), serviceName, dateFormatted);
+                String body = String.format("%s cancelou o horário de %s em %s.", appt.getClientName(), serviceName, dateFormatted);
 
                 Set<String> recipients = new HashSet<>();
                 recipients.add(appt.getServiceProviderId());
@@ -101,11 +108,8 @@ public class CancelAppointmentUseCase {
                     notificationProvider.sendNotification(rid, title, body, "/dashboard/calendar");
                 }
             } else {
-                // Cliente recebe a notícia ruim (e possivelmente o aviso de estorno)
                 String title = "❌ Agendamento Cancelado";
-                String body = String.format("Seu horário de %s em %s foi cancelado pelo estabelecimento. Verifique seu e-mail para detalhes sobre o estorno.", 
-                        serviceName, dateFormatted);
-                
+                String body = String.format("Seu horário de %s em %s foi cancelado pelo estabelecimento. Verifique seu e-mail para detalhes.", serviceName, dateFormatted);
                 notificationProvider.sendNotification(appt.getClientId(), title, body, "/my-appointments");
             }
         } catch (Exception e) {
