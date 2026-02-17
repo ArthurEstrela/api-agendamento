@@ -1,6 +1,7 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.appointment.*;
+import com.stylo.api_agendamento.adapters.inbound.rest.idempotency.Idempotent;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/v1/appointments")
@@ -52,6 +54,7 @@ public class AppointmentController {
                         @ApiResponse(responseCode = "409", description = "Conflito de horário (Horário já ocupado)")
         })
         @PostMapping
+        @Idempotent(ttl = 24, unit = TimeUnit.HOURS)
         public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
                 String loggedUserId = userContext.getCurrentUserId();
 
