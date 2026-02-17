@@ -6,11 +6,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
+
 
 @Entity
 @Table(name = "payouts")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class PayoutEntity {
+public class PayoutEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

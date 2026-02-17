@@ -4,11 +4,16 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 
 @Entity
 @Table(name = "reviews")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ReviewEntity {
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ReviewEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

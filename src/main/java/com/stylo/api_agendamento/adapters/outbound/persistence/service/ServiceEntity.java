@@ -7,11 +7,13 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider.ServiceProviderEntity;
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
+
 
 @Entity
 @Table(name = "services")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ServiceEntity {
+public class ServiceEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

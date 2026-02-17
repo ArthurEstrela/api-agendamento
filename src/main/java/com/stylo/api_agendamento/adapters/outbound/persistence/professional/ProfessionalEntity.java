@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.core.domain.RemunerationType;
 
 @Entity
@@ -18,7 +19,7 @@ import com.stylo.api_agendamento.core.domain.RemunerationType;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProfessionalEntity {
+public class ProfessionalEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

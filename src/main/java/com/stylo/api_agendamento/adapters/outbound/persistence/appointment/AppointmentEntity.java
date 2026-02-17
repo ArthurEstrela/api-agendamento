@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
@@ -19,7 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AppointmentEntity {
+public class AppointmentEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

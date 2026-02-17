@@ -5,11 +5,13 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
+
 
 @Entity
 @Table(name = "expenses")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class ExpenseEntity {
+public class ExpenseEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

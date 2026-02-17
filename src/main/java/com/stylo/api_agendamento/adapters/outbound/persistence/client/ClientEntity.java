@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 
 @Entity
@@ -16,7 +17,7 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ClientEntity {
+public class ClientEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
