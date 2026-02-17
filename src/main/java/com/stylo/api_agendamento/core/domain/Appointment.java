@@ -381,4 +381,14 @@ public class Appointment {
     public boolean isPaid() {
         return this.externalPaymentId != null;
     }
+    
+    public void removeProduct(String productId) {
+        this.products.removeIf(item -> item.getProductId().equals(productId));
+        recalculateTotals();
+    }
+    
+    // Método auxiliar para facilitar leitura
+    public boolean hasProducts() {
+        return this.products != null && !this.products.isEmpty();
+    }
 }

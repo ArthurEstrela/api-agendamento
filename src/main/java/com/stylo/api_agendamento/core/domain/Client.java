@@ -15,11 +15,12 @@ public class Client {
     private final String id;
     private String name;
     private final String email;
-    private ClientPhone phoneNumber; 
+    private ClientPhone phoneNumber;
     private final String cpf;
     private LocalDate dateOfBirth;
     private String gender;
     private List<String> favoriteProfessionals;
+    private int noShowCount;
 
     public static Client create(String name, String email, ClientPhone phone, String cpf) {
         if (email == null || !email.contains("@")) {
@@ -41,8 +42,21 @@ public class Client {
     }
 
     public void updateContact(String name, ClientPhone phone) {
-        if (name == null || name.isBlank()) throw new BusinessException("Nome inválido.");
+        if (name == null || name.isBlank())
+            throw new BusinessException("Nome inválido.");
         this.name = name;
         this.phoneNumber = phone;
+    }
+
+    public void incrementNoShow() {
+        this.noShowCount++;
+    }
+
+    public void resetNoShow() {
+        this.noShowCount = 0;
+    }
+
+    public boolean isBlockedByNoShow(int limit) {
+        return this.noShowCount >= limit;
     }
 }

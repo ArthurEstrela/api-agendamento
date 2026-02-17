@@ -21,4 +21,10 @@ public class Product {
         }
         this.stockQuantity -= quantity;
     }
+
+    public void restoreStock(int quantity) {
+        if (quantity <= 0)
+            return;
+        this.stockQuantity += quantity;
+    }
 }

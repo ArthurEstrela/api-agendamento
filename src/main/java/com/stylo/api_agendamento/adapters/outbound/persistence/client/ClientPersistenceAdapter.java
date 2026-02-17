@@ -39,4 +39,12 @@ public class ClientPersistenceAdapter implements IClientRepository {
         // Converte a String do domínio para o UUID da persistência
         jpaClientRepository.deleteById(UUID.fromString(id));
     }
+
+    @Override
+    public Optional<Client> findByUserAndProvider(String userId, String serviceProviderId) {
+        return jpaClientRepository.findByUserIdAndServiceProviderId(
+                java.util.UUID.fromString(userId), 
+                java.util.UUID.fromString(serviceProviderId)
+        ).map(clientMapper::toDomain);
+    }
 }

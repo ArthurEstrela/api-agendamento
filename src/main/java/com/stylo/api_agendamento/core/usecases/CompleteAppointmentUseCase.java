@@ -22,104 +22,127 @@ public class CompleteAppointmentUseCase {
 
     private final IAppointmentRepository appointmentRepository;
     private final IProfessionalRepository professionalRepository;
-    private final IServiceProviderRepository serviceProviderRepository; // ✨ Novo Repo necessário
+    private final IServiceProviderRepository serviceProviderRepository;
     private final IProductRepository productRepository;
     private final IFinancialRepository financialRepository;
     private final INotificationProvider notificationProvider;
+    private final IClientRepository clientRepository; // ✨ Para resetar No-Show
 
     @Transactional
     public Appointment execute(CompleteAppointmentInput input) {
-        // 1. Buscas Iniciais
+        // 1. Buscas e Validações Iniciais
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
                 .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
+        // Idempotência: Se já completou, retorna o objeto sem erro
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) return appointment;
-        if (appointment.getStatus() == AppointmentStatus.CANCELLED) 
-            throw new BusinessException("Não é possível finalizar agendamento cancelado.");
+        
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new BusinessException("Não é possível finalizar um agendamento cancelado.");
+        }
 
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // ✨ Busca o Estabelecimento para ver se comissão está ativa
         ServiceProvider provider = serviceProviderRepository.findById(appointment.getServiceProviderId())
                 .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
 
-        // 2. Lógica de Produtos (Estoque) - Mantida da versão anterior
+        // 2. Processamento de Produtos (Baixa de Estoque)
         if (input.soldProducts() != null && !input.soldProducts().isEmpty()) {
-            List<Product> productsToAdd = new ArrayList<>();
-            List<Integer> quantities = new ArrayList<>();
-            for (ProductSaleItem item : input.soldProducts()) {
-                Product product = productRepository.findById(item.productId())
-                        .orElseThrow(() -> new EntityNotFoundException("Produto " + item.productId()));
-                product.deductStock(item.quantity());
-                productRepository.save(product);
-                productsToAdd.add(product);
-                quantities.add(item.quantity());
-            }
-            appointment.addProducts(productsToAdd, quantities);
+            processSoldProducts(appointment, input.soldProducts());
         }
 
-        // 3. Cálculos Financeiros (Preço Final)
+        // 3. Cálculos Financeiros (Preço Final e Descontos)
         BigDecimal finalServicePrice = input.serviceFinalPrice() != null 
                 ? input.serviceFinalPrice() 
-                : appointment.calculateOriginalServiceTotal(); // Assume método auxiliar ou lógica de soma
+                : appointment.calculateOriginalServiceTotal();
 
-        // Aplica desconto se houver
+        // Calcula o desconto aplicado (Valor Original - Valor Cobrado)
         BigDecimal originalTotal = appointment.calculateOriginalServiceTotal();
         BigDecimal discount = originalTotal.subtract(finalServicePrice).max(BigDecimal.ZERO);
 
-        // 4. ✨ CÁLCULO DA COMISSÃO (O Pulo do Gato)
+        // 4. Cálculo de Comissão
         BigDecimal commissionValue = BigDecimal.ZERO;
-
         if (provider.areCommissionsEnabled()) {
-            // O profissional calcula baseado na estratégia (Porcentagem ou Fixo)
+            // O domínio Professional deve saber calcular sua própria comissão
             commissionValue = professional.calculateCommissionFor(finalServicePrice);
         }
 
-        // 5. Finaliza o Agendamento (Domínio)
-        // O método complete() do Appointment deve receber a comissão para salvar o snapshot
+        // 5. Finaliza o Agendamento (Mudança de Estado no Domínio)
+        // Isso atualiza status, define preço final, registra o snapshot da comissão
         appointment.complete(professional, discount, commissionValue); 
         appointment.setPaymentMethod(input.paymentMethod());
 
-        // 6. Persistência e Financeiro
+        // 6. ✨ ESTRATÉGIA DE RETENÇÃO: Resetar Contador de No-Show
+        // Se o cliente compareceu e pagou, limpamos o histórico de faltas dele neste estabelecimento.
+        clientRepository.findByUserAndProvider(appointment.getClientId(), appointment.getServiceProviderId())
+                .ifPresent(client -> {
+                    if (client.getNoShowCount() > 0) {
+                        client.resetNoShow();
+                        clientRepository.save(client);
+                        log.info("Histórico de No-Show limpo para o cliente {}", client.getId());
+                    }
+                });
+
+        // 7. Registro Financeiro (Revenue)
         financialRepository.registerRevenue(
             appointment.getServiceProviderId(),
-            appointment.getFinalPrice(),
+            appointment.getFinalPrice(), // Valor real cobrado (Serviços + Produtos - Descontos)
             "Serviço #" + appointment.getId(),
             input.paymentMethod()
         );
-        
-        // Opcional: Registrar a saída (Despesa) da comissão imediatamente ou deixar para o fechamento
-        // financialRepository.registerExpense(... commissionValue ...); 
 
+        // 8. Persistência Final
         Appointment saved = appointmentRepository.save(appointment);
-        log.info("Agendamento finalizado. Comissão gerada: R$ {}", commissionValue);
+        log.info("Agendamento finalizado. Comissão: R$ {}, Total: R$ {}", commissionValue, saved.getFinalPrice());
 
-        // 7. Notificação
+        // 9. Pós-Processamento (Review)
         requestClientReview(saved);
 
         return saved;
+    }
+
+    private void processSoldProducts(Appointment appointment, List<ProductSaleItem> items) {
+        List<Product> productsToAdd = new ArrayList<>();
+        List<Integer> quantities = new ArrayList<>();
+
+        for (ProductSaleItem item : items) {
+            Product product = productRepository.findById(item.productId())
+                    .orElseThrow(() -> new EntityNotFoundException("Produto " + item.productId() + " não encontrado."));
+            
+            // Regra de Domínio: Produto deduz seu próprio estoque (e valida quantidade <= 0)
+            product.deductStock(item.quantity());
+            productRepository.save(product); // Salva o novo estoque
+            
+            productsToAdd.add(product);
+            quantities.add(item.quantity());
+        }
+        // Adiciona ao agendamento para recalcular o total
+        appointment.addProducts(productsToAdd, quantities);
     }
 
     private void requestClientReview(Appointment appt) {
         try {
             String title = "Avalie seu atendimento ⭐";
             String link = "/dashboard?action=review&appointmentId=" + appt.getId();
-            notificationProvider.sendNotification(appt.getClientId(), title, "Como foi sua experiência?", link);
+            notificationProvider.sendNotification(appt.getClientId(), title, "Como foi sua experiência? Toque para avaliar.", link);
         } catch (Exception e) {
-            log.error("Erro ao pedir review: {}", e.getMessage());
+            // Falha na notificação não deve falhar a transação financeira
+            log.error("Erro não-bloqueante ao pedir review: {}", e.getMessage());
         }
     }
 
     public record CompleteAppointmentInput(
             String appointmentId,
             PaymentMethod paymentMethod,
-            BigDecimal serviceFinalPrice,
+            BigDecimal serviceFinalPrice, // Preço editado manualmente pelo profissional (se permitido)
             List<ProductSaleItem> soldProducts
     ) {
+        // Construtor canônico para garantir lista não nula
         public CompleteAppointmentInput {
             if (soldProducts == null) soldProducts = Collections.emptyList();
         }
     }
+
     public record ProductSaleItem(String productId, Integer quantity) {}
 }

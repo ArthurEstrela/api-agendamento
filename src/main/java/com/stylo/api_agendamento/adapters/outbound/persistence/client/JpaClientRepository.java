@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface JpaClientRepository extends JpaRepository<ClientEntity, UUID> {
     Optional<ClientEntity> findByEmail(String email);
+
+    Optional<ClientEntity> findByUserIdAndServiceProviderId(UUID userId, UUID serviceProviderId);
 }

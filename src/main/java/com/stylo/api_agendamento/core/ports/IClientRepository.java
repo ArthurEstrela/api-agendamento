@@ -4,7 +4,7 @@ import com.stylo.api_agendamento.core.domain.Client;
 import java.util.Optional;
 
 public interface IClientRepository {
-    
+
     /**
      * Salva ou atualiza um cliente no sistema.
      */
@@ -24,4 +24,6 @@ public interface IClientRepository {
      * Remove um cliente do sistema.
      */
     void delete(String id);
+
+    Optional<Client> findByUserAndProvider(String userId, String serviceProviderId);
 }

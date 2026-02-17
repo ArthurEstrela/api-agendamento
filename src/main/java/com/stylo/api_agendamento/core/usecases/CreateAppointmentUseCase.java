@@ -24,15 +24,16 @@ public class CreateAppointmentUseCase {
     private final IServiceRepository serviceRepository;
     private final IUserRepository userRepository;
     
-    // ✨ ADICIONADO: Precisamos buscar o dono do salão para saber o Fuso Horário
+    // Repositório para buscar configurações do estabelecimento (TimeZone)
     private final IServiceProviderRepository serviceProviderRepository;
 
+    // Publicador de eventos para integrações assíncronas (Google, Notificações)
     private final IEventPublisher eventPublisher;
 
     @Transactional
     public Appointment execute(CreateAppointmentInput input) {
         
-        // 1. Busca Profissional
+        // 1. Busca Profissional COM LOCK (Pessimistic Locking para evitar race conditions)
         Professional professional = professionalRepository.findByIdWithLock(input.professionalId())
                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
@@ -46,15 +47,16 @@ public class CreateAppointmentUseCase {
             throw new BusinessException("Selecione ao menos um serviço.");
         }
 
-        // 4. Validação de Disponibilidade
+        // 4. Validação de Competência e Horário (Regras de Domínio)
         professional.validateCanPerform(requestedServices);
 
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
+        
         if (!professional.isAvailable(input.startTime(), totalDuration)) {
             throw new BusinessException("Profissional indisponível neste horário (fora do expediente ou pausa).");
         }
 
-        // 5. Verificação de Conflito
+        // 5. Proteção contra Double Booking (Verificação Final)
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 input.professionalId(),
                 input.startTime(),
@@ -64,13 +66,13 @@ public class CreateAppointmentUseCase {
             throw new ScheduleConflictException("Este horário acabou de ser ocupado por outro cliente.");
         }
 
-        // 6. Recuperação do TimeZone (CORRIGIDO)
-        // Buscamos o ServiceProvider usando o ID que está no Profissional
+        // 6. Recuperação do TimeZone do Estabelecimento
+        // Isso garante que o agendamento seja salvo com o contexto de fuso horário correto
         String timeZone = serviceProviderRepository.findById(professional.getServiceProviderId())
                 .map(ServiceProvider::getTimeZone)
-                .orElse("America/Sao_Paulo"); // Fallback se não encontrar (raro)
+                .orElse("America/Sao_Paulo"); // Fallback seguro
 
-        // 7. Criação do Objeto de Domínio
+        // 7. Criação do Objeto de Domínio (A Entidade valida preços negativos e datas)
         Appointment appointment = Appointment.create(
                 client.getId(),
                 client.getName(),
@@ -83,14 +85,14 @@ public class CreateAppointmentUseCase {
                 requestedServices,
                 input.startTime(),
                 input.reminderMinutes(),
-                timeZone // ✨ Passando o TimeZone recuperado
+                timeZone // ✨ TimeZone Injetado
         );
 
         // 8. Persistência
         Appointment savedAppointment = appointmentRepository.save(appointment);
         log.info("Agendamento criado (ID: {}). TimeZone: {}", savedAppointment.getId(), timeZone);
 
-        // 9. Publicação do Evento Assíncrono
+        // 9. Publicação do Evento Assíncrono (Google Calendar será chamado pelo Listener)
         eventPublisher.publish(new AppointmentCreatedEvent(
                 savedAppointment.getId(),
                 professional.getId(),

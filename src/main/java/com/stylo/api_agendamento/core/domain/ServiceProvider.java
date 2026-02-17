@@ -35,6 +35,8 @@ public class ServiceProvider {
     private String subscriptionStatus;
     private LocalDateTime gracePeriodEndsAt;
 
+    private Integer maxNoShowsAllowed;
+
     private String timeZone;
 
     // ✨ NOVO CAMPO: O "Interruptor" de Comissões
@@ -145,5 +147,9 @@ public class ServiceProvider {
         } catch (Exception e) {
             return ZoneId.of("America/Sao_Paulo");
         }
+    }
+
+    public int getMaxNoShowsAllowed() {
+        return maxNoShowsAllowed != null ? maxNoShowsAllowed : 3;
     }
 }
