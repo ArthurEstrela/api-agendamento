@@ -26,7 +26,7 @@ public class Appointment {
     private ClientPhone clientPhone;
 
     private String serviceProviderId;
-    private String providerId; 
+    private String providerId;
 
     private String professionalId;
     private String professionalName;
@@ -37,7 +37,7 @@ public class Appointment {
     @Builder.Default
     private List<AppointmentItem> products = new ArrayList<>();
 
-    private String timeZone; 
+    private String timeZone;
 
     @Setter
     private LocalDateTime startTime;
@@ -49,8 +49,8 @@ public class Appointment {
     @Setter
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
 
-    private BigDecimal professionalCommission; 
-    private BigDecimal serviceProviderFee; 
+    private BigDecimal professionalCommission;
+    private BigDecimal serviceProviderFee;
 
     @Setter
     private AppointmentStatus status;
@@ -175,7 +175,7 @@ public class Appointment {
 
     public static Appointment createPersonalBlock(String profId, String profName, String serviceProviderId,
             LocalDateTime start, LocalDateTime end, String reason, String timeZone) {
-        
+
         // ✨ VALIDAÇÃO EXTRA: Para bloqueios, o input de fim vem direto do usuário
         if (end == null || !end.isAfter(start)) {
             throw new BusinessException("O horário de término do bloqueio deve ser posterior ao início.");
@@ -254,13 +254,13 @@ public class Appointment {
         if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
             // ✨ VALIDAÇÃO: Desconto não pode ser maior que o preço
             if (discountValue.compareTo(this.price) > 0) {
-                 throw new BusinessException("O desconto não pode ser maior que o valor total.");
+                throw new BusinessException("O desconto não pode ser maior que o valor total.");
             }
             this.finalPrice = this.price.subtract(discountValue);
         } else {
             this.finalPrice = this.price;
         }
-        
+
         // Garante que finalPrice nunca fique negativo (Redundância de segurança)
         if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
             this.finalPrice = BigDecimal.ZERO;
@@ -287,10 +287,10 @@ public class Appointment {
         }
         this.startTime = newStartTime;
         calculateEndTime();
-        
+
         // ✨ VALIDAÇÃO NO REAGENDAMENTO TAMBÉM
         if (!this.endTime.isAfter(this.startTime)) {
-             throw new BusinessException("Erro ao reagendar: duração inválida.");
+            throw new BusinessException("Erro ao reagendar: duração inválida.");
         }
 
         this.status = AppointmentStatus.PENDING;
@@ -381,14 +381,37 @@ public class Appointment {
     public boolean isPaid() {
         return this.externalPaymentId != null;
     }
-    
+
     public void removeProduct(String productId) {
         this.products.removeIf(item -> item.getProductId().equals(productId));
         recalculateTotals();
     }
-    
+
     // Método auxiliar para facilitar leitura
     public boolean hasProducts() {
         return this.products != null && !this.products.isEmpty();
+    }
+
+    public void confirmPayment(String externalPaymentId) {
+        // Idempotência de domínio: se já está pago, não faz nada
+        if (this.paid && this.status == AppointmentStatus.SCHEDULED) {
+            return;
+        }
+
+        if (this.status == AppointmentStatus.CANCELLED) {
+            throw new BusinessException(
+                    "Recebemos pagamento para um agendamento cancelado. Necessário estorno manual.");
+        }
+
+        this.paid = true;
+        this.externalPaymentId = externalPaymentId;
+
+        // Se estava pendente, agora está agendado oficialmente
+        if (this.status == AppointmentStatus.PENDING) {
+            this.status = AppointmentStatus.SCHEDULED;
+        }
+
+        // Registramos quando foi "liquidado" (opcional, dependendo do fluxo de split)
+        this.settledAt = LocalDateTime.now();
     }
 }
