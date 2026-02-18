@@ -21,5 +21,7 @@ public record CreateAppointmentRequest(
         LocalDateTime startTime,
 
         @Positive(message = "Os minutos de lembrete devem ser positivos")
-        Integer reminderMinutes
+        Integer reminderMinutes,
+
+        String couponCode
 ) {}

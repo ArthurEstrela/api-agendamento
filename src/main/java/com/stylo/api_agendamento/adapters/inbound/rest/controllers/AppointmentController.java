@@ -32,7 +32,7 @@ public class AppointmentController {
 
         private final CreateAppointmentUseCase createAppointmentUseCase;
         private final CreateManualAppointmentUseCase createManualAppointmentUseCase;
-        private final CreateRecurringAppointmentUseCase createRecurringAppointmentUseCase; // ✨ Novo UseCase
+        private final CreateRecurringAppointmentUseCase createRecurringAppointmentUseCase;
         private final ConfirmAppointmentUseCase confirmAppointmentUseCase;
         private final CompleteAppointmentUseCase completeAppointmentUseCase;
         private final CancelAppointmentUseCase cancelAppointmentUseCase;
@@ -58,17 +58,19 @@ public class AppointmentController {
         public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
                 String loggedUserId = userContext.getCurrentUserId();
 
+                // ✨ CORREÇÃO: Adicionado o campo couponCode no construtor
                 var input = new CreateAppointmentUseCase.CreateAppointmentInput(
-                                loggedUserId, // ID do cliente logado
+                                loggedUserId, // ID do cliente logado (sobrepõe o do request por segurança)
                                 request.professionalId(),
                                 request.serviceIds(),
                                 request.startTime(),
-                                request.reminderMinutes());
+                                request.reminderMinutes(),
+                                request.couponCode()); // Novo campo
 
                 return ResponseEntity.status(HttpStatus.CREATED).body(createAppointmentUseCase.execute(input));
         }
 
-        // --- AGENDAMENTO RECORRENTE (NOVO) ---
+        // --- AGENDAMENTO RECORRENTE ---
 
         @Operation(summary = "Criar Agendamento Recorrente", description = "Cria uma série de agendamentos (ex: Toda Sexta-feira). Retorna relatório de sucessos e falhas.")
         @ApiResponses({

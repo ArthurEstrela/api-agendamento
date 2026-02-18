@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 @Setter
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -48,6 +48,10 @@ public class Appointment {
 
     @Setter
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
+
+    // ✨ CAMPOS FALTANTES ADICIONADOS AQUI:
+    private String couponId;
+    private BigDecimal discountAmount;
 
     private BigDecimal professionalCommission;
     private BigDecimal serviceProviderFee;
@@ -114,6 +118,7 @@ public class Appointment {
                 .status(AppointmentStatus.PENDING)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
+                .discountAmount(BigDecimal.ZERO) // Inicializa zerado para evitar null pointer
                 .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
                 .reminderSent(false)
                 .notified(false)
@@ -124,7 +129,6 @@ public class Appointment {
         appointment.calculateEndTime();
 
         // ✨ VALIDAÇÃO 2: Coerência Temporal
-        // Garante que a soma das durações dos serviços resultou em um tempo positivo
         if (!appointment.getEndTime().isAfter(appointment.getStartTime())) {
             throw new BusinessException("A duração total do agendamento deve ser maior que zero.");
         }
@@ -158,6 +162,7 @@ public class Appointment {
                 .status(AppointmentStatus.SCHEDULED)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
+                .discountAmount(BigDecimal.ZERO)
                 .notes(notes)
                 .reminderMinutes(0)
                 .createdAt(LocalDateTime.now())
@@ -193,6 +198,7 @@ public class Appointment {
                 .notes("BLOQUEIO PESSOAL: " + reason)
                 .price(BigDecimal.ZERO)
                 .finalPrice(BigDecimal.ZERO)
+                .discountAmount(BigDecimal.ZERO)
                 .services(new ArrayList<>())
                 .products(new ArrayList<>())
                 .reminderMinutes(0)
@@ -257,6 +263,7 @@ public class Appointment {
                 throw new BusinessException("O desconto não pode ser maior que o valor total.");
             }
             this.finalPrice = this.price.subtract(discountValue);
+            this.discountAmount = discountValue; // Atualiza o valor do desconto registrado
         } else {
             this.finalPrice = this.price;
         }
