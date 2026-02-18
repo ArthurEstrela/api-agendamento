@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 @Getter
-@Builder
+@Builder(toBuilder = true) // ✨ Adicionado toBuilder para facilitar atualizações
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class User implements UserDetails {
     private final String id;
@@ -23,9 +23,12 @@ public class User implements UserDetails {
     private String phoneNumber;
     private String profilePictureUrl;
     private boolean active;
-    private String fcmToken; // ✨ Mantido
+    private String fcmToken;
     private String resetPasswordToken;
     private LocalDateTime resetPasswordExpiresAt;
+
+    // ✨ NOVO CAMPO: Vincula o usuário ao seu ServiceProvider (se ele for um)
+    private String providerId;
 
     public static User create(String name, String email, UserRole role) {
         validateEmail(email);
@@ -39,11 +42,15 @@ public class User implements UserDetails {
     }
 
     public static User withPassword(User user, String encodedPassword) {
-        user.password = encodedPassword;
-        return user;
+        // Como os campos são finais ou o builder é usado, idealmente recriamos
+        return user.toBuilder().password(encodedPassword).build();
     }
 
-    // ✨ Método para atualizar o token de forma expressiva
+    // ✨ Método para vincular o provider
+    public User linkProvider(String providerId) {
+        return this.toBuilder().providerId(providerId).build();
+    }
+
     public void updateFcmToken(String token) {
         this.fcmToken = token;
     }
@@ -106,7 +113,7 @@ public class User implements UserDetails {
 
     public void generatePasswordResetToken() {
         this.resetPasswordToken = java.util.UUID.randomUUID().toString();
-        this.resetPasswordExpiresAt = LocalDateTime.now().plusHours(1); // Validade de 1 hora
+        this.resetPasswordExpiresAt = LocalDateTime.now().plusHours(1);
     }
 
     public void clearPasswordResetToken() {

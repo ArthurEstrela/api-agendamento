@@ -4,12 +4,14 @@ import com.stylo.api_agendamento.core.domain.vo.*;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Collections;
+import java.util.List;
 
 @Getter
+@Setter // Adicionado Setter para facilitar updates via Mapper/UseCases
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ServiceProvider {
@@ -39,8 +41,21 @@ public class ServiceProvider {
 
     private String timeZone;
 
-    // ✨ NOVO CAMPO: O "Interruptor" de Comissões
+    // --- CONFIGURAÇÕES FINANCEIRAS INTERNAS ---
+    // Controla se o profissional calcula comissões para seus funcionários/parceiros
     private boolean commissionsEnabled;
+
+    // --- CONFIGURAÇÕES STRIPE CONNECT (PLATAFORMA) ---
+    // ID da conta conectada no Stripe (ex: acct_12345)
+    private String stripeAccountId;
+
+    // Se o estabelecimento ativou recebimento online via App
+    @Builder.Default
+    private Boolean onlinePaymentsEnabled = false;
+
+    // Taxa da plataforma sobre cada transação (ex: 2.00%)
+    @Builder.Default
+    private BigDecimal platformFeePercentage = new BigDecimal("2.00");
 
     public static ServiceProvider create(String businessName, Document doc, Slug slug, Address address,
             String ownerEmail) {
@@ -54,28 +69,36 @@ public class ServiceProvider {
                 .trialEndsAt(LocalDateTime.now().plusDays(15))
                 .cancellationMinHours(2)
                 .paymentMethods(Collections.emptyList())
-                .commissionsEnabled(false) // ✨ Nasce desligado por padrão (segurança)
+                .commissionsEnabled(false)
+                .onlinePaymentsEnabled(false)
+                .platformFeePercentage(new BigDecimal("2.00"))
                 .build();
     }
 
     // --- MÉTODOS DE NEGÓCIO ---
 
     /**
-     * Verifica se o sistema de comissões está ativo para este estabelecimento.
-     * Usado pelo CompleteAppointmentUseCase.
+     * Verifica se o Prestador está apto a receber pagamentos online (Stripe Connect).
+     * Regra de Negócio: Deve estar habilitado E ter uma conta Stripe vinculada.
+     */
+    public boolean canReceiveOnlinePayments() {
+        return Boolean.TRUE.equals(this.onlinePaymentsEnabled) 
+            && this.stripeAccountId != null 
+            && !this.stripeAccountId.isBlank();
+    }
+
+    /**
+     * Verifica se o sistema de comissões internas está ativo.
      */
     public boolean areCommissionsEnabled() {
         return this.commissionsEnabled;
     }
 
-    /**
-     * Ativa ou desativa o cálculo de comissões.
-     */
     public void toggleCommissions(boolean enabled) {
         this.commissionsEnabled = enabled;
     }
 
-    // ... (Métodos de validação e update existentes mantidos abaixo) ...
+    // --- Validações e Updates ---
 
     public void validateCancellationPolicy(LocalDateTime appointmentStartTime) {
         LocalDateTime limit = LocalDateTime.now().plusHours(this.cancellationMinHours);
@@ -114,7 +137,7 @@ public class ServiceProvider {
     public boolean isSubscriptionActive() {
         return "ACTIVE".equals(this.subscriptionStatus) ||
                 "TRIAL".equals(this.subscriptionStatus) ||
-                "GRACE_PERIOD".equals(this.subscriptionStatus); // ✨ Agora retorna true aqui também
+                "GRACE_PERIOD".equals(this.subscriptionStatus);
     }
 
     public void startGracePeriod(int days) {
@@ -123,24 +146,21 @@ public class ServiceProvider {
     }
 
     public void updateSubscription(String newStatus) {
-        // ✨ Adicionado "GRACE_PERIOD" à lista de válidos
         List<String> validStatuses = List.of("ACTIVE", "TRIAL", "EXPIRED", "CANCELED", "GRACE_PERIOD");
         if (!validStatuses.contains(newStatus)) {
             throw new BusinessException("Status de assinatura inválido.");
         }
         this.subscriptionStatus = newStatus;
 
-        // Se voltar a ficar ativo, limpamos o prazo de carência
         if ("ACTIVE".equals(newStatus)) {
             this.gracePeriodEndsAt = null;
         }
     }
 
     public String getTimeZone() {
-        return timeZone != null ? timeZone : "America/Sao_Paulo"; // Fallback seguro
+        return timeZone != null ? timeZone : "America/Sao_Paulo";
     }
 
-    // Método helper para facilitar conversão
     public ZoneId getZoneId() {
         try {
             return ZoneId.of(getTimeZone());

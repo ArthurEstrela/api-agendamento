@@ -51,8 +51,12 @@ public class UserEntity extends BaseEntity {
     @Column(name = "reset_password_expires_at")
     private LocalDateTime resetPasswordExpiresAt;
 
-    @Column(name = "fcm_token") // ✨ Mapeamento correto
+    @Column(name = "fcm_token")
     private String fcmToken;
+
+    // ✨ NOVO CAMPO NO BANCO
+    @Column(name = "provider_id", columnDefinition = "uuid")
+    private UUID providerId;
 
     @PrePersist
     protected void onCreate() {

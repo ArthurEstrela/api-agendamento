@@ -20,7 +20,9 @@ public class UserMapper {
                 .profilePictureUrl(domain.getProfilePictureUrl())
                 .createdAt(domain.getCreatedAt())
                 .active(domain.isActive())
-                .fcmToken(domain.getFcmToken()) // ✨ Adicionado: Salva no banco
+                .fcmToken(domain.getFcmToken())
+                // ✨ Mapeia String -> UUID
+                .providerId(domain.getProviderId() != null ? UUID.fromString(domain.getProviderId()) : null)
                 .build();
     }
 
@@ -37,7 +39,9 @@ public class UserMapper {
                 .profilePictureUrl(entity.getProfilePictureUrl())
                 .createdAt(entity.getCreatedAt())
                 .active(entity.isActive())
-                .fcmToken(entity.getFcmToken()) // ✨ Adicionado: Lê do banco
+                .fcmToken(entity.getFcmToken())
+                // ✨ Mapeia UUID -> String
+                .providerId(entity.getProviderId() != null ? entity.getProviderId().toString() : null)
                 .build();
     }
 }

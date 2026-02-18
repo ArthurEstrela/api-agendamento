@@ -30,7 +30,7 @@ public class SpringUserContext implements IUserContext {
     public UserRole getCurrentUserRole() {
         return getUserPrincipal()
                 .map(User::getRole)
-                .orElse(UserRole.CLIENT); // Default seguro ou exception
+                .orElse(UserRole.CLIENT);
     }
 
     @Override
@@ -43,10 +43,12 @@ public class SpringUserContext implements IUserContext {
         return getUserPrincipal().map(User::getId);
     }
 
-    /**
-     * Método auxiliar privado para extrair o Principal do Spring Security.
-     * O SecurityFilter salvou o objeto 'User' do domínio diretamente no token.
-     */
+    // ✨ NOVO MÉTODO: Expõe o objeto User completo para acessar providerId, etc.
+    public User getCurrentUser() {
+        return getUserPrincipal()
+                .orElseThrow(() -> new IllegalStateException("Usuário não autenticado ou contexto inválido."));
+    }
+
     private Optional<User> getUserPrincipal() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         
@@ -56,8 +58,6 @@ public class SpringUserContext implements IUserContext {
 
         Object principal = authentication.getPrincipal();
 
-        // Como no seu SecurityFilter você fez: new UsernamePasswordAuthenticationToken(user, ...)
-        // O principal É o objeto User do domínio.
         if (principal instanceof User) {
             return Optional.of((User) principal);
         }
