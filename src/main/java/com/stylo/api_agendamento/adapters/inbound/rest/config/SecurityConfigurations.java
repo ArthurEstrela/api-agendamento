@@ -71,6 +71,12 @@ public class SecurityConfigurations {
                         // Validar cupom: Aberto para autenticados (Clientes usando o app)
                         .requestMatchers(HttpMethod.GET, "/v1/coupons/validate").authenticated()
 
+                        .requestMatchers("/v1/pos/**").hasAnyAuthority(
+                                UserPermission.APPOINTMENT_MANAGE_ALL.getPermission(), // Recepcionista
+                                UserPermission.APPOINTMENT_WRITE.getPermission() // Profissional (para fechar a própria
+                                                                                 // conta)
+                        )
+
                         // --- AGENDAMENTOS ESPECIAIS ---
                         // Marcar No-Show: Precisa poder gerenciar agenda (Recepção, Gerente, Dono)
                         .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")

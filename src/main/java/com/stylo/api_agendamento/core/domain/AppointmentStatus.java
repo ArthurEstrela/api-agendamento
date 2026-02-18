@@ -7,4 +7,8 @@ public enum AppointmentStatus {
     CANCELLED,
     BLOCKED,
     NO_SHOW;
+
+    public boolean isTerminalState() {
+        return this == COMPLETED || this == CANCELLED || this == NO_SHOW;
+    }
 }
