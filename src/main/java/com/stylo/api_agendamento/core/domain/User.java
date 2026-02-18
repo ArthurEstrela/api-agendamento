@@ -3,12 +3,10 @@ package com.stylo.api_agendamento.core.domain;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.List;
 
 @Getter
 @Builder(toBuilder = true) // ✨ Adicionado toBuilder para facilitar atualizações
@@ -77,11 +75,6 @@ public class User implements UserDetails {
     }
 
     @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-    }
-
-    @Override
     public String getPassword() {
         return this.password;
     }
@@ -126,5 +119,11 @@ public class User implements UserDetails {
                 && token.equals(this.resetPasswordToken)
                 && this.resetPasswordExpiresAt != null
                 && this.resetPasswordExpiresAt.isAfter(LocalDateTime.now());
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        // ✨ A mágica acontece aqui: O usuário herda todas as permissões do seu cargo
+        return role.getAuthorities();
     }
 }

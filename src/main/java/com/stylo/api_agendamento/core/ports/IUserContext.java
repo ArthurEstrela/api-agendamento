@@ -1,32 +1,24 @@
 package com.stylo.api_agendamento.core.ports;
 
+import com.stylo.api_agendamento.core.domain.User;
+import com.stylo.api_agendamento.core.domain.UserPermission;
 import com.stylo.api_agendamento.core.domain.UserRole;
+
 import java.util.Optional;
 
 public interface IUserContext {
-    /**
-     * Retorna o ID do usuário autenticado na requisição atual.
-     * @throws IllegalStateException se nenhum usuário estiver logado.
-     */
     String getCurrentUserId();
-
-    /**
-     * Retorna o Email do usuário autenticado.
-     */
     String getCurrentUserEmail();
-
-    /**
-     * Retorna a Role (Perfil) do usuário autenticado.
-     */
     UserRole getCurrentUserRole();
 
-    /**
-     * Verifica se o usuário tem um perfil específico.
-     */
     boolean hasRole(UserRole role);
+    
+    // ✨ NOVO: Permite checar permissões granulares direto na regra de negócio
+    boolean hasPermission(UserPermission permission);
 
-    /**
-     * Retorna o ID do usuário de forma segura (Optional), útil para rotas públicas.
-     */
     Optional<String> getCurrentUserIdOptional();
+
+    // ✨ NOVO: Expõe o usuário completo para acessarmos providerId, fcmToken, etc.
+    // Isso evita que tenhamos que buscar o usuário no banco toda vez.
+    User getCurrentUser();
 }

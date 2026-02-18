@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import static com.stylo.api_agendamento.core.domain.UserPermission.*;
 
 import java.util.List;
 
@@ -30,45 +31,38 @@ public class SecurityConfigurations {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .csrf(AbstractHttpConfigurer::disable) // Desabilita CSRF (API Stateless)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✨ Habilita CORS
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        // --- AUTENTICAÇÃO E REGISTRO ---
-                        .requestMatchers(HttpMethod.POST, "/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/v1/auth/register/**").permitAll() // Cliente e afins
-
-                        // --- RECUPERAÇÃO DE SENHA (✨ Novas Rotas) ---
-                        .requestMatchers(HttpMethod.POST, "/v1/auth/forgot-password").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/v1/auth/reset-password").permitAll()
-
-                        // --- CADASTRO DE ESTABELECIMENTO ---
-                        .requestMatchers(HttpMethod.POST, "/v1/service-providers/register").permitAll()
-
-                        // --- FLUXO PÚBLICO DE AGENDAMENTO (SaaS) ---
-                        .requestMatchers(HttpMethod.GET, "/v1/service-providers/**").permitAll() // Buscar perfil pelo
-                                                                                                 // slug
-                        .requestMatchers(HttpMethod.GET, "/v1/appointments/slots").permitAll() // Ver horários livres
-                        .requestMatchers(HttpMethod.GET, "/v1/services/**").permitAll() // Ver serviços
-                        .requestMatchers(HttpMethod.GET, "/v1/products/**").permitAll() // Ver produtos (se público)
-                        .requestMatchers(HttpMethod.GET, "/v1/reviews/**").permitAll() // Ver avaliações públicas
-
-                        .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")
-                        .hasAnyRole("PROFESSIONAL", "ADMIN")
-
-                        // --- INTEGRATIONS & WEBHOOKS (Stripe, Google) ---
+                        // --- PÚBLICO ---
+                        .requestMatchers(HttpMethod.POST, "/v1/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/service-providers/**").permitAll()
                         .requestMatchers("/v1/webhooks/**").permitAll()
+                        // ... outros endpoints públicos ...
 
-                        // --- SEO ---
-                        .requestMatchers(HttpMethod.GET, "/v1/sitemap.xml").permitAll()
+                        // --- FINANCEIRO (Proteção Crítica) ---
+                        // Apenas quem tem FINANCIAL_READ vê o dashboard
+                        .requestMatchers(HttpMethod.GET, "/v1/financial/**").hasAuthority(FINANCIAL_READ.getPermission())
+                        // Apenas quem tem FINANCIAL_WRITE cria despesas ou saca (Dono)
+                        .requestMatchers(HttpMethod.POST, "/v1/financial/**").hasAuthority(FINANCIAL_WRITE.getPermission())
 
-                        // --- ÁREAS PROTEGIDAS ---
-                        .requestMatchers("/v1/financial/**").hasRole("SERVICE_PROVIDER")
-                        .requestMatchers("/v1/service-providers/settings/**").hasRole("SERVICE_PROVIDER")
+                        // --- CONFIGURAÇÕES DO ESTABELECIMENTO ---
+                        // Recepcionista não entra aqui, Gerente entra
+                        .requestMatchers("/v1/service-providers/settings/**").hasAuthority(SETTINGS_WRITE.getPermission())
 
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // --- GESTÃO DE SERVIÇOS E PRODUTOS ---
+                        .requestMatchers(HttpMethod.POST, "/v1/services/**").hasAuthority(SETTINGS_WRITE.getPermission())
+                        .requestMatchers(HttpMethod.POST, "/v1/products/**").hasAuthority(SETTINGS_WRITE.getPermission())
 
-                        // Qualquer outra requisição precisa de Token JWT
+                        // --- AGENDAMENTOS ESPECIAIS ---
+                        // Marcar No-Show: Precisa poder gerenciar agenda (Recepção, Gerente, Dono)
+                        .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")
+                            .hasAuthority(APPOINTMENT_MANAGE_ALL.getPermission())
+
+                        // Qualquer outra requisição precisa apenas estar autenticada
+                        // (o controle fino de "ver o próprio agendamento" vs "ver todos" 
+                        // geralmente é feito dentro do Service/UseCase validando o ID)
                         .anyRequest().authenticated())
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
