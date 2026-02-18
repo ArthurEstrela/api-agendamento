@@ -17,6 +17,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import com.stylo.api_agendamento.core.domain.UserPermission;
+
 import static com.stylo.api_agendamento.core.domain.UserPermission.*;
 
 import java.util.List;
@@ -43,25 +46,32 @@ public class SecurityConfigurations {
 
                         // --- FINANCEIRO (Proteção Crítica) ---
                         // Apenas quem tem FINANCIAL_READ vê o dashboard
-                        .requestMatchers(HttpMethod.GET, "/v1/financial/**").hasAuthority(FINANCIAL_READ.getPermission())
+                        .requestMatchers(HttpMethod.GET, "/v1/financial/**")
+                        .hasAuthority(FINANCIAL_READ.getPermission())
                         // Apenas quem tem FINANCIAL_WRITE cria despesas ou saca (Dono)
-                        .requestMatchers(HttpMethod.POST, "/v1/financial/**").hasAuthority(FINANCIAL_WRITE.getPermission())
+                        .requestMatchers(HttpMethod.POST, "/v1/financial/**")
+                        .hasAuthority(FINANCIAL_WRITE.getPermission())
 
                         // --- CONFIGURAÇÕES DO ESTABELECIMENTO ---
                         // Recepcionista não entra aqui, Gerente entra
-                        .requestMatchers("/v1/service-providers/settings/**").hasAuthority(SETTINGS_WRITE.getPermission())
+                        .requestMatchers("/v1/service-providers/settings/**")
+                        .hasAuthority(SETTINGS_WRITE.getPermission())
 
                         // --- GESTÃO DE SERVIÇOS E PRODUTOS ---
-                        .requestMatchers(HttpMethod.POST, "/v1/services/**").hasAuthority(SETTINGS_WRITE.getPermission())
-                        .requestMatchers(HttpMethod.POST, "/v1/products/**").hasAuthority(SETTINGS_WRITE.getPermission())
+                        .requestMatchers(HttpMethod.POST, "/v1/services/**")
+                        .hasAuthority(SETTINGS_WRITE.getPermission())
+                        .requestMatchers(HttpMethod.POST, "/v1/products/**")
+                        .hasAuthority(SETTINGS_WRITE.getPermission())
 
                         // --- AGENDAMENTOS ESPECIAIS ---
                         // Marcar No-Show: Precisa poder gerenciar agenda (Recepção, Gerente, Dono)
                         .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")
-                            .hasAuthority(APPOINTMENT_MANAGE_ALL.getPermission())
+                        .hasAuthority(APPOINTMENT_MANAGE_ALL.getPermission())
 
+                        .requestMatchers("/v1/financial/cash-register/**")
+                        .hasAuthority(UserPermission.FINANCIAL_WRITE.getPermission())
                         // Qualquer outra requisição precisa apenas estar autenticada
-                        // (o controle fino de "ver o próprio agendamento" vs "ver todos" 
+                        // (o controle fino de "ver o próprio agendamento" vs "ver todos"
                         // geralmente é feito dentro do Service/UseCase validando o ID)
                         .anyRequest().authenticated())
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
