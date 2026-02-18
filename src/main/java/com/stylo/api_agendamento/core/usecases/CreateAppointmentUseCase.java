@@ -77,9 +77,11 @@ public class CreateAppointmentUseCase {
         // Lógica de negócio pura, executada dentro da transação segura
         protected Appointment executeInTransaction(CreateAppointmentInput input) {
 
-                // 1. Busca Profissional (Agora findById simples, pois o Redis já protege a
-                // concorrência)
-                Professional professional = professionalRepository.findById(input.professionalId())
+                // 1. Busca Profissional COM LOCK PESSIMISTA
+                // Substituímos o findById simples pelo findByIdWithLock.
+                // Isso executa um "SELECT ... FOR UPDATE" no banco, travando este profissional
+                // para esta transação até que ela seja commitada ou sofra rollback.
+                Professional professional = professionalRepository.findByIdWithLock(input.professionalId())
                                 .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
 
                 // 2. Validações de Cliente
@@ -92,7 +94,7 @@ public class CreateAppointmentUseCase {
                         throw new BusinessException("Selecione ao menos um serviço.");
                 }
 
-                // 4. Validação de Competência e Horário (Regras de Domínio em Memória)
+                // 4. Validação de Competência e Horário
                 professional.validateCanPerform(requestedServices);
 
                 int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
@@ -103,8 +105,9 @@ public class CreateAppointmentUseCase {
                 }
 
                 // 5. Proteção contra Double Booking (Check Final no Banco)
-                // Como estamos dentro do Lock do Redis, temos certeza absoluta que ninguém mais
-                // está agendando neste slot.
+                // AGORA É SEGURO: Como temos o lock na linha do Profissional, 
+                // nenhuma outra transação consegue chegar neste ponto simultaneamente 
+                // para o mesmo profissional. A serialização é garantida pelo banco.
                 boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                                 input.professionalId(),
                                 input.startTime(),
@@ -114,7 +117,7 @@ public class CreateAppointmentUseCase {
                         throw new ScheduleConflictException("Este horário acabou de ser ocupado por outro cliente.");
                 }
 
-                // 6. Recuperação do TimeZone
+                // 6. Recuperação do TimeZone (Lógica mantida)
                 String timeZone = serviceProviderRepository.findById(professional.getServiceProviderId())
                                 .map(ServiceProvider::getTimeZone)
                                 .orElse("America/Sao_Paulo");
@@ -136,9 +139,9 @@ public class CreateAppointmentUseCase {
 
                 // 8. Persistência
                 Appointment savedAppointment = appointmentRepository.save(appointment);
-                log.info("Agendamento criado com segurança (ID: {}). TimeZone: {}", savedAppointment.getId(), timeZone);
+                log.info("Agendamento criado com segurança via DB Lock (ID: {}).", savedAppointment.getId());
 
-                // 9. Publicação do Evento (Transação será commitada logo após este retorno)
+                // 9. Publicação do Evento
                 eventPublisher.publish(new AppointmentCreatedEvent(
                                 savedAppointment.getId(),
                                 professional.getId(),

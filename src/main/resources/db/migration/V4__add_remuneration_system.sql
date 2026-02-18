@@ -1,8 +1,6 @@
--- Campos no Profissional
-ALTER TABLE professionals ADD COLUMN remuneration_type VARCHAR(30) DEFAULT 'COMMISSION';
-ALTER TABLE professionals ADD COLUMN commission_rate DECIMAL(5,2);
-ALTER TABLE professionals ADD COLUMN fixed_value DECIMAL(10,2);
+ALTER TABLE professionals
+ADD COLUMN commission_percentage DECIMAL(5, 2) DEFAULT 0.00,
+ADD COLUMN remuneration_type VARCHAR(20) DEFAULT 'PERCENTAGE'; -- PERCENTAGE, FIXED, NONE
 
--- Campos no Agendamento
-ALTER TABLE appointments ADD COLUMN professional_commission DECIMAL(10,2);
-ALTER TABLE appointments ADD COLUMN service_provider_fee DECIMAL(10,2);
+ALTER TABLE service_providers
+ADD COLUMN commissions_enabled BOOLEAN DEFAULT FALSE;

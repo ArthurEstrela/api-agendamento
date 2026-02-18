@@ -1,12 +1,19 @@
-CREATE TABLE
-    professional_google_tokens (
-        professional_id UUID PRIMARY KEY,
-        access_token TEXT NOT NULL,
-        refresh_token TEXT NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        resource_id VARCHAR(255),
-        CONSTRAINT fk_professional FOREIGN KEY (professional_id) REFERENCES professionals (id) ON DELETE CASCADE
-    );
+CREATE TABLE google_tokens (
+    id UUID PRIMARY KEY,
+    professional_id UUID UNIQUE NOT NULL REFERENCES professionals(id),
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    scope TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP
+);
 
-ALTER TABLE appointments
-ADD COLUMN external_event_id VARCHAR(255);
+CREATE TABLE google_sync_retries (
+    id UUID PRIMARY KEY,
+    appointment_id UUID NOT NULL,
+    retry_count INTEGER DEFAULT 0,
+    last_attempt TIMESTAMP,
+    status VARCHAR(20),
+    error_message TEXT
+);
