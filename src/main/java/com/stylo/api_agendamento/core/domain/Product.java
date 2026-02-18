@@ -12,7 +12,11 @@ public class Product {
     private String name;
     private String description;
     private BigDecimal price;
+    
+    // ✨ Atualização: Campos alinhados com V6__create_products_table.sql
+    private BigDecimal costPrice; // Para calcular lucro real
     private Integer stockQuantity;
+    private Integer minStockAlert; // O gatilho do alerta
     private Boolean isActive;
 
     public void deductStock(int quantity) {
@@ -23,8 +27,12 @@ public class Product {
     }
 
     public void restoreStock(int quantity) {
-        if (quantity <= 0)
-            return;
+        if (quantity <= 0) return;
         this.stockQuantity += quantity;
+    }
+
+    // ✨ Nova Lógica de Domínio
+    public boolean isBelowMinStock() {
+        return this.minStockAlert != null && this.stockQuantity <= this.minStockAlert;
     }
 }
