@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Appointment;
 
 public interface IAppointmentRepository {
@@ -29,7 +30,7 @@ public interface IAppointmentRepository {
 
     BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end);
 
-    List<Appointment> findAllByClientId(String clientId);
+    PagedResult<Appointment> findAllByClientId(String clientId, int page, int size);
 
     List<Appointment> findPendingSettlementByProfessional(String professionalId);
 }

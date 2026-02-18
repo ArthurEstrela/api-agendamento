@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.usecases;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
@@ -9,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @UseCase
@@ -18,16 +18,21 @@ public class GetClientHistoryUseCase {
 
     private final IAppointmentRepository appointmentRepository;
 
-    public ClientHistoryResponse execute(String clientId) {
-        // 1. Busca todos os agendamentos do cliente (precisa adicionar este método no Port)
-        List<Appointment> allAppointments = appointmentRepository.findAllByClientId(clientId);
+    public ClientHistoryResponse execute(String clientId, int page, int size) {
+        // 1. Busca histórico paginado (Já vem ordenado por Data DESC do repositório)
+        PagedResult<Appointment> pagedHistory = appointmentRepository.findAllByClientId(clientId, page, size);
 
-        // 2. Filtra agendamentos concluídos para estatísticas
-        List<Appointment> completed = allAppointments.stream()
+        List<Appointment> currentPageItems = pagedHistory.items();
+
+        // 2. Filtra agendamentos concluídos DENTRO DA PÁGINA ATUAL para estatísticas
+        // OBS: Para estatísticas globais (de todo o histórico), o ideal seria criar
+        // métodos 'count' específicos no Repositório (Aggregation Queries),
+        // pois aqui estamos calculando apenas sobre os itens visíveis na página.
+        List<Appointment> completed = currentPageItems.stream()
                 .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
                 .toList();
 
-        // 3. Calcula Serviços mais realizados
+        // 3. Calcula Serviços mais realizados (baseado na página atual)
         List<ItemCount> topServices = completed.stream()
                 .flatMap(a -> a.getServices().stream())
                 .collect(Collectors.groupingBy(Service::getName, Collectors.counting()))
@@ -37,7 +42,7 @@ public class GetClientHistoryUseCase {
                 .limit(5)
                 .toList();
 
-        // 4. Calcula Profissionais favoritos
+        // 4. Calcula Profissionais favoritos (baseado na página atual)
         List<ItemCount> favoriteProfessionals = completed.stream()
                 .collect(Collectors.groupingBy(Appointment::getProfessionalName, Collectors.counting()))
                 .entrySet().stream()
@@ -46,19 +51,16 @@ public class GetClientHistoryUseCase {
                 .limit(3)
                 .toList();
 
-        // 5. Separa Histórico (ordenado pelo mais recente)
-        List<Appointment> history = allAppointments.stream()
-                .sorted(Comparator.comparing(Appointment::getStartTime).reversed())
-                .toList();
-
-        return new ClientHistoryResponse(history, topServices, favoriteProfessionals);
+        // 5. Retorna o PagedResult diretamente
+        return new ClientHistoryResponse(pagedHistory, topServices, favoriteProfessionals);
     }
 
     public record ClientHistoryResponse(
-            List<Appointment> appointments,
+            PagedResult<Appointment> history, // Agora retorna metadados de paginação
             List<ItemCount> topServices,
-            List<ItemCount> favoriteProfessionals
-    ) {}
+            List<ItemCount> favoriteProfessionals) {
+    }
 
-    public record ItemCount(String name, int count) {}
+    public record ItemCount(String name, int count) {
+    }
 }

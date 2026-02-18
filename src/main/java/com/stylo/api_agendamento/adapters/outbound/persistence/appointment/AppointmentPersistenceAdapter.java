@@ -1,8 +1,14 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -38,8 +44,10 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         var startOfDay = date.atStartOfDay();
         var endOfDay = date.atTime(23, 59, 59);
 
+        // CORREÇÃO: Passamos Pageable.unpaged() para satisfazer a assinatura do Repository
+        // sem aplicar limite de registros, já que precisamos de todos para o cálculo do dia.
         return jpaAppointmentRepository.findAllByProfessionalIdAndStartTimeBetween(
-                UUID.fromString(professionalId), startOfDay, endOfDay)
+                UUID.fromString(professionalId), startOfDay, endOfDay, Pageable.unpaged())
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
@@ -59,17 +67,14 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         return jpaAppointmentRepository.existsOverlapping(UUID.fromString(professionalId), start, end);
     }
 
-    // Implementação corrigida para satisfazer a interface
     @Override
     public List<Appointment> findPendingReminders(LocalDateTime now) {
-        // Chamamos o JpaRepository passando o tempo atual para o cálculo da query
         return jpaAppointmentRepository.findPendingReminders(now)
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .collect(Collectors.toList());
     }
 
-    // Método antigo/duplicado que pode ser removido se não estiver na interface
     @Override
     public List<Appointment> findAppointmentsToNotify(LocalDateTime threshold) {
         return jpaAppointmentRepository.findToNotify(threshold)
@@ -91,22 +96,32 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         BigDecimal result = jpaAppointmentRepository.sumProfessionalCommissionByPeriod(
                 UUID.fromString(professionalId), start, end);
 
-        // Garantir que não retorne null caso não existam agendamentos no período
         return result != null ? result : BigDecimal.ZERO;
     }
 
     @Override
-    public List<Appointment> findAllByClientId(String clientId) {
-        // ✨ Converte a String ID para UUID e mapeia para o Domínio
-        return jpaAppointmentRepository.findAllByClientId(UUID.fromString(clientId))
-                .stream()
+    public PagedResult<Appointment> findAllByClientId(String clientId, int page, int size) {
+        // Agora usa corretamente PageRequest e Sort importados
+        Pageable pageable = PageRequest.of(page, size, Sort.by("startTime").descending());
+
+        Page<AppointmentEntity> entityPage = jpaAppointmentRepository.findAllByClientId(
+                UUID.fromString(clientId),
+                pageable);
+
+        List<Appointment> domainItems = entityPage.getContent().stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
+
+        return new PagedResult<>(
+                domainItems,
+                entityPage.getNumber(),
+                entityPage.getSize(),
+                entityPage.getTotalElements(),
+                entityPage.getTotalPages());
     }
 
     @Override
     public List<Appointment> findPendingSettlementByProfessional(String professionalId) {
-        // ✨ Converte ID, busca no banco e mapeia para o domínio
         return jpaAppointmentRepository
                 .findAllByProfessionalIdAndCommissionSettledFalse(UUID.fromString(professionalId))
                 .stream()
