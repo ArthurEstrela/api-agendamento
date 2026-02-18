@@ -63,6 +63,14 @@ public class SecurityConfigurations {
                         .requestMatchers(HttpMethod.POST, "/v1/products/**")
                         .hasAuthority(SETTINGS_WRITE.getPermission())
 
+                        // --- CUPONS ---
+                        // Criar cupons: Requer permissão de escrita em configurações ou financeira
+                        .requestMatchers(HttpMethod.POST, "/v1/coupons").hasAnyAuthority(
+                                UserPermission.SETTINGS_WRITE.getPermission(),
+                                UserPermission.FINANCIAL_WRITE.getPermission())
+                        // Validar cupom: Aberto para autenticados (Clientes usando o app)
+                        .requestMatchers(HttpMethod.GET, "/v1/coupons/validate").authenticated()
+
                         // --- AGENDAMENTOS ESPECIAIS ---
                         // Marcar No-Show: Precisa poder gerenciar agenda (Recepção, Gerente, Dono)
                         .requestMatchers(HttpMethod.PATCH, "/v1/appointments/*/no-show")
@@ -74,6 +82,7 @@ public class SecurityConfigurations {
                         // (o controle fino de "ver o próprio agendamento" vs "ver todos"
                         // geralmente é feito dentro do Service/UseCase validando o ID)
                         .anyRequest().authenticated())
+
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
