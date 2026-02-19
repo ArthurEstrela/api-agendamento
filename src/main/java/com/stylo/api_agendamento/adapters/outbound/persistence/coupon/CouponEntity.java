@@ -8,6 +8,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "coupons", uniqueConstraints = {
@@ -17,15 +18,15 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class CouponEntity extends BaseEntity {
 
     @Id
-    @Column(length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-    @Column(name = "provider_id", nullable = false, length = 36)
-    private String providerId;
+    @Column(name = "provider_id", nullable = false)
+    private UUID providerId;
 
     @Column(nullable = false, length = 50)
     private String code;
@@ -34,7 +35,8 @@ public class CouponEntity extends BaseEntity {
     @Column(nullable = false, length = 20)
     private DiscountType type;
 
-    @Column(nullable = false)
+    // ✨ Precisão monetária garantida
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal value;
 
     @Column(name = "expiration_date")
@@ -47,7 +49,7 @@ public class CouponEntity extends BaseEntity {
     @Builder.Default
     private Integer currentUsages = 0;
 
-    @Column(name = "min_purchase_value")
+    @Column(name = "min_purchase_value", precision = 19, scale = 2)
     private BigDecimal minPurchaseValue;
 
     @Column(nullable = false)

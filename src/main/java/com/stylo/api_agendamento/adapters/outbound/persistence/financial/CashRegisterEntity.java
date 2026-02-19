@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "cash_registers")
@@ -15,39 +16,41 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class CashRegisterEntity extends BaseEntity {
 
     @Id
-    @Column(length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
-    @Column(nullable = false, length = 36)
-    private String providerId;
+    @Column(name = "provider_id", nullable = false)
+    private UUID providerId;
 
-    @Column(nullable = false)
+    @Column(name = "open_time", nullable = false)
     private LocalDateTime openTime;
 
+    @Column(name = "close_time")
     private LocalDateTime closeTime;
 
-    @Column(nullable = false)
+    @Column(name = "initial_balance", nullable = false, precision = 19, scale = 2)
     private BigDecimal initialBalance;
 
+    @Column(name = "final_balance", precision = 19, scale = 2)
     private BigDecimal finalBalance;
 
-    @Column(nullable = false)
+    @Column(name = "calculated_balance", nullable = false, precision = 19, scale = 2)
     private BigDecimal calculatedBalance;
 
-    @Column(nullable = false)
+    @Column(name = "is_open", nullable = false)
     private boolean isOpen;
 
-    @Column(nullable = false, length = 36)
-    private String openedByUserId;
+    @Column(name = "opened_by_user_id", nullable = false)
+    private UUID openedByUserId;
 
-    @Column(length = 36)
-    private String closedByUserId;
+    @Column(name = "closed_by_user_id")
+    private UUID closedByUserId;
 
-    @OneToMany(mappedBy = "cashRegister", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "cashRegister", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<CashTransactionEntity> transactions = new ArrayList<>();
 }

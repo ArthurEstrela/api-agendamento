@@ -10,26 +10,28 @@ import java.util.UUID;
 @Table(name = "professional_google_tokens")
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class GoogleTokenEntity {
 
+    // Relacionamento 1:1 direto com o Professional
     @Id
+    @Column(name = "professional_id")
     private UUID professionalId;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false, name = "access_token")
     private String accessToken;
 
-    @Column(columnDefinition = "TEXT", nullable = false)
+    @Column(columnDefinition = "TEXT", nullable = false, name = "refresh_token")
     private String refreshToken;
 
-    @Column(nullable = false)
+    @Column(nullable = false, name = "expires_at")
     private LocalDateTime expiresAt;
 
-    private String resourceId;
+    @Column(name = "resource_id")
+    private String resourceId; // Usado para Webhooks do Google (Push Notifications de Agenda)
 
-    // ✨ NOVO CAMPO
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

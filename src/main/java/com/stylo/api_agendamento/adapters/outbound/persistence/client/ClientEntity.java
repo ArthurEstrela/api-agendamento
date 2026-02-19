@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +17,7 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class ClientEntity extends BaseEntity {
 
     @Id
@@ -29,16 +30,21 @@ public class ClientEntity extends BaseEntity {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Embedded // Padronização: CPF do cliente agora é um DocumentVo
+    @Embedded // Value Object embutido nas colunas desta mesma tabela
     private DocumentVo document;
 
+    @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
+    
     private String gender;
 
-    @ElementCollection
+    // ✨ OTIMIZAÇÃO: Lazy Loading explícito e inicialização segura
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "client_favorite_professionals", joinColumns = @JoinColumn(name = "client_id"))
     @Column(name = "professional_id")
-    private List<UUID> favoriteProfessionals;
+    @Builder.Default
+    private List<UUID> favoriteProfessionals = new ArrayList<>();
 }

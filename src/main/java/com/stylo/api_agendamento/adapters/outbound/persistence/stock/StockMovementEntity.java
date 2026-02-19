@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "stock_movements")
@@ -13,18 +14,18 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class StockMovementEntity extends BaseEntity {
 
     @Id
-    @Column(length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id; // ✨ Corrigido para UUID
 
-    @Column(name = "product_id", nullable = false, length = 36)
-    private String productId;
+    @Column(name = "product_id", nullable = false)
+    private UUID productId; // ✨ Corrigido para UUID
 
-    @Column(name = "provider_id", nullable = false, length = 36)
-    private String providerId;
+    @Column(name = "provider_id", nullable = false)
+    private UUID providerId; // ✨ Corrigido para UUID
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -33,10 +34,11 @@ public class StockMovementEntity extends BaseEntity {
     @Column(nullable = false)
     private Integer quantity;
 
+    @Column(columnDefinition = "TEXT")
     private String reason;
 
-    @Column(name = "performed_by_user_id", length = 36)
-    private String performedByUserId;
+    @Column(name = "performed_by_user_id")
+    private UUID performedByUserId; // ✨ Corrigido para UUID
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

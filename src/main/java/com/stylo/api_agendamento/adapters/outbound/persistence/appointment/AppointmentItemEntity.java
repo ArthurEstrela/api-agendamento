@@ -1,39 +1,38 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
 
-import com.stylo.api_agendamento.adapters.outbound.persistence.product.ProductEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
 @Table(name = "appointment_items")
-@Data
-@Builder
+@Getter
+@Setter
+@Builder(toBuilder = true)
 @AllArgsConstructor
 @NoArgsConstructor
 public class AppointmentItemEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+    private UUID id; // ✨ Corrigido de String para UUID
 
-    // Relacionamento ManyToOne: Vários itens pertencem a um produto
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
-    private ProductEntity product;
+    // ✨ DESACOPLAMENTO DDD: Apenas o ID do produto. 
+    // Impede joins lentos e mantêm a comanda isolada do catálogo.
+    @Column(name = "product_id", nullable = false)
+    private UUID productId; 
 
-    // O preço CONGELADO no momento da venda (Snapshot)
-    @Column(name = "unit_price", nullable = false)
+    // Snapshot do Nome do Produto (Caso o dono do salão exclua o produto do catálogo, 
+    // a comanda antiga não perde o nome do que foi vendido)
+    @Column(name = "product_name", nullable = false)
+    private String productName;
+
+    // O preço CONGELADO no momento da venda
+    @Column(name = "unit_price", nullable = false, precision = 19, scale = 2)
     private BigDecimal unitPrice;
 
     @Column(nullable = false)
     private Integer quantity;
-
-    // Opcional: nome do produto congelado (caso deletem o produto original)
-    @Column(name = "product_name")
-    private String productName;
 }

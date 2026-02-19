@@ -11,26 +11,28 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Entity
 @Table(name = "service_providers", indexes = {
-        @Index(name = "idx_provider_slug", columnList = "publicProfileSlug"),
+        // ✨ CORREÇÃO: Usando o nome da coluna no banco (Snake Case)
+        @Index(name = "idx_provider_slug", columnList = "public_profile_slug"),
         @Index(name = "idx_provider_email", columnList = "owner_email")
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class ServiceProviderEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 150)
+    @Column(name = "business_name", nullable = false, length = 150)
     private String businessName;
 
     @Embedded
@@ -42,35 +44,39 @@ public class ServiceProviderEntity extends BaseEntity {
     @Embedded
     private DocumentVo document;
 
-    @Column(length = 20)
+    @Column(name = "business_phone", length = 20)
     private String businessPhone;
 
-    @Column(unique = true, nullable = false, length = 100)
+    @Column(name = "public_profile_slug", unique = true, nullable = false, length = 100)
     private String publicProfileSlug;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "logo_url", columnDefinition = "TEXT")
     private String logoUrl;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(name = "banner_url", columnDefinition = "TEXT")
     private String bannerUrl;
 
-    @Column(length = 100)
+    @Column(name = "pix_key", length = 100)
     private String pixKey;
 
-    @Column(length = 20)
+    @Column(name = "pix_key_type", length = 20)
     private String pixKeyType;
 
-    @ElementCollection(targetClass = PaymentMethod.class)
-    @CollectionTable(name = "provider_payment_methods", joinColumns = @JoinColumn(name = "provider_id"), foreignKey = @ForeignKey(name = "fk_payment_methods_provider"))
+    // ✨ PROTEÇÃO: Inicialização segura de coleção
+    @ElementCollection(targetClass = PaymentMethod.class, fetch = FetchType.LAZY)
+    @CollectionTable(name = "provider_payment_methods", 
+            joinColumns = @JoinColumn(name = "provider_id"), 
+            foreignKey = @ForeignKey(name = "fk_payment_methods_provider"))
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method")
-    private List<PaymentMethod> paymentMethods;
+    @Builder.Default
+    private List<PaymentMethod> paymentMethods = new ArrayList<>();
 
-    @Column(nullable = false)
+    @Column(name = "cancellation_min_hours", nullable = false)
     @Builder.Default
     private Integer cancellationMinHours = 2;
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "subscription_status", nullable = false, length = 20)
     private String subscriptionStatus;
 
     @Column(name = "trial_ends_at")
@@ -79,14 +85,13 @@ public class ServiceProviderEntity extends BaseEntity {
     @Column(name = "stripe_customer_id")
     private String stripeCustomerId;
 
-    // Configuração interna de comissões (Profissional -> Barbeiro)
     @Column(name = "commissions_enabled", nullable = false)
     private boolean commissionsEnabled;
 
+    @Column(name = "grace_period_ends_at")
     private LocalDateTime gracePeriodEndsAt;
 
     // --- CAMPOS DE AUDITORIA ---
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -99,7 +104,6 @@ public class ServiceProviderEntity extends BaseEntity {
     private String timeZone;
 
     // --- NOVOS CAMPOS STRIPE CONNECT ---
-
     @Column(name = "stripe_account_id")
     private String stripeAccountId;
 
@@ -107,7 +111,6 @@ public class ServiceProviderEntity extends BaseEntity {
     @Builder.Default
     private Boolean onlinePaymentsEnabled = false;
 
-    // Precision 5, scale 2 (ex: 100.00 ou 2.50)
     @Column(name = "platform_fee_percentage", precision = 5, scale = 2)
     @Builder.Default
     private BigDecimal platformFeePercentage = new BigDecimal("2.00");

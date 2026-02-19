@@ -12,25 +12,29 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class ReviewEntity extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "appointment_id", nullable = false)
     private UUID appointmentId;
 
-    @Column(nullable = false)
+    @Column(name = "client_id", nullable = false)
     private UUID clientId;
+    
+    @Column(name = "client_name")
     private String clientName;
 
-    @Column(nullable = false)
+    @Column(name = "service_provider_id", nullable = false)
     private UUID serviceProviderId;
 
-    @Column(nullable = false)
+    @Column(name = "professional_id", nullable = false)
     private UUID professionalId;
+    
+    @Column(name = "professional_name")
     private String professionalName;
 
     @Column(nullable = false)
@@ -39,6 +43,14 @@ public class ReviewEntity extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String comment;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
+    
+    // ✨ Callback para garantir que a data não seja esquecida no banco
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+    }
 }

@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "cash_transactions")
@@ -13,12 +14,12 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class CashTransactionEntity {
 
     @Id
-    @Column(length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cash_register_id", nullable = false)
@@ -28,14 +29,15 @@ public class CashTransactionEntity {
     @Column(nullable = false, length = 20)
     private CashTransactionType type;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(nullable = false)
     private LocalDateTime timestamp;
 
-    @Column(nullable = false, length = 36)
-    private String performedByUserId;
+    @Column(name = "performed_by_user_id", nullable = false)
+    private UUID performedByUserId;
 }
