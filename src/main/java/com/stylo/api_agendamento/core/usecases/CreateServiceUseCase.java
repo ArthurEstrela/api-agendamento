@@ -3,35 +3,60 @@ package com.stylo.api_agendamento.core.usecases;
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Service;
 import com.stylo.api_agendamento.core.ports.IServiceRepository;
+import com.stylo.api_agendamento.core.ports.IUserContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class CreateServiceUseCase {
 
     private final IServiceRepository serviceRepository;
+    private final IUserContext userContext;
 
-    public Service execute(CreateServiceInput input) {
-        // Certifique-se de que o método Service.create suporta esses parâmetros
+    @Transactional
+    public Service execute(Input input) {
+        // Se o providerId não vier no input, usamos o do usuário logado (Dono do Salão)
+        UUID providerId = input.serviceProviderId() != null 
+                ? input.serviceProviderId() 
+                : userContext.getCurrentUser().getProviderId();
+
+        // Criação usando a Factory de Domínio para garantir integridade
         Service service = Service.create(
                 input.name(),
-                input.description(), // Adicionado
+                input.description(),
                 input.duration(),
                 input.price(),
-                input.categoryId() // Alinhado com o input
+                providerId
         );
 
-        return serviceRepository.save(service);
+        // Se houver uma categoria específica vinculada
+        if (input.categoryId() != null) {
+            service = service.toBuilder()
+                    .id(service.getId()) // Mantém o ID gerado
+                    .build(); 
+            // Nota: Se houver lógica de categoria no domínio Service, use um método setCategory()
+        }
+
+        Service savedService = serviceRepository.save(service);
+        
+        log.info("Serviço '{}' criado com sucesso para o estabelecimento {}.", 
+                savedService.getName(), providerId);
+
+        return savedService;
     }
 
-    // Record atualizado para aceitar os 5 parâmetros do Controller
-    public record CreateServiceInput(
+    public record Input(
             String name,
             String description,
             Integer duration,
             BigDecimal price,
-            String categoryId
+            UUID categoryId,
+            UUID serviceProviderId // Opcional, se for criado por um Admin Master
     ) {}
 }

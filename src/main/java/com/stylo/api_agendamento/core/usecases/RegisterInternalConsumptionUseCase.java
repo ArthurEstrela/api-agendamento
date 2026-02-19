@@ -6,55 +6,66 @@ import com.stylo.api_agendamento.core.domain.events.ProductLowStockEvent;
 import com.stylo.api_agendamento.core.domain.stock.StockMovement;
 import com.stylo.api_agendamento.core.domain.stock.StockMovementType;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class RegisterInternalConsumptionUseCase {
 
     private final IProductRepository productRepository;
-    private final IStockMovementRepository stockMovementRepository; // Novo Port
+    private final IStockMovementRepository stockMovementRepository;
     private final IUserContext userContext;
     private final IEventPublisher eventPublisher;
 
     @Transactional
-    public void execute(String productId, Integer quantity, String reason) {
-        if (quantity <= 0) throw new BusinessException("Quantidade deve ser positiva.");
+    public void execute(UUID productId, Integer quantity, String reason) {
+        if (quantity == null || quantity <= 0) {
+            throw new BusinessException("A quantidade de consumo deve ser maior que zero.");
+        }
 
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessException("É obrigatório informar o motivo do consumo interno.");
+        }
+
+        // 1. Busca e Valida Produto
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new BusinessException("Produto não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Produto não localizado para baixa de estoque."));
 
-        // 1. Baixa no Estoque (Core Domain)
+        UUID operatorId = userContext.getCurrentUserId();
+
+        // 2. Lógica de Domínio (Deduct Stock)
         product.deductStock(quantity);
         productRepository.save(product);
 
-        // 2. Registro de Auditoria (Movement)
-        StockMovement movement = StockMovement.builder()
-                .id(UUID.randomUUID().toString())
-                .productId(product.getId())
-                .providerId(product.getServiceProviderId())
-                .type(StockMovementType.INTERNAL_USE)
-                .quantity(-quantity) // Negativo pois é saída
-                .reason(reason)
-                .performedByUserId(userContext.getCurrentUserId())
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        stockMovementRepository.save(movement);
-
-        // 3. Verificação de Alerta
-        if (product.isBelowMinStock()) {
-            eventPublisher.publish(new ProductLowStockEvent(
+        // 3. Registro de Auditoria (Kardex)
+        // Usamos o factory que já define o StockMovementType.INTERNAL_USE
+        StockMovement movement = StockMovement.create(
                 product.getId(),
                 product.getServiceProviderId(),
-                product.getName(),
-                product.getStockQuantity(),
-                product.getMinStockAlert()
+                StockMovementType.INTERNAL_USE,
+                quantity,
+                "Consumo Interno: " + reason,
+                operatorId
+        );
+        stockMovementRepository.save(movement);
+
+        log.info("Consumo interno registrado: {} unidades de '{}'. Motivo: {}", quantity, product.getName(), reason);
+
+        // 4. Verificação de Alerta de Reposição
+        if (product.isBelowMinStock()) {
+            eventPublisher.publish(new ProductLowStockEvent(
+                    product.getId(),
+                    product.getServiceProviderId(),
+                    product.getName(),
+                    product.getStockQuantity(),
+                    product.getMinStockAlert()
             ));
         }
     }

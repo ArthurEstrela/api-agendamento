@@ -1,16 +1,19 @@
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
-import com.stylo.api_agendamento.core.domain.Appointment;
-import com.stylo.api_agendamento.core.domain.Professional;
-import com.stylo.api_agendamento.core.domain.ServiceProvider;
+import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class RescheduleAppointmentUseCase {
@@ -20,33 +23,38 @@ public class RescheduleAppointmentUseCase {
     private final IServiceProviderRepository serviceProviderRepository;
     private final INotificationProvider notificationProvider;
 
-    public Appointment execute(RescheduleInput input) {
-        // 1. Busca o agendamento atual
+    @Transactional
+    public Appointment execute(Input input) {
+        // 1. Busca Agendamento e valida estado
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
                 .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
-        // 2. Busca o estabelecimento e valida política de mudança (mesma do cancelamento)
-        ServiceProvider provider = serviceProviderRepository.findById(appointment.getProviderId())
+        if (appointment.getStatus().isTerminalState()) {
+            throw new BusinessException("Não é possível reagendar um serviço já concluído ou cancelado.");
+        }
+
+        // 2. Valida política de alteração do Estabelecimento
+        ServiceProvider provider = serviceProviderRepository.findById(appointment.getServiceProviderId())
                 .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+        
+        // O domínio valida se o cliente está dentro do prazo (ex: 2h antes) para reagendar
         provider.validateCancellationPolicy(appointment.getStartTime());
 
-        // 3. Busca o profissional para validar a nova grade de horários
+        // 3. Valida disponibilidade do Profissional
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 4. Valida se o profissional está disponível no novo horário
-        int totalDuration = appointment.getServices().stream()
-                .mapToInt(s -> s.getDuration())
-                .sum();
+        int totalDuration = appointment.calculateTotalDuration();
         
         if (!professional.isAvailable(input.newStartTime(), totalDuration)) {
-            throw new BusinessException("O profissional não tem disponibilidade para este novo horário.");
+            throw new BusinessException("O profissional não possui disponibilidade nesta nova data/horário.");
         }
 
-        // 5. Executa a mudança no objeto de domínio
+        // 4. Executa a mudança no Domínio
+        // Isso recalcula endTime e reseta confirmações se necessário
         appointment.reschedule(input.newStartTime());
 
-        // 6. Proteção Anti-Conflito (Double Booking) no banco de dados
+        // 5. Proteção Atômica contra Double-Booking
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 appointment.getProfessionalId(),
                 appointment.getStartTime(),
@@ -54,19 +62,30 @@ public class RescheduleAppointmentUseCase {
         );
 
         if (hasConflict) {
-            throw new BusinessException("Este novo horário acabou de ser ocupado.");
+            throw new BusinessException("Este horário acabou de ser ocupado por outro cliente.");
         }
 
-        // 7. Persistência e Notificação
+        // 6. Persistência
         Appointment updatedAppointment = appointmentRepository.save(appointment);
         
-        notificationProvider.sendAppointmentRescheduled(
-                appointment.getClientId(),
-                "O seu agendamento foi alterado para " + input.newStartTime()
-        );
+        // 7. Notificações contextuais
+        notifyReschedule(updatedAppointment);
 
+        log.info("Agendamento {} reagendado com sucesso para {}", appointment.getId(), input.newStartTime());
         return updatedAppointment;
     }
 
-    public record RescheduleInput(String appointmentId, LocalDateTime newStartTime) {}
+    private void notifyReschedule(Appointment appt) {
+        try {
+            String dateFormatted = appt.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm"));
+            String message = String.format("Seu agendamento de %s foi alterado para %s.", 
+                    appt.getServicesSnapshot(), dateFormatted);
+            
+            notificationProvider.sendPushNotification(appt.getClientId(), "📅 Horário Alterado", message, "/my-appointments");
+        } catch (Exception e) {
+            log.error("Erro não-bloqueante na notificação de reagendamento: {}", e.getMessage());
+        }
+    }
+
+    public record Input(UUID appointmentId, LocalDateTime newStartTime) {}
 }

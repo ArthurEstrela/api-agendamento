@@ -8,8 +8,11 @@ import com.stylo.api_agendamento.core.domain.Service;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import lombok.RequiredArgsConstructor;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @UseCase
@@ -18,49 +21,51 @@ public class GetClientHistoryUseCase {
 
     private final IAppointmentRepository appointmentRepository;
 
-    public ClientHistoryResponse execute(String clientId, int page, int size) {
-        // 1. Busca histórico paginado (Já vem ordenado por Data DESC do repositório)
+    public Response execute(UUID clientId, int page, int size) {
+        // 1. Busca histórico paginado
         PagedResult<Appointment> pagedHistory = appointmentRepository.findAllByClientId(clientId, page, size);
+        List<Appointment> items = pagedHistory.items();
 
-        List<Appointment> currentPageItems = pagedHistory.items();
-
-        // 2. Filtra agendamentos concluídos DENTRO DA PÁGINA ATUAL para estatísticas
-        // OBS: Para estatísticas globais (de todo o histórico), o ideal seria criar
-        // métodos 'count' específicos no Repositório (Aggregation Queries),
-        // pois aqui estamos calculando apenas sobre os itens visíveis na página.
-        List<Appointment> completed = currentPageItems.stream()
+        // 2. Filtra agendamentos concluídos para métricas
+        List<Appointment> completed = items.stream()
                 .filter(a -> a.getStatus() == AppointmentStatus.COMPLETED)
                 .toList();
 
-        // 3. Calcula Serviços mais realizados (baseado na página atual)
+        // 3. Calcula Ticket Médio (da página atual)
+        BigDecimal totalSpent = completed.stream()
+                .map(Appointment::getFinalPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        BigDecimal averageTicket = completed.isEmpty() ? BigDecimal.ZERO : 
+                totalSpent.divide(BigDecimal.valueOf(completed.size()), 2, RoundingMode.HALF_UP);
+
+        // 4. Ranking de Serviços (Top 5)
         List<ItemCount> topServices = completed.stream()
                 .flatMap(a -> a.getServices().stream())
                 .collect(Collectors.groupingBy(Service::getName, Collectors.counting()))
                 .entrySet().stream()
-                .map(entry -> new ItemCount(entry.getKey(), entry.getValue().intValue()))
+                .map(e -> new ItemCount(e.getKey(), e.getValue().intValue()))
                 .sorted(Comparator.comparing(ItemCount::count).reversed())
                 .limit(5)
                 .toList();
 
-        // 4. Calcula Profissionais favoritos (baseado na página atual)
+        // 5. Ranking de Profissionais Favoritos (Top 3)
         List<ItemCount> favoriteProfessionals = completed.stream()
                 .collect(Collectors.groupingBy(Appointment::getProfessionalName, Collectors.counting()))
                 .entrySet().stream()
-                .map(entry -> new ItemCount(entry.getKey(), entry.getValue().intValue()))
+                .map(e -> new ItemCount(e.getKey(), e.getValue().intValue()))
                 .sorted(Comparator.comparing(ItemCount::count).reversed())
                 .limit(3)
                 .toList();
 
-        // 5. Retorna o PagedResult diretamente
-        return new ClientHistoryResponse(pagedHistory, topServices, favoriteProfessionals);
+        return new Response(pagedHistory, averageTicket, topServices, favoriteProfessionals);
     }
 
-    public record ClientHistoryResponse(
-            PagedResult<Appointment> history, // Agora retorna metadados de paginação
+    public record Response(
+            PagedResult<Appointment> history,
+            BigDecimal averageTicket,
             List<ItemCount> topServices,
-            List<ItemCount> favoriteProfessionals) {
-    }
+            List<ItemCount> favoriteProfessionals) {}
 
-    public record ItemCount(String name, int count) {
-    }
+    public record ItemCount(String name, int count) {}
 }

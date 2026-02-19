@@ -2,14 +2,16 @@ package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
+import com.stylo.api_agendamento.core.domain.ServiceProvider.SubscriptionStatus;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import com.stylo.api_agendamento.core.ports.INotificationProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @UseCase
@@ -23,42 +25,40 @@ public class ProcessSubscriptionStatusUseCase {
     public void execute() {
         LocalDateTime now = LocalDateTime.now();
 
-        // 1. Processa Trials Expirados
+        // 1. Processa Trials Expirados (Conversão de Free para Paid)
         List<ServiceProvider> expiredTrials = providerRepository.findExpiredTrials(now);
         expiredTrials.forEach(provider -> {
-            provider.updateSubscription("EXPIRED");
+            provider.updateSubscriptionStatus(SubscriptionStatus.EXPIRED);
             providerRepository.save(provider);
-            log.info("Trial expirado para o estabelecimento: {}", provider.getBusinessName());
-            sendNotification(provider, "Seu período de teste acabou. Assine agora para continuar agendando!");
+            log.info("Trial expirado: {}", provider.getBusinessName());
+            sendNotification(provider.getId(), "🔒 Período de teste encerrado. Assine para não perder seus agendamentos!");
         });
 
-        // 2. Processa Grace Periods Expirados (Tolerância esgotada)
-        List<ServiceProvider> expiredGracePeriods = providerRepository.findExpiredGracePeriods(now);
-        expiredGracePeriods.forEach(provider -> {
-            provider.updateSubscription("EXPIRED");
+        // 2. Processa Grace Periods Expirados (Inadimplência definitiva)
+        List<ServiceProvider> expiredGrace = providerRepository.findExpiredGracePeriods(now);
+        expiredGrace.forEach(provider -> {
+            provider.updateSubscriptionStatus(SubscriptionStatus.EXPIRED);
             providerRepository.save(provider);
-            log.error("Grace Period encerrado para {}. Acesso bloqueado por falta de pagamento.", provider.getBusinessName());
-            sendNotification(provider, "Sua assinatura expirou após o período de carência. Regularize seu pagamento.");
+            log.warn("Bloqueio por inadimplência: {}", provider.getBusinessName());
+            sendNotification(provider.getId(), "❌ Sua assinatura foi suspensa por falta de pagamento.");
         });
 
-        // 3. Alerta de Expiração Iminente (Opcional - Toque de mestre)
-        // Avisa quem expira em exatamente 3 dias
-        List<ServiceProvider> upcomingExpirations = providerRepository.findUpcomingExpirations(now.plusDays(3));
-        upcomingExpirations.forEach(provider -> {
-            sendNotification(provider, "Sua assinatura vence em 3 dias. Evite bloqueios na sua agenda!");
-        });
+        // 3. Toque de Mestre: Alerta Iminente (Retenção)
+        // Busca quem expira em exatamente 3 dias para incentivar a renovação
+        providerRepository.findUpcomingExpirations(now.plusDays(3))
+            .forEach(provider -> sendNotification(provider.getId(), "⏳ Sua assinatura vence em 3 dias. Evite interrupções na sua agenda!"));
     }
 
-    private void sendNotification(ServiceProvider provider, String message) {
+    private void sendNotification(UUID providerId, String message) {
         try {
-            notificationProvider.sendNotification(
-                provider.getId(), 
-                "💳 Status da Assinatura", 
+            notificationProvider.sendPushNotification(
+                providerId, 
+                "💳 Gestão de Assinatura", 
                 message, 
-                "/dashboard/subscription"
+                "/admin/billing"
             );
         } catch (Exception e) {
-            log.error("Erro ao enviar notificação de assinatura para {}: {}", provider.getId(), e.getMessage());
+            log.error("Falha ao notificar provider {}: {}", providerId, e.getMessage());
         }
     }
 }

@@ -1,20 +1,20 @@
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
-import com.stylo.api_agendamento.core.domain.Appointment;
-import com.stylo.api_agendamento.core.domain.AppointmentStatus;
-import com.stylo.api_agendamento.core.domain.Professional;
-import com.stylo.api_agendamento.core.domain.Service;
+import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
-import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
+import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @UseCase
@@ -23,21 +23,21 @@ public class GetAvailableSlotsUseCase {
 
     private final IProfessionalRepository professionalRepository;
     private final IAppointmentRepository appointmentRepository;
+    private final IServiceProviderRepository providerRepository;
 
-    public List<LocalTime> execute(AvailableSlotsInput input) {
-        // 1. Buscar o profissional e validar existência
+    public List<LocalTime> execute(Input input) {
+        // 1. Validar Profissional e Estabelecimento
         Professional professional = professionalRepository.findById(input.professionalId())
-                .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 2. Validar se o profissional realiza os serviços solicitados
+        ServiceProvider provider = providerRepository.findById(professional.getServiceProviderId())
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+
+        // 2. Cálculo de Carga Horária e Duração
         professional.validateCanPerform(input.services());
+        int totalDuration = input.services().stream().mapToInt(Service::getDuration).sum();
 
-        // 3. Calcular a duração total necessária
-        int totalDuration = input.services().stream()
-                .mapToInt(Service::getDuration)
-                .sum();
-
-        // 4. Obter a configuração de disponibilidade para o dia da semana
+        // 3. Obter configuração do dia (Expediente)
         DailyAvailability dailyConfig = professional.getAvailability().stream()
                 .filter(a -> a.dayOfWeek() == input.date().getDayOfWeek())
                 .findFirst()
@@ -47,49 +47,54 @@ public class GetAvailableSlotsUseCase {
             return new ArrayList<>();
         }
 
-        // 5. Buscar agendamentos e BLOQUEIOS existentes (Ocupação Real)
-        // Melhoria: Consideramos SCHEDULED, PENDING e o novo status BLOCKED como impeditivos
+        // 4. Buscar Ocupação Real (Agendamentos e Bloqueios)
         List<Appointment> existingOccupations = appointmentRepository
                 .findAllByProfessionalIdAndDate(input.professionalId(), input.date())
                 .stream()
                 .filter(app -> app.getStatus() != AppointmentStatus.CANCELLED)
                 .collect(Collectors.toList());
 
-        // 6. Gerar slots baseados no slotInterval
+        // 5. Motor de Geração de Slots
         List<LocalTime> availableSlots = new ArrayList<>();
         LocalTime currentSlot = dailyConfig.startTime();
-        LocalTime now = LocalTime.now();
-        LocalDate today = LocalDate.now();
         
+        // Ajuste de fuso horário para "hoje"
+        ZoneId zoneId = ZoneId.of(provider.getTimeZone());
+        LocalTime nowInProviderZone = LocalTime.now(zoneId);
+        LocalDate todayInProviderZone = LocalDate.now(zoneId);
+        
+        // O último horário possível deve comportar a duração total dos serviços
         LocalTime lastPossibleSlot = dailyConfig.endTime().minusMinutes(totalDuration);
 
         while (!currentSlot.isAfter(lastPossibleSlot)) {
             LocalTime slotStart = currentSlot;
             LocalTime slotEnd = currentSlot.plusMinutes(totalDuration);
 
-            // MELHORIA MONSTRA: Não permitir horários que já passaram se a data for hoje
-            boolean isPastTime = input.date().isEqual(today) && slotStart.isBefore(now);
+            // Regra 1: Não permitir horários que já passaram hoje
+            boolean isPast = input.date().isEqual(todayInProviderZone) && slotStart.isBefore(nowInProviderZone);
 
-            // Verificar conflito com agendamentos ou bloqueios administrativos
-            boolean hasConflict = existingOccupations.stream().anyMatch(app -> {
-                LocalTime appStart = app.getStartTime().toLocalTime();
-                LocalTime appEnd = app.getEndTime().toLocalTime();
-                return slotStart.isBefore(appEnd) && slotEnd.isAfter(appStart);
+            // Regra 2: Verificar sobreposição com qualquer ocupação existente
+            boolean hasConflict = existingOccupations.stream().anyMatch(occ -> {
+                LocalTime occStart = occ.getStartTime().toLocalTime();
+                LocalTime occEnd = occ.getEndTime().toLocalTime();
+                // (StartA < EndB) AND (EndA > StartB) -> Sobreposição detectada
+                return slotStart.isBefore(occEnd) && slotEnd.isAfter(occStart);
             });
 
-            if (!hasConflict && !isPastTime) {
+            if (!hasConflict && !isPast) {
                 availableSlots.add(slotStart);
             }
 
+            // Incrementa o slot conforme o intervalo configurado (ex: a cada 30 min)
             currentSlot = currentSlot.plusMinutes(professional.getSlotInterval());
         }
 
         return availableSlots;
     }
 
-    public record AvailableSlotsInput(
-        String professionalId,
-        LocalDate date,
-        List<Service> services
+    public record Input(
+            UUID professionalId,
+            LocalDate date,
+            List<Service> services
     ) {}
 }

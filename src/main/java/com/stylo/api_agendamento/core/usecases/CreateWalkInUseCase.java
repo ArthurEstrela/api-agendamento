@@ -4,12 +4,17 @@ import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class CreateWalkInUseCase {
@@ -18,76 +23,70 @@ public class CreateWalkInUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IServiceRepository serviceRepository;
     private final IServiceProviderRepository serviceProviderRepository;
-    private final IClientRepository clientRepository; // Necessário buscar ou criar cliente rápido
+    private final IClientRepository clientRepository;
 
-    public Appointment execute(WalkInInput input) {
-        // 1. Validar Profissional
+    @Transactional
+    public Appointment execute(Input input) {
+        // 1. Validar Profissional e Contexto
         Professional professional = professionalRepository.findById(input.professionalId())
-                .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 2. Identificar ou Criar Cliente Temporário
-        String clientId = null;
+        ServiceProvider provider = serviceProviderRepository.findById(professional.getServiceProviderId())
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+
+        // 2. Identificar ou Resolver Dados do Cliente
+        UUID clientId = null;
         String clientName = input.clientName();
-        ClientPhone phone = null;
+        ClientPhone phone;
 
         if (input.clientId() != null) {
-            // Cliente Cadastrado
-            var client = clientRepository.findById(input.clientId())
-                    .orElseThrow(() -> new BusinessException("Cliente não encontrado."));
+            Client client = clientRepository.findById(input.clientId())
+                    .orElseThrow(() -> new EntityNotFoundException("Cliente cadastrado não encontrado."));
             clientId = client.getId();
             clientName = client.getName();
             phone = client.getPhoneNumber();
         } else {
-            // Cliente Avulso/Anônimo
-            if (clientName == null || clientName.isBlank())
-                clientName = "Cliente Balcão";
-            // Em walk-in, telefone pode ser opcional se for cliente anônimo
+            // Cliente Balcão/Anônimo
+            if (clientName == null || clientName.isBlank()) clientName = "Cliente Balcão";
             phone = input.clientPhone() != null ? new ClientPhone(input.clientPhone()) : new ClientPhone("00000000000");
         }
 
-        // 3. Buscar Serviços (se houver - pode ser uma venda só de produto)
+        // 3. Buscar Serviços (Valida competência do profissional)
         List<Service> services = List.of();
         if (input.serviceIds() != null && !input.serviceIds().isEmpty()) {
             services = serviceRepository.findAllByIds(input.serviceIds());
             professional.validateCanPerform(services);
         }
 
-        // 4. Definir Horário (Agora)
-        LocalDateTime startTime = LocalDateTime.now();
-        String timeZone = serviceProviderRepository.findById(professional.getServiceProviderId())
-                .map(ServiceProvider::getTimeZone)
-                .orElse("America/Sao_Paulo");
-
-        // 5. Criar Agendamento com Status ANDAMENTO (In Progress) ou CONFIRMADO
-        // Usamos o createManual, mas forçamos o status se necessário
+        // 4. Criação do Agendamento Presencial (Status imediato SCHEDULED)
         Appointment appointment = Appointment.createManual(
                 clientName,
                 phone,
-                professional.getServiceProviderId(),
+                provider.getId(),
                 professional.getId(),
                 professional.getName(),
                 services,
-                startTime,
-                "Walk-in / Encaixe Rápido",
-                timeZone);
+                LocalDateTime.now(), // Início imediato
+                "Atendimento Presencial (Walk-in)",
+                provider.getTimeZone()
+        );
 
         if (clientId != null) {
-            // Se tiver ID, associamos. O createManual original não pedia ID, então usamos o
-            // Builder
             appointment = appointment.toBuilder().clientId(clientId).build();
         }
 
-        // Já confirma automaticamente pois o cliente está na loja
+        // Confirma automaticamente pois o cliente já está na cadeira
         appointment.confirm();
 
+        log.info("Walk-in registrado: {} para o cliente {}", appointment.getId(), clientName);
         return appointmentRepository.save(appointment);
     }
 
-    public record WalkInInput(
-            String professionalId,
-            String clientId, // Opcional
-            String clientName, // Usado se clientId for null
-            String clientPhone, // Opcional
-            List<String> serviceIds) {
-    }
+    public record Input(
+            UUID professionalId,
+            UUID clientId,
+            String clientName,
+            String clientPhone,
+            List<UUID> serviceIds
+    ) {}
 }

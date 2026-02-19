@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @UseCase
@@ -18,51 +19,56 @@ public class CreateRecurringAppointmentUseCase {
 
     private final CreateAppointmentUseCase createAppointmentUseCase;
 
-    public RecurringResponse execute(RecurringInput input) {
+    public Response execute(Input input) {
         List<Appointment> successes = new ArrayList<>();
-        List<FailedAppointment> failures = new ArrayList<>();
+        List<FailedOccurrence> failures = new ArrayList<>();
 
         LocalDateTime currentSlot = input.firstStartTime();
         int count = 0;
+        
+        // Limite de segurança: se não houver occurrences ou endDate, limita a 1 ano (52 semanas)
         int maxOccurrences = input.occurrences() != null ? input.occurrences() : 52;
 
+        log.info("Iniciando criação de agendamento recorrente ({}) para o cliente {}", 
+                input.recurrenceType(), input.clientId());
+
         while (count < maxOccurrences) {
+            // Verifica se ultrapassou a data limite definida pelo usuário
             if (input.endDate() != null && currentSlot.isAfter(input.endDate())) {
                 break;
             }
 
             try {
-                // ✨ CORREÇÃO: Adicionado o parâmetro 'null' para o couponCode
-                var singleInput = new CreateAppointmentUseCase.CreateAppointmentInput(
+                // Reutilizamos o caso de uso de agendamento individual para herdar Lock e Validações
+                var singleInput = new CreateAppointmentUseCase.Input(
                         input.clientId(),
                         input.professionalId(),
                         input.serviceIds(),
                         currentSlot,
                         input.reminderMinutes(),
-                        null // Cupom não aplicado automaticamente em recorrência para evitar bloqueio por
-                             // limite de uso
+                        null, // Cupom não aplicado em recorrência para evitar exaustão de limites
+                        "Recorrência: " + (count + 1) // Notas automáticas
                 );
 
                 Appointment appt = createAppointmentUseCase.execute(singleInput);
-
                 successes.add(appt);
-                log.info("Agendamento recorrente {}/{} criado para {}", count + 1, maxOccurrences, currentSlot);
 
             } catch (Exception e) {
-                log.warn("Falha ao criar recorrência em {}: {}", currentSlot, e.getMessage());
-                failures.add(new FailedAppointment(currentSlot, e.getMessage()));
+                log.warn("Falha na ocorrência {} em {}: {}", count + 1, currentSlot, e.getMessage());
+                failures.add(new FailedOccurrence(currentSlot, e.getMessage()));
             }
 
+            // Calcula o próximo passo na linha do tempo
             currentSlot = calculateNextSlot(currentSlot, input.recurrenceType());
             count++;
         }
 
-        return new RecurringResponse(successes, failures);
+        return new Response(successes, failures);
     }
 
     private LocalDateTime calculateNextSlot(LocalDateTime current, RecurrenceType type) {
-        if (type == null)
-            return current.plusDays(1); // Default safe
+        if (type == null) return current.plusWeeks(1);
+        
         return switch (type) {
             case DAILY -> current.plusDays(1);
             case WEEKLY -> current.plusWeeks(1);
@@ -72,35 +78,31 @@ public class CreateRecurringAppointmentUseCase {
     }
 
     @Builder
-    public record RecurringInput(
-            String clientId,
-            String professionalId,
-            List<String> serviceIds,
+    public record Input(
+            UUID clientId,
+            UUID professionalId,
+            List<UUID> serviceIds,
             LocalDateTime firstStartTime,
             Integer reminderMinutes,
             RecurrenceType recurrenceType,
             Integer occurrences,
-            LocalDateTime endDate) {
-    }
+            LocalDateTime endDate
+    ) {}
 
-    public record RecurringResponse(
+    public record Response(
             List<Appointment> createdAppointments,
-            List<FailedAppointment> failedAppointments) {
-        public boolean hasFailures() {
-            return !failedAppointments.isEmpty();
-        }
+            List<FailedOccurrence> failedOccurrences
+    ) {
+        public boolean hasFailures() { return !failedOccurrences.isEmpty(); }
 
-        public String getSummaryMessage() {
-            if (failedAppointments.isEmpty()) {
-                return "Todos os " + createdAppointments.size() + " agendamentos foram criados com sucesso.";
+        public String getSummary() {
+            if (failedOccurrences.isEmpty()) {
+                return "Sucesso: " + createdAppointments.size() + " agendamentos criados.";
             }
-            return String.format("Agendados: %d. Falhas: %d. Verifique os horários indisponíveis.",
-                    createdAppointments.size(), failedAppointments.size());
+            return String.format("Concluídos: %d | Falhas: %d. Alguns horários estavam ocupados.", 
+                    createdAppointments.size(), failedOccurrences.size());
         }
     }
 
-    public record FailedAppointment(
-            LocalDateTime date,
-            String reason) {
-    }
+    public record FailedOccurrence(LocalDateTime date, String reason) {}
 }

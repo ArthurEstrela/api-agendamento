@@ -14,20 +14,34 @@ public class RequestPasswordResetUseCase {
     private final IUserRepository userRepository;
     private final INotificationProvider notificationProvider;
 
+    /**
+     * Inicia o fluxo de recuperação de senha.
+     * Implementa segurança contra User Enumeration.
+     */
     public void execute(String email) {
-        // Segurança: Sempre retornamos 200/OK mesmo se o e-mail não existir
-        // para evitar "User Enumeration Attacks".
-        userRepository.findByEmail(email).ifPresent(user -> {
-            user.generatePasswordResetToken();
-            userRepository.save(user);
+        if (email == null || email.isBlank()) return;
 
-            String link = "https://stylo.app.br/reset-password?token=" + user.getResetPasswordToken();
-            
-            try {
-                notificationProvider.sendPasswordResetEmail(user.getEmail(), user.getName(), link);
-            } catch (Exception e) {
-                log.error("Erro ao enviar email de reset para {}: {}", email, e.getMessage());
+        userRepository.findByEmail(email.toLowerCase().trim()).ifPresentOrElse(
+            user -> {
+                // O Domínio gera o token com expiração (ex: 1 hora)
+                user.generatePasswordResetToken();
+                userRepository.save(user);
+
+                String resetLink = "https://stylo.app.br/reset-password?token=" + user.getResetPasswordToken();
+                
+                try {
+                    notificationProvider.sendPasswordResetEmail(user.getEmail(), user.getName(), resetLink);
+                    log.info("Link de recuperação enviado com sucesso para o usuário.");
+                } catch (Exception e) {
+                    log.error("Falha ao enviar e-mail de recuperação para {}: {}", email, e.getMessage());
+                }
+            },
+            () -> {
+                // Simulamos um delay aleatório para evitar ataques de timing que 
+                // revelariam que o e-mail não existe na base.
+                try { Thread.sleep(100 + (long)(Math.random() * 200)); } catch (InterruptedException ignored) {}
+                log.info("Solicitação de reset recebida para e-mail inexistente. Processo silenciado por segurança.");
             }
-        });
+        );
     }
 }

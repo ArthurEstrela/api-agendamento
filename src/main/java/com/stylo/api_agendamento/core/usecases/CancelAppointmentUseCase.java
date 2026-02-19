@@ -3,18 +3,19 @@ package com.stylo.api_agendamento.core.usecases;
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.AppointmentStatus;
-import com.stylo.api_agendamento.core.domain.Product;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.events.AppointmentCancelledEvent;
+import com.stylo.api_agendamento.core.domain.stock.StockMovement;
+import com.stylo.api_agendamento.core.domain.stock.StockMovementType;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.*;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 @UseCase
@@ -24,124 +25,153 @@ public class CancelAppointmentUseCase {
     private final IAppointmentRepository appointmentRepository;
     private final IServiceProviderRepository providerRepository;
     private final IUserRepository userRepository;
-    private final IProductRepository productRepository; // ✨ Para devolver estoque
+    private final IProductRepository productRepository;
+    private final IStockMovementRepository stockMovementRepository; // ✨ Para auditoria de devolução
     private final INotificationProvider notificationProvider;
     private final IPaymentProvider paymentProvider;
     private final ICalendarProvider calendarProvider;
     private final IEventPublisher eventPublisher;
 
     @Transactional
-    public void execute(CancelAppointmentInput input) {
-        // 1. Busca e validação
+    public void execute(Input input) {
+        // 1. Busca e validação inicial
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
-                .orElseThrow(() -> new BusinessException("Agendamento não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
         if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
-            throw new BusinessException("Agendamento já está cancelado.");
+            throw new BusinessException("Este agendamento já se encontra cancelado.");
         }
 
-        // 2. Busca estabelecimento (para regras de cancelamento)
+        // 2. Busca estabelecimento para validar regras de cancelamento e fuso horário
         ServiceProvider provider = providerRepository.findById(appointment.getServiceProviderId())
-                .orElseThrow(() -> new BusinessException("Estabelecimento não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
 
-        // 3. Devolução de Estoque (Se houver produtos na comanda)
-        returnProductsToStock(appointment);
+        // 3. Devolução de Estoque com Registro de Movimentação (Kardex)
+        returnProductsToStock(appointment, input.userId());
 
-        // 4. Processamento Financeiro (Estorno)
+        // 4. Processamento de Estorno Financeiro
         handleFinancialRefund(appointment, provider, input.isClient());
 
-        // 5. Cancelamento no Domínio
+        // 5. Atualização de Estado no Domínio
         appointment.cancel();
         appointment.setCancellationReason(input.reason());
-        appointment.setCancelledBy(input.userId());
+        appointment.setCancelledBy(input.userId().toString());
         
         // 6. Persistência
         appointmentRepository.save(appointment);
         
-        // 7. Integrações Externas
-        // Remove do Google Calendar
+        // 7. Sincronização de Calendário Externo (Silent failure para não travar o cancelamento)
         if (appointment.getExternalEventId() != null) {
             try {
                 calendarProvider.deleteEvent(appointment.getProfessionalId(), appointment.getExternalEventId());
             } catch (Exception e) {
-                log.warn("Falha não-bloqueante ao remover do Google: {}", e.getMessage());
+                log.warn("Falha ao remover evento do calendário externo: {}", e.getMessage());
             }
         }
 
-        // 8. Notificações
+        // 8. Disparo de Notificações Push/Email
         notifyParties(appointment, input.userId());
 
-        // 9. ✨ Disparo para WAITLIST (Vaga liberada!)
+        // 9. Publicação de Evento para Waitlist (Gatilho para preencher a vaga liberada)
         eventPublisher.publish(new AppointmentCancelledEvent(
                 appointment.getId(),
                 appointment.getProfessionalId(),
+                appointment.getClientId(),
+                appointment.getClientName(),
                 appointment.getStartTime(),
-                appointment.getEndTime()
+                appointment.getEndTime(),
+                input.reason()
         ));
         
-        log.info("Agendamento {} cancelado com sucesso.", appointment.getId());
+        log.info("Agendamento {} cancelado. Motivo: {}", appointment.getId(), input.reason());
     }
 
-    private void returnProductsToStock(Appointment appointment) {
-        if (appointment.getProducts() == null || appointment.getProducts().isEmpty()) return;
+    /**
+     * Devolve os produtos ao estoque e gera movimentação auditável.
+     */
+    private void returnProductsToStock(Appointment appointment, UUID operatorId) {
+        if (!appointment.hasProducts()) return;
 
         for (Appointment.AppointmentItem item : appointment.getProducts()) {
-            try {
-                productRepository.findById(item.getProductId()).ifPresent(product -> {
-                    product.restoreStock(item.getQuantity());
-                    productRepository.save(product);
-                    log.info("Estoque restaurado: Produto {} (+{})", product.getName(), item.getQuantity());
-                });
-            } catch (Exception e) {
-                log.error("Erro ao restaurar estoque do produto {}: {}", item.getProductId(), e.getMessage());
-            }
+            productRepository.findById(item.getProductId()).ifPresent(product -> {
+                // 1. Incrementa a quantidade no produto
+                product.addStock(item.getQuantity());
+                productRepository.save(product);
+
+                // 2. Registra o movimento de entrada (Kardex)
+                StockMovement movement = StockMovement.create(
+                        product.getId(),
+                        product.getServiceProviderId(),
+                        StockMovementType.RETURN_FROM_CUSTOMER, // Tipo: Devolução
+                        item.getQuantity(),
+                        "Devolução por cancelamento do agendamento #" + appointment.getId().toString().substring(0, 8),
+                        operatorId
+                );
+                stockMovementRepository.save(movement);
+                
+                log.info("Estoque restaurado: {} (+{})", product.getName(), item.getQuantity());
+            });
         }
     }
 
+    /**
+     * Gerencia a devolução do dinheiro baseada na política de cancelamento do salão.
+     */
     private void handleFinancialRefund(Appointment appt, ServiceProvider provider, boolean isClientAction) {
         if (!appt.isPaid() || appt.getExternalPaymentId() == null) return;
 
+        // Regra: Se o profissional cancelar, o estorno é SEMPRE total.
+        // Se o cliente cancelar, verifica se ele está dentro do prazo (ex: 2h antes).
         boolean shouldRefund = !isClientAction || appt.isEligibleForRefund(provider.getCancellationMinHours());
 
         if (shouldRefund) {
             try {
-                log.info("Iniciando estorno de R${}", appt.getFinalPrice());
-                paymentProvider.refund(appt.getExternalPaymentId(), appt.getFinalPrice());
+                log.info("Processando estorno automático de R$ {} para o agendamento {}", appt.getFinalPrice(), appt.getId());
+                paymentProvider.refundPayment(appt.getExternalPaymentId(), appt.getFinalPrice());
             } catch (Exception e) {
-                log.error("FALHA CRÍTICA no estorno: {}", e.getMessage());
+                log.error("ERRO CRÍTICO no estorno (ID PGTO: {}): {}", appt.getExternalPaymentId(), e.getMessage());
+                // Aqui poderíamos criar um alerta para o administrador do sistema
             }
         } else {
-            log.warn("Cancelamento sem estorno (Regra de Multa/Prazo).");
+            log.warn("Cancelamento fora do prazo. Estorno não realizado conforme política do salão.");
         }
     }
 
-    private void notifyParties(Appointment appt, String cancelledById) {
+    /**
+     * Notifica as partes envolvidas via Push/App.
+     */
+    private void notifyParties(Appointment appt, UUID operatorId) {
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM 'às' HH:mm");
             String dateFormatted = appt.getStartTime().format(formatter);
-            String serviceName = appt.getServices().isEmpty() ? "atendimento" : appt.getServices().get(0).getName();
             
-            boolean isClientCancelled = cancelledById.equals(appt.getClientId());
-
-            if (isClientCancelled) {
-                String title = "⚠️ Agenda Liberada";
-                String body = String.format("%s cancelou %s para %s.", appt.getClientName(), serviceName, dateFormatted);
+            // Se quem cancelou foi o cliente
+            if (operatorId.equals(appt.getClientId())) {
+                String title = "⚠️ Vaga Liberada";
+                String body = String.format("%s cancelou o horário de %s.", appt.getClientName(), dateFormatted);
                 
-                // Avisa Profissional e Dono
-                Set<String> recipients = new HashSet<>();
-                recipients.add(appt.getServiceProviderId());
-                userRepository.findByProfessionalId(appt.getProfessionalId()).ifPresent(u -> recipients.add(u.getId()));
-
-                for (String rid : recipients) notificationProvider.sendNotification(rid, title, body, "/dashboard/calendar");
-            } else {
+                // Notifica o dono (Provider)
+                notificationProvider.sendPushNotification(appt.getServiceProviderId(), title, body, "/admin/calendar");
+                
+                // Notifica o profissional específico
+                userRepository.findByProviderId(appt.getProfessionalId()) // Assume que o profissional tem um User vinculado
+                        .ifPresent(u -> notificationProvider.sendPushNotification(u.getId(), title, body, "/pro/calendar"));
+            } 
+            // Se quem cancelou foi o profissional/salão
+            else {
                 String title = "❌ Agendamento Cancelado";
-                String body = String.format("Seu horário de %s foi cancelado. Verifique o App.", dateFormatted);
-                notificationProvider.sendNotification(appt.getClientId(), title, body, "/my-appointments");
+                String body = String.format("Seu horário de %s foi cancelado pelo estabelecimento.", dateFormatted);
+                notificationProvider.sendPushNotification(appt.getClientId(), title, body, "/client/appointments");
             }
         } catch (Exception e) {
-            log.error("Erro ao notificar cancelamento: {}", e.getMessage());
+            log.warn("Erro ao enviar notificações de cancelamento: {}", e.getMessage());
         }
     }
 
-    public record CancelAppointmentInput(String appointmentId, String userId, String reason, boolean isClient) {}
+    public record Input(
+            UUID appointmentId,
+            UUID userId,
+            String reason,
+            boolean isClient
+    ) {}
 }

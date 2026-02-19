@@ -5,7 +5,8 @@ import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.crypto.password.PasswordEncoder; // Use o do Spring Security
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 
 @UseCase
 @RequiredArgsConstructor
@@ -14,21 +15,28 @@ public class ResetPasswordUseCase {
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional
     public void execute(String token, String newPassword) {
-        // Precisamos de um método: findByResetPasswordToken no repositório
-        User user = userRepository.findByResetPasswordToken(token)
-                .orElseThrow(() -> new BusinessException("Token inválido ou expirado."));
-
-        if (!user.isResetTokenValid(token)) {
-            throw new BusinessException("Token expirado.");
+        if (token == null || token.isBlank()) {
+            throw new BusinessException("Token de recuperação é obrigatório.");
         }
 
-        // Atualiza a senha (já com Hash)
-        User.withPassword(user, passwordEncoder.encode(newPassword));
-        
-        // Limpa o token para não ser usado de novo
-        user.clearPasswordResetToken();
+        // 1. Busca o usuário pelo token
+        User user = userRepository.findByResetPasswordToken(token)
+                .orElseThrow(() -> new BusinessException("Token inválido ou já utilizado."));
+
+        // 2. Valida expiração (Regra de Domínio)
+        if (!user.isResetTokenValid()) {
+            throw new BusinessException("Este link de recuperação expirou. Solicite um novo.");
+        }
+
+        // 3. Atualiza a senha com Hash seguro
+        // O método updatePassword do domínio deve limpar o token após a troca
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        user.changePassword(encodedPassword);
         
         userRepository.save(user);
+        
+        // 4. Poderia disparar evento: PasswordChangedEvent (para avisar o usuário por e-mail)
     }
 }

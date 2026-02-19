@@ -10,6 +10,7 @@ import com.stylo.api_agendamento.core.usecases.dto.ProfessionalProfile;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.UUID;
 
 @UseCase
 @RequiredArgsConstructor
@@ -18,26 +19,27 @@ public class GetProfessionalProfileUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IReviewRepository reviewRepository;
 
-    public ProfessionalProfile execute(String professionalId) {
+    public ProfessionalProfile execute(UUID professionalId) {
         // 1. Busca o profissional e valida existência
         Professional professional = professionalRepository.findById(professionalId)
                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 2. Busca a média de avaliações (Porta IReviewRepository)
-        Double averageRating = reviewRepository.getAverageRating(professionalId);
+        // 2. Busca a média de avaliações
+        Double averageRating = reviewRepository.getAverageRatingByProfessional(professionalId);
 
-        // 3. Busca os feedbacks mais recentes para mostrar no perfil
-        List<Review> reviews = reviewRepository.findByProfessionalId(professionalId);
+        // 3. Busca os feedbacks recentes (limitado a 10 itens para performance)
+        // O PagedResult garante que não carregaremos milhares de reviews no perfil
+        List<Review> recentReviews = reviewRepository.findAllByProfessionalId(professionalId, 0, 10).items();
 
-        // 4. Retorna o perfil completo e "mastigado" para o front-end
+        // 4. Retorna o DTO completo para o Front-end
         return new ProfessionalProfile(
                 professional.getId(),
                 professional.getName(),
                 professional.getAvatarUrl(),
                 professional.getBio(),
-                professional.getServices(),
+                professional.getSpecialties(), // Retorna as especialidades vinculadas
                 averageRating != null ? averageRating : 0.0,
-                reviews
+                recentReviews
         );
     }
 }

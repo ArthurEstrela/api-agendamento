@@ -5,88 +5,85 @@ import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.domain.RemunerationType;
 import com.stylo.api_agendamento.core.domain.events.AuditLogEvent;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IEventPublisher;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
+import com.stylo.api_agendamento.core.ports.IUserContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
-@Slf4j
 public class UpdateProfessionalCommissionUseCase {
 
     private final IProfessionalRepository professionalRepository;
     private final IEventPublisher eventPublisher;
+    private final IUserContext userContext;
 
-    public void execute(UpdateCommissionInput input) {
-        // 1. Busca e valida o Solicitante
-        Professional requester = professionalRepository.findById(input.requesterId())
-                .orElseThrow(() -> new BusinessException("Solicitante não encontrado."));
+    @Transactional
+    public void execute(Input input) {
+        // 1. Identifica quem está operando (Dono do Estabelecimento) via Contexto Seguro
+        UUID requesterId = userContext.getCurrentUserId();
+        Professional requester = professionalRepository.findById(requesterId)
+                .orElseThrow(() -> new BusinessException("Acesso negado: Solicitante não identificado."));
 
         if (!requester.isOwner()) {
-            throw new BusinessException("Apenas o proprietário pode alterar as configurações de comissão.");
+            throw new BusinessException("Permissão negada: Apenas proprietários podem alterar regras de comissão.");
         }
 
         // 2. Busca o Profissional Alvo
-        Professional targetProfessional = professionalRepository.findById(input.targetProfessionalId())
-                .orElseThrow(() -> new BusinessException("Profissional alvo não encontrado."));
+        Professional target = professionalRepository.findById(input.targetProfessionalId())
+                .orElseThrow(() -> new EntityNotFoundException("Profissional alvo não encontrado."));
 
-        // 3. Validação de Segurança
-        if (!targetProfessional.getServiceProviderId().equals(requester.getServiceProviderId())) {
-            throw new BusinessException("Você não tem permissão para alterar profissionais de outro estabelecimento.");
+        // 3. ✨ Segurança Multi-Tenant (Proteção contra Cross-Site Scripting/Injeção de ID)
+        if (!target.getServiceProviderId().equals(requester.getServiceProviderId())) {
+            log.error("Tentativa de quebra de segurança: {} tentou alterar comissão de profissional externo {}", 
+                    requesterId, target.getId());
+            throw new BusinessException("Você não tem permissão para gerenciar profissionais de outros estabelecimentos.");
         }
 
-        // 4. ✨ Captura o Estado ANTERIOR para Auditoria
-        // CORREÇÃO: Usamos getRemunerationValue() pois é o nome do campo na Entidade
-        BigDecimal currentCommission = targetProfessional.getRemunerationValue(); 
-        
-        String oldValueFormatted = formatCommission(
-                targetProfessional.getRemunerationType(), 
-                currentCommission
-        );
+        // 4. Captura Estado Atual para Auditoria Detalhada
+        String oldValue = formatCommission(target.getRemunerationType(), target.getRemunerationValue());
+        String newValue = formatCommission(input.type(), input.value());
 
-        String newValueFormatted = formatCommission(input.type(), input.value());
+        // Se não houver mudança real, encerramos para evitar logs desnecessários
+        if (oldValue.equals(newValue)) return;
 
-        // 5. Otimização
-        if (oldValueFormatted.equals(newValueFormatted)) {
-            return; 
-        }
+        // 5. Aplica alteração no Domínio
+        target.updateCommissionSettings(input.type(), input.value());
+        professionalRepository.save(target);
 
-        // 6. Aplica a alteração
-        targetProfessional.updateCommissionSettings(input.type(), input.value());
+        // 6. Publica Evento de Auditoria (Essencial para Compliance Financeiro)
+        publishAuditLog(target, requesterId, oldValue, newValue);
 
-        // 7. Persiste
-        professionalRepository.save(targetProfessional);
+        log.info("Comissão atualizada para {}: {} -> {}", target.getName(), oldValue, newValue);
+    }
 
-        // 8. Publica Auditoria
-        AuditLogEvent auditEvent = AuditLogEvent.builder()
-                .entityName("Professional")
-                .entityId(targetProfessional.getId())
-                .action("UPDATE_COMMISSION")
-                .fieldName("commissionSettings")
-                .oldValue(oldValueFormatted)
-                .newValue(newValueFormatted)
-                .modifiedBy(input.requesterId())
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        eventPublisher.publish(auditEvent);
-        
-        log.info("Comissão do profissional {} alterada por {}. Antes: {} -> Depois: {}", 
-                targetProfessional.getId(), input.requesterId(), oldValueFormatted, newValueFormatted);
+    private void publishAuditLog(Professional target, UUID modifiedBy, String oldVal, String newVal) {
+        eventPublisher.publish(AuditLogEvent.createUpdate(
+                "Professional",
+                target.getId(),
+                target.getServiceProviderId(),
+                "remunerationSettings",
+                oldVal,
+                newVal,
+                modifiedBy
+        ));
     }
 
     private String formatCommission(RemunerationType type, BigDecimal value) {
-        if (type == null || value == null) return "N/A";
-        return String.format("%s (%s)", type.name(), value.toPlainString());
+        if (type == null || value == null) return "NOT_SET";
+        String symbol = (type == RemunerationType.PERCENTAGE) ? "%" : "R$";
+        return symbol + " " + value.toPlainString();
     }
 
-    public record UpdateCommissionInput(
-            String requesterId,
-            String targetProfessionalId,
+    public record Input(
+            UUID targetProfessionalId,
             RemunerationType type,
             BigDecimal value
     ) {}

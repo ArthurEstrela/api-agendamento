@@ -1,19 +1,21 @@
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
-import com.stylo.api_agendamento.core.domain.Appointment;
-import com.stylo.api_agendamento.core.domain.Professional;
-import com.stylo.api_agendamento.core.domain.User;
+import com.stylo.api_agendamento.core.domain.*;
 import com.stylo.api_agendamento.core.domain.coupon.Coupon;
 import com.stylo.api_agendamento.core.domain.financial.CashTransactionType;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
+@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class ProcessPosCheckoutUseCase {
@@ -21,73 +23,68 @@ public class ProcessPosCheckoutUseCase {
     private final IAppointmentRepository appointmentRepository;
     private final IProfessionalRepository professionalRepository;
     private final ManageCashRegisterUseCase manageCashRegisterUseCase;
-    private final IUserContext userContext;
     private final ApplyCouponUseCase applyCouponUseCase;
     private final ICouponRepository couponRepository;
+    private final IUserContext userContext;
 
     @Transactional
-    public CheckoutResult execute(CheckoutInput input) {
-        User receptionist = userContext.getCurrentUser();
+    public Response execute(Input input) {
+        UUID operatorId = userContext.getCurrentUserId();
 
-        // 1. Recuperar Agendamento
+        // 1. Busca Agendamento e Profissional
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
-                .orElseThrow(() -> new BusinessException("Comanda não encontrada."));
+                .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado."));
 
-        // ✨ CORREÇÃO 1: O método agora existe no Enum
         if (appointment.getStatus().isTerminalState()) {
             throw new BusinessException("Esta comanda já foi finalizada ou cancelada.");
         }
 
         Professional professional = professionalRepository.findById(appointment.getProfessionalId())
-                .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Profissional vinculado não encontrado."));
 
-        // 2. Calcular Totais e Aplicar Cupons
-        BigDecimal totalAmount = appointment.calculateOriginalServiceTotal();
+        // 2. Consolidação de Totais (Serviços + Produtos)
+        BigDecimal baseTotal = appointment.calculateOriginalServiceTotal();
         if (appointment.hasProducts()) {
-             totalAmount = totalAmount.add(
-                 appointment.getProducts().stream()
-                     .map(Appointment.AppointmentItem::getTotal)
-                     .reduce(BigDecimal.ZERO, BigDecimal::add)
-             );
+             baseTotal = baseTotal.add(appointment.calculateProductsTotal());
         }
 
+        // 3. Aplicação de Cupom de Checkout
         BigDecimal discount = BigDecimal.ZERO;
         Coupon coupon = null;
 
-        String codeToApply = input.couponCode();
-        if (codeToApply != null && !codeToApply.isBlank()) {
-            var result = applyCouponUseCase.validateAndCalculate(codeToApply, appointment.getProviderId(), totalAmount);
+        if (input.couponCode() != null && !input.couponCode().isBlank()) {
+            var result = applyCouponUseCase.validateAndCalculate(
+                    input.couponCode(), 
+                    appointment.getServiceProviderId(), 
+                    baseTotal
+            );
             coupon = result.coupon();
             discount = result.discountAmount();
-        } else if (appointment.getDiscountAmount() != null && appointment.getDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
-            discount = appointment.getDiscountAmount();
+        } else {
+            discount = appointment.getDiscountAmount() != null ? appointment.getDiscountAmount() : BigDecimal.ZERO;
         }
 
-        // 3. Validar Pagamento
-        BigDecimal finalPrice = totalAmount.subtract(discount).max(BigDecimal.ZERO);
+        BigDecimal finalPrice = baseTotal.subtract(discount).max(BigDecimal.ZERO);
         
+        // 4. Cálculo de Troco (Se pago em dinheiro)
         BigDecimal change = BigDecimal.ZERO;
-        if (input.amountGiven() != null) {
+        if (input.amountGiven() != null && input.method() == PaymentMethod.CASH) {
             if (input.amountGiven().compareTo(finalPrice) < 0) {
-                throw new BusinessException("Valor pago é menor que o total da comanda.");
+                throw new BusinessException("Valor entregue é insuficiente para cobrir o total de R$ " + finalPrice);
             }
             change = input.amountGiven().subtract(finalPrice);
         }
 
-        // 4. Integração com CAIXA FÍSICO
+        // 5. Registro no Caixa Físico (Gaveta)
         if (input.method() == PaymentMethod.CASH) {
             manageCashRegisterUseCase.addOperation(
-                    receptionist,
                     CashTransactionType.SALE,
                     finalPrice,
-                    "Venda Comanda #" + appointment.getId().substring(0, 8)
+                    "Checkout Comanda #" + appointment.getId().toString().substring(0, 8)
             );
         }
 
-        // 5. Finalizar Agendamento (Persistência)
-        
-        // ✨ CORREÇÃO 2: Delega o cálculo para o Domínio (Professional)
-        // Isso usa a lógica de RemunerationType (FIXED ou PERCENTAGE) que já configuramos
+        // 6. Finalização do Agendamento no Domínio
         BigDecimal commission = professional.calculateCommissionFor(finalPrice);
         
         appointment.setPaymentMethod(input.method());
@@ -95,27 +92,30 @@ public class ProcessPosCheckoutUseCase {
         appointment.setDiscountAmount(discount);
         if (coupon != null) appointment.setCouponId(coupon.getId());
         
-        appointment.confirmPayment("POS-" + System.currentTimeMillis());
+        // Registra pagamento manual/local
+        appointment.confirmPayment("POS-OFFLINE-" + UUID.randomUUID().toString().substring(0, 8));
         appointment.complete(professional, discount, commission);
 
+        // Atualiza uso do cupom se aplicado
         if (coupon != null) {
             coupon.incrementUsage();
             couponRepository.save(coupon);
         }
 
         appointmentRepository.save(appointment);
+        log.info("Checkout PDV concluído para agendamento {}. Total: R$ {}", appointment.getId(), finalPrice);
 
-        return new CheckoutResult(appointment, change);
+        return new Response(appointment, change);
     }
 
-    public record CheckoutInput(
-            String appointmentId,
+    public record Input(
+            UUID appointmentId,
             PaymentMethod method,
             BigDecimal amountGiven,
             String couponCode
     ) {}
 
-    public record CheckoutResult(
+    public record Response(
             Appointment appointment,
             BigDecimal change
     ) {}

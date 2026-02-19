@@ -1,16 +1,18 @@
 package com.stylo.api_agendamento.core.usecases;
 
-import com.stylo.api_agendamento.core.common.UseCase; // ✨ Import da sua anotação personalizada
+import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IStorageProvider;
 import com.stylo.api_agendamento.core.ports.IUserContext;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 
-@UseCase // ✨ Substitui @Service para manter a semântica da Clean Arch
+@Slf4j
+@UseCase
 @RequiredArgsConstructor
 public class UpdateProfilePictureUseCase {
 
@@ -19,32 +21,35 @@ public class UpdateProfilePictureUseCase {
     private final IUserContext userContext;
 
     @Transactional
-    public String execute(InputStream fileContent, String contentType, String originalFilename) {
+    public String execute(InputStream fileContent, String contentType, String originalFilename, long size) {
         User user = userContext.getCurrentUser();
         
-        // 1. Definir o caminho do arquivo (Padronização é chave para organização)
-        // ex: profiles/user-uuid-timestamp.jpg
-        String extension = getExtension(originalFilename);
-        String newFileName = String.format("profiles/%s-%d.%s", user.getId(), System.currentTimeMillis(), extension);
-
-        // 2. Upload (Adapter do Firebase entra em ação aqui)
-        String publicUrl = storageProvider.uploadFile(newFileName, fileContent, contentType);
-
-        // 3. Atualizar usuário (e deletar imagem antiga se necessário - lógica futura)
+        // 1. Deletar imagem antiga se existir (Evita lixo no Bucket)
         if (user.getProfilePictureUrl() != null && !user.getProfilePictureUrl().isBlank()) {
-            // TODO: Futuramente implementar storageProvider.deleteFile(...) aqui
+            try {
+                storageProvider.deleteFile(user.getProfilePictureUrl());
+            } catch (Exception e) {
+                log.warn("Falha não-bloqueante ao deletar imagem antiga do usuário {}: {}", user.getId(), e.getMessage());
+            }
         }
 
-        user.updateProfile(user.getName(), user.getPhoneNumber(), publicUrl);
+        // 2. Definir novo caminho padronizado: profiles/{userId}/{timestamp}.ext
+        String extension = getExtension(originalFilename);
+        String path = String.format("profiles/%s/%d.%s", user.getId(), System.currentTimeMillis(), extension);
+
+        // 3. Upload através do StorageProvider (Adapter S3/Firebase)
+        String publicUrl = storageProvider.uploadFile(path, fileContent, contentType, size);
+
+        // 4. Atualizar registro do usuário
+        user.updateAvatar(publicUrl);
         userRepository.save(user);
 
+        log.info("Foto de perfil atualizada com sucesso para o usuário: {}", user.getId());
         return publicUrl;
     }
 
     private String getExtension(String filename) {
-        if (filename == null) return "jpg";
-        int lastDot = filename.lastIndexOf('.');
-        if (lastDot == -1) return "jpg";
-        return filename.substring(lastDot + 1);
+        if (filename == null || !filename.contains(".")) return "jpg";
+        return filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
     }
 }

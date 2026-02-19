@@ -7,11 +7,17 @@ import com.stylo.api_agendamento.core.ports.INotificationProvider;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.Collectors;
 
+/**
+ * Motor de notificações agendadas. 
+ * Este UseCase deve ser chamado por um Scheduler (ex: a cada 5 ou 10 minutos).
+ */
 @Slf4j
 @UseCase
 @RequiredArgsConstructor
@@ -21,54 +27,80 @@ public class SendPendingRemindersUseCase {
     private final INotificationProvider notificationProvider;
     private final IUserRepository userRepository;
 
+    @Transactional
     public void execute() {
         LocalDateTime now = LocalDateTime.now();
         
-        // 1. Busca agendamentos que atingiram o tempo de lembrete (startTime - reminderMinutes <= now)
-        // A lógica de filtragem por tempo é feita via Query para performance.
+        // 1. Busca agendamentos SCHEDULED onde (startTime - reminderMinutes) <= agora
+        // E que ainda não tiveram o lembrete enviado (reminderSent = false)
         List<Appointment> pendingAppointments = appointmentRepository.findPendingReminders(now);
 
-        if (pendingAppointments.isEmpty()) return;
+        if (pendingAppointments.isEmpty()) {
+            return;
+        }
 
-        log.info("⏰ Processando {} lembretes pendentes.", pendingAppointments.size());
+        log.info("⏰ Iniciando processamento de {} lembretes de agendamento.", pendingAppointments.size());
 
         for (Appointment appt : pendingAppointments) {
             try {
-                // 2. Dispara Notificação Multi-canal (Push + Email)
-                sendNotifications(appt);
+                // 2. Orquestração de Canais (E-mail e Push)
+                dispatchMultiChannelNotification(appt);
 
-                // 3. Marca como enviado no domínio e persiste
+                // 3. Atualização de Estado (Idempotência)
+                // Marcamos no domínio que o lembrete foi processado com sucesso
                 appt.markReminderAsSent();
                 appointmentRepository.save(appt);
                 
-                log.info("✅ Lembrete enviado para o cliente: {}", appt.getClientName());
+                log.info("✅ Lembrete entregue para: {} (Agendamento: {})", appt.getClientName(), appt.getId());
+
             } catch (Exception e) {
-                log.error("❌ Falha ao processar lembrete {}: {}", appt.getId(), e.getMessage());
+                log.error("❌ Falha crítica ao processar lembrete {}: {}", appt.getId(), e.getMessage());
+                // Não relançamos para não travar a fila de outros agendamentos
             }
         }
     }
 
-    private void sendNotifications(Appointment appt) {
-        String timeFormatted = appt.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm"));
-        String dateFormatted = appt.getStartTime().format(DateTimeFormatter.ofPattern("dd/MM"));
+    /**
+     * Gerencia a entrega da mensagem para os provedores externos.
+     */
+    private void dispatchMultiChannelNotification(Appointment appt) {
+        // Formatação amigável baseada no contexto do agendamento
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+        String timeFormatted = appt.getStartTime().format(timeFormatter);
         
-        String title = "🔔 Lembrete de Agendamento";
-        String body = String.format("Olá %s, você tem um horário hoje às %s com %s.", 
-                appt.getClientName(), timeFormatted, appt.getBusinessName());
+        // Lista os serviços para dar clareza ao cliente
+        String servicesList = appt.getServices().stream()
+                .map(s -> s.getName())
+                .collect(Collectors.joining(", "));
 
-        // A. Canal: E-mail (Via Resend/SMTP)
-        notificationProvider.sendAppointmentReminder(
-                appt.getClientEmail(),
-                appt.getClientName(),
-                appt.getBusinessName(),
-                dateFormatted + " às " + timeFormatted
-        );
+        String title = "🔔 Lembrete Stylo";
+        String body = String.format("Olá %s! Passando para lembrar seu horário hoje às %s para [%s] no %s.", 
+                appt.getClientName(), timeFormatted, servicesList, appt.getBusinessName());
 
-        // B. Canal: Push Notification (Via FCM - se o cliente tiver Token)
+        // --- CANAL A: E-mail ---
+        try {
+            notificationProvider.sendAppointmentReminder(
+                    appt.getClientEmail(),
+                    appt.getClientName(),
+                    appt.getBusinessName(),
+                    timeFormatted,
+                    servicesList
+            );
+        } catch (Exception e) {
+            log.warn("Falha ao enviar e-mail para {}: {}", appt.getClientEmail(), e.getMessage());
+        }
+
+        // --- CANAL B: Push Notification (Via FCM) ---
+        // Buscamos o usuário para garantir que temos o token de push atualizado
         if (appt.getClientId() != null) {
             userRepository.findById(appt.getClientId()).ifPresent(user -> {
-                if (user.getFcmToken() != null) {
-                    notificationProvider.sendNotification(user.getId(), title, body, "/appointments");
+                if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
+                    notificationProvider.sendPushNotification(
+                            user.getId(), 
+                            title, 
+                            body, 
+                            "/client/appointments/" + appt.getId()
+                    );
                 }
             });
         }
