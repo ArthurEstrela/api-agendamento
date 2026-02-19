@@ -1,4 +1,8 @@
 package com.stylo.api_agendamento.core.usecases.dto;
 
-public record UpdateFcmTokenInput(String userId, String token) {
-}
+import java.util.UUID;
+
+public record UpdateFcmTokenInput(
+    UUID userId, // ✨ Atualizado para UUID
+    String token
+) {}

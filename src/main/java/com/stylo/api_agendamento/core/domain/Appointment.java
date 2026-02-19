@@ -28,7 +28,8 @@ public class Appointment {
     private String businessName;
     private ClientPhone clientPhone;
 
-    // ✨ MELHORIA: Padronizado para UUID e nome único (removeu duplicidade de providerId)
+    // ✨ MELHORIA: Padronizado para UUID e nome único (removeu duplicidade de
+    // providerId)
     private UUID serviceProviderId;
 
     private UUID professionalId;
@@ -53,9 +54,9 @@ public class Appointment {
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
 
     // ✨ MELHORIA: CouponId agora é UUID (se o cupom for uma entidade)
-    // Se o cupom for apenas um código texto ("VERAO10"), mantenha String. 
+    // Se o cupom for apenas um código texto ("VERAO10"), mantenha String.
     // Assumindo padronização de IDs de entidades:
-    private UUID couponId; 
+    private UUID couponId;
     private BigDecimal discountAmount;
 
     private BigDecimal professionalCommission;
@@ -405,8 +406,10 @@ public class Appointment {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Appointment that = (Appointment) o;
         return Objects.equals(id, that.id);
     }
@@ -432,5 +435,23 @@ public class Appointment {
                 return BigDecimal.ZERO;
             return unitPrice.multiply(new BigDecimal(quantity));
         }
+    }
+
+    public int calculateTotalDuration() {
+        if (this.services == null || this.services.isEmpty()) {
+            return 0;
+        }
+        return this.services.stream()
+                .mapToInt(Service::getDuration)
+                .sum();
+    }
+
+    public String getServicesSnapshot() {
+        if (this.services == null || this.services.isEmpty()) {
+            return "Atendimento Padrão";
+        }
+        return this.services.stream()
+                .map(Service::getName)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 }

@@ -22,7 +22,6 @@ public class UpdateServiceProviderProfileUseCase {
     @Transactional
     public ServiceProvider execute(Input input) {
         // 1. Segurança: Busca o ProviderId do contexto do usuário logado
-        // Isso impede que um dono de salão tente editar o perfil de outro enviando o ID no body.
         UUID providerId = userContext.getCurrentUser().getProviderId();
 
         ServiceProvider provider = repository.findById(providerId)
@@ -37,11 +36,12 @@ public class UpdateServiceProviderProfileUseCase {
             provider.updateSlug(newSlug);
         }
 
-        // 3. Atualização de Dados Básicos e Endereço
+        // 3. Atualização de Dados Básicos (Agora com os 4 parâmetros exatos)
         provider.updateProfile(
             input.name(), 
             input.phoneNumber(), 
-            input.logoUrl()
+            input.logoUrl(),
+            input.bannerUrl() // ✨ CORREÇÃO: Adicionado o bannerUrl para bater com o Domínio
         );
 
         if (input.address() != null) {
@@ -55,6 +55,7 @@ public class UpdateServiceProviderProfileUseCase {
             String name,
             String phoneNumber,
             String logoUrl,
+            String bannerUrl, // ✨ Campo adicionado no Input
             String slug,
             com.stylo.api_agendamento.core.domain.vo.Address address
     ) {}

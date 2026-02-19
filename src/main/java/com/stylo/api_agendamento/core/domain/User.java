@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -18,26 +19,23 @@ public class User implements UserDetails {
 
     private UUID id;
     
-    // Identificação
+    // --- IDENTIFICAÇÃO ---
     private String name;
     private String email;
     private String password; // Hash criptografado
     
     private UserRole role;
 
-    // --- VÍNCULOS ---
-    // Se o usuário for um Profissional ou Admin de Salão, ele tem um providerId
-    private UUID providerId; 
-    
-    // Se o usuário for um Cliente final, ele pode ter um perfil de cliente vinculado (opcional)
-    private UUID clientId;
+    // --- VÍNCULOS (MULTI-TENANT) ---
+    private UUID providerId; // Obrigatório para Admin e Profissionais
+    private UUID clientId;   // Opcional: Link para a ficha do cliente final
 
     // --- DADOS DE PERFIL ---
     private String phoneNumber;
     private String profilePictureUrl;
     
     // --- INTEGRAÇÕES ---
-    private String fcmToken; // Firebase Cloud Messaging
+    private String fcmToken; // Push Notifications
 
     // --- SEGURANÇA E ESTADO ---
     private boolean active;
@@ -49,7 +47,12 @@ public class User implements UserDetails {
 
     // --- FACTORY ---
 
-    public static User create(String name, String email, String encodedPassword, UserRole role) {
+    /**
+     * Factory Method de Criação.
+     * Note que a senha não é passada aqui. Ela deve ser injetada via changePassword(),
+     * permitindo fluxos de cadastro via OAuth (Google) onde a senha não existe inicialmente.
+     */
+    public static User create(String name, String email, String phoneNumber, UserRole role) {
         validateEmail(email);
         
         if (name == null || name.isBlank()) {
@@ -60,10 +63,10 @@ public class User implements UserDetails {
         }
 
         return User.builder()
-                .id(UUID.randomUUID()) // Identidade gerada
+                .id(UUID.randomUUID()) // Identidade gerada e blindada
                 .name(name)
                 .email(email)
-                .password(encodedPassword)
+                .phoneNumber(phoneNumber)
                 .role(role)
                 .active(true)
                 .createdAt(LocalDateTime.now())
@@ -85,11 +88,15 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String name, String phoneNumber, String profilePictureUrl) {
+    public void updateProfile(String name, String phoneNumber) {
         if (name != null && !name.isBlank()) this.name = name;
         if (phoneNumber != null) this.phoneNumber = phoneNumber;
-        if (profilePictureUrl != null) this.profilePictureUrl = profilePictureUrl;
-        
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    // ✨ Método acionado pelo UpdateProfilePictureUseCase
+    public void updateAvatar(String profilePictureUrl) {
+        this.profilePictureUrl = profilePictureUrl;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -108,24 +115,23 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void requestPasswordReset() {
+    // ✨ Métodos exatos exigidos pelo RequestPasswordResetUseCase
+    public void generatePasswordResetToken() {
         this.resetPasswordToken = UUID.randomUUID().toString();
-        this.resetPasswordExpiresAt = LocalDateTime.now().plusHours(1); // Token válido por 1 hora
+        this.resetPasswordExpiresAt = LocalDateTime.now().plusHours(1); // Hard limit de 1 hora
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void completePasswordReset(String newEncodedPassword) {
-        this.password = newEncodedPassword;
-        this.resetPasswordToken = null; // Invalida o token usado
+    public boolean isResetTokenValid() {
+        return this.resetPasswordToken != null 
+                && this.resetPasswordExpiresAt != null 
+                && LocalDateTime.now().isBefore(this.resetPasswordExpiresAt);
+    }
+
+    public void clearPasswordResetToken() {
+        this.resetPasswordToken = null;
         this.resetPasswordExpiresAt = null;
         this.updatedAt = LocalDateTime.now();
-    }
-
-    public boolean isResetTokenValid(String token) {
-        return token != null
-                && token.equals(this.resetPasswordToken)
-                && this.resetPasswordExpiresAt != null
-                && this.resetPasswordExpiresAt.isAfter(LocalDateTime.now());
     }
 
     public void deactivate() {
@@ -152,17 +158,17 @@ public class User implements UserDetails {
         return UserRole.CLIENT.equals(this.role);
     }
 
-    // --- IMPLEMENTAÇÃO USER DETAILS (Spring Security) ---
+    // --- IMPLEMENTAÇÃO USER DETAILS (Integração Limpa com Spring Security) ---
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // Delega para o Enum UserRole resolver as permissões
+        if (role == null) return Collections.emptyList();
         return role.getAuthorities();
     }
 
     @Override
     public String getUsername() {
-        return this.email;
+        return this.email; // O Spring Security usará o E-mail como Login
     }
 
     @Override
@@ -194,7 +200,7 @@ public class User implements UserDetails {
 
     private static void validateEmail(String email) {
         if (email == null || !email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
-            throw new BusinessException("E-mail inválido.");
+            throw new BusinessException("E-mail com formato inválido.");
         }
     }
 

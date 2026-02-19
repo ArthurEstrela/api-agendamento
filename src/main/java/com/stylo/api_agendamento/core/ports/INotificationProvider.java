@@ -7,19 +7,20 @@ public interface INotificationProvider {
 
     // --- AGENDAMENTOS ---
     void sendAppointmentConfirmed(UUID clientId, String clientName, String serviceName, LocalDateTime startTime);
-    
+
     void sendAppointmentRescheduled(UUID clientId, String clientName, LocalDateTime oldTime, LocalDateTime newTime);
-    
+
     void sendAppointmentCancelled(UUID clientId, String clientName, String reason);
-    
-    void sendAppointmentReminder(String toEmailOrPhone, String clientName, String businessName, String startTime);
+
+    void sendAppointmentReminder(String toEmail, String clientName, String businessName,
+            String timeFormatted, String servicesList);
 
     // --- PUSH NOTIFICATIONS (APP) ---
     void sendPushNotification(UUID userId, String title, String body, String actionUrl);
 
     // --- EMAILS TRANSACIONAIS ---
     void sendWelcomeEmail(String email, String name);
-    
+
     void sendPasswordResetEmail(String email, String name, String resetLink);
 
     // --- INTERNO ---

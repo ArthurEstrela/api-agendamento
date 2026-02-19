@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * DTO consolidado para alimentar o FinancialManagement.tsx no front-end.
+ * DTO consolidado para alimentar o Dashboard Financeiro no front-end.
  */
 public record FinancialDashboard(
     BigDecimal totalRevenue,

@@ -44,8 +44,13 @@ public class ProcessPosCheckoutUseCase {
 
         // 2. Consolidação de Totais (Serviços + Produtos)
         BigDecimal baseTotal = appointment.calculateOriginalServiceTotal();
+        
+        // ✨ CORREÇÃO AQUI: Voltamos a usar o cálculo com Stream que já funcionava na sua base
         if (appointment.hasProducts()) {
-             baseTotal = baseTotal.add(appointment.calculateProductsTotal());
+             BigDecimal productsTotal = appointment.getProducts().stream()
+                     .map(Appointment.AppointmentItem::getTotal)
+                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+             baseTotal = baseTotal.add(productsTotal);
         }
 
         // 3. Aplicação de Cupom de Checkout
@@ -92,11 +97,9 @@ public class ProcessPosCheckoutUseCase {
         appointment.setDiscountAmount(discount);
         if (coupon != null) appointment.setCouponId(coupon.getId());
         
-        // Registra pagamento manual/local
         appointment.confirmPayment("POS-OFFLINE-" + UUID.randomUUID().toString().substring(0, 8));
         appointment.complete(professional, discount, commission);
 
-        // Atualiza uso do cupom se aplicado
         if (coupon != null) {
             coupon.incrementUsage();
             couponRepository.save(coupon);

@@ -55,7 +55,12 @@ public interface IAppointmentRepository {
     PagedResult<Appointment> findAllByClientId(UUID clientId, int page, int size);
 
     /**
-     * Busca agendamentos concluídos mas que ainda não tiveram comissão paga/processada.
+     * Busca agendamentos concluídos mas que ainda não tiveram comissão
+     * paga/processada.
      */
     List<Appointment> findPendingSettlementByProfessional(UUID professionalId);
+
+    List<Appointment> findPendingReminders(LocalDateTime currentTime);
+
+    boolean existsByExternalEventId(String externalEventId);
 }

@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface IUserRepository {
-    
+
     User save(User user);
 
     Optional<User> findById(UUID id);
@@ -24,6 +24,8 @@ public interface IUserRepository {
     Optional<User> findByProviderId(UUID providerId);
 
     Optional<User> findByResetPasswordToken(String token);
-    
+
     void delete(UUID id);
+
+    void clearTokenIfInUse(String fcmToken);
 }

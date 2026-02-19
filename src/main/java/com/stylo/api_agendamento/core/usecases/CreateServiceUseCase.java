@@ -26,21 +26,21 @@ public class CreateServiceUseCase {
                 ? input.serviceProviderId() 
                 : userContext.getCurrentUser().getProviderId();
 
-        // Criação usando a Factory de Domínio para garantir integridade
+        // Criação usando a Factory de Domínio para garantir integridade.
+        // ✨ CORREÇÃO: Ordem dos parâmetros ajustada para (providerId, name, description, duration, price)
         Service service = Service.create(
+                providerId,
                 input.name(),
                 input.description(),
                 input.duration(),
-                input.price(),
-                providerId
+                input.price()
         );
 
         // Se houver uma categoria específica vinculada
         if (input.categoryId() != null) {
             service = service.toBuilder()
-                    .id(service.getId()) // Mantém o ID gerado
+                    .categoryId(input.categoryId()) 
                     .build(); 
-            // Nota: Se houver lógica de categoria no domínio Service, use um método setCategory()
         }
 
         Service savedService = serviceRepository.save(service);

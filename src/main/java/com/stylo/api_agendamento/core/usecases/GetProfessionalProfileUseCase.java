@@ -37,9 +37,9 @@ public class GetProfessionalProfileUseCase {
                 professional.getName(),
                 professional.getAvatarUrl(),
                 professional.getBio(),
-                professional.getSpecialties(), // Retorna as especialidades vinculadas
+                professional.getSpecialties(), // ✨ As tags (ex: Visagista)
+                professional.getServices(), // ✨ Os serviços que ele presta (ex: Corte Tesoura)
                 averageRating != null ? averageRating : 0.0,
-                recentReviews
-        );
+                recentReviews);
     }
 }

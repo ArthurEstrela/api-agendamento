@@ -21,20 +21,26 @@ public class Professional {
     private UUID id;
     private UUID serviceProviderId; // Vinculo com o Salão/Empresa
 
-    // Nota: Removi serviceProviderName para evitar duplicação de dados (normalização).
-    // O nome do salão deve ser obtido via repositório ou projeção (DTO) quando necessário.
+    // Nota: Removi serviceProviderName para evitar duplicação de dados
+    // (normalização).
+    // O nome do salão deve ser obtido via repositório ou projeção (DTO) quando
+    // necessário.
 
     private String name;
     private String email;
     private String avatarUrl;
     private String bio;
-    
+
     // ID externo do Stripe/Pagar.me para split de pagamento
-    private String gatewayAccountId; 
+    private String gatewayAccountId;
 
     // --- CONFIGURAÇÃO FINANCEIRA ---
     private RemunerationType remunerationType;
     private BigDecimal remunerationValue;
+
+    // ✨ CAMPO ADICIONADO: Especialidades (Tags do perfil)
+    @Builder.Default
+    private List<String> specialties = new ArrayList<>();
 
     // --- AGREGADOS ---
     @Builder.Default
@@ -45,7 +51,7 @@ public class Professional {
 
     private Integer slotInterval; // Ex: 30 minutos
     private boolean isOwner; // Se é o dono do salão (pode ter permissões extras)
-    
+
     private boolean isActive;
 
     private LocalDateTime createdAt;
@@ -55,10 +61,13 @@ public class Professional {
 
     public static Professional create(String name, String email, UUID providerId,
             List<Service> services, List<DailyAvailability> availability) {
-        
-        if (name == null || name.isBlank()) throw new BusinessException("Nome do profissional é obrigatório.");
-        if (email == null || !email.contains("@")) throw new BusinessException("E-mail inválido.");
-        if (providerId == null) throw new BusinessException("O profissional deve estar vinculado a um estabelecimento.");
+
+        if (name == null || name.isBlank())
+            throw new BusinessException("Nome do profissional é obrigatório.");
+        if (email == null || !email.contains("@"))
+            throw new BusinessException("E-mail inválido.");
+        if (providerId == null)
+            throw new BusinessException("O profissional deve estar vinculado a um estabelecimento.");
 
         // Validação de Serviços (Regra de Negócio: Profissional deve fazer algo)
         if (services == null || services.isEmpty()) {
@@ -67,7 +76,7 @@ public class Professional {
 
         // Validação de Disponibilidade
         if (availability == null || availability.isEmpty()) {
-             throw new BusinessException("O profissional deve ter pelo menos um dia de disponibilidade configurado.");
+            throw new BusinessException("O profissional deve ter pelo menos um dia de disponibilidade configurado.");
         }
 
         return Professional.builder()
@@ -91,7 +100,8 @@ public class Professional {
     // --- REGRAS DE NEGÓCIO: DISPONIBILIDADE ---
 
     public boolean isAvailable(LocalDateTime dateTime, int totalDurationMinutes) {
-        if (!this.isActive) return false;
+        if (!this.isActive)
+            return false;
 
         return availability.stream()
                 .filter(a -> a.dayOfWeek() == dateTime.getDayOfWeek())
@@ -112,7 +122,7 @@ public class Professional {
                         "O horário de início deve ser anterior ao horário de término para: " + daily.dayOfWeek());
             }
         }
-        
+
         this.availability = new ArrayList<>(newAvailability);
         this.updatedAt = LocalDateTime.now();
     }
@@ -130,7 +140,8 @@ public class Professional {
     }
 
     public void addService(Service service) {
-        if (service == null) return;
+        if (service == null)
+            return;
         // Evita duplicatas baseada no ID
         if (this.services.stream().noneMatch(s -> s.getId().equals(service.getId()))) {
             this.services.add(service);
@@ -176,7 +187,7 @@ public class Professional {
 
     public void linkGatewayAccount(String accountId) {
         if (accountId == null || accountId.isBlank()) {
-             throw new BusinessException("ID da conta do gateway inválido.");
+            throw new BusinessException("ID da conta do gateway inválido.");
         }
         this.gatewayAccountId = accountId;
         this.updatedAt = LocalDateTime.now();
@@ -185,14 +196,15 @@ public class Professional {
     // --- REGRAS DE NEGÓCIO: BLOQUEIO E AGENDA ---
 
     public void validateCanBlockTime(LocalDateTime start, LocalDateTime end, List<Appointment> existingAppointments) {
-        if (!this.isActive) throw new BusinessException("Profissional inativo não pode realizar bloqueios.");
+        if (!this.isActive)
+            throw new BusinessException("Profissional inativo não pode realizar bloqueios.");
 
         boolean hasConflict = existingAppointments.stream()
-                .anyMatch(app -> (app.getStatus() == AppointmentStatus.SCHEDULED 
-                               || app.getStatus() == AppointmentStatus.PENDING) &&
-                               // Lógica de intersecção de intervalos: (StartA < EndB) e (EndA > StartB)
-                               app.getStartTime().isBefore(end) &&
-                               app.getEndTime().isAfter(start));
+                .anyMatch(app -> (app.getStatus() == AppointmentStatus.SCHEDULED
+                        || app.getStatus() == AppointmentStatus.PENDING) &&
+                // Lógica de intersecção de intervalos: (StartA < EndB) e (EndA > StartB)
+                        app.getStartTime().isBefore(end) &&
+                        app.getEndTime().isAfter(start));
 
         if (hasConflict) {
             throw new BusinessException("Não é possível bloquear: você já tem um cliente agendado nesse horário.");
@@ -202,15 +214,18 @@ public class Professional {
     // --- ATUALIZAÇÃO DE PERFIL ---
 
     public void updateProfile(String name, String bio, String avatarUrl) {
-        if (name != null && !name.isBlank()) this.name = name;
-        
+        if (name != null && !name.isBlank())
+            this.name = name;
+
         if (bio != null) {
-            if (bio.length() > 500) throw new BusinessException("A bio não pode exceder 500 caracteres.");
+            if (bio.length() > 500)
+                throw new BusinessException("A bio não pode exceder 500 caracteres.");
             this.bio = bio;
         }
 
-        if (avatarUrl != null) this.avatarUrl = avatarUrl;
-        
+        if (avatarUrl != null)
+            this.avatarUrl = avatarUrl;
+
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -224,12 +239,21 @@ public class Professional {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void updateSpecialties(List<String> newSpecialties) {
+        if (newSpecialties != null) {
+            this.specialties = new ArrayList<>(newSpecialties);
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
     // --- IDENTIDADE (DDD) ---
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Professional that = (Professional) o;
         return Objects.equals(id, that.id);
     }
