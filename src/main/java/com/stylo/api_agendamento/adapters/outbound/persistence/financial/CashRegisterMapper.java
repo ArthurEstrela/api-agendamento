@@ -2,90 +2,34 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.financial;
 
 import com.stylo.api_agendamento.core.domain.financial.CashRegister;
 import com.stylo.api_agendamento.core.domain.financial.CashTransaction;
-import org.springframework.stereotype.Component;
+import org.mapstruct.AfterMapping;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.stream.Collectors;
+@Mapper(componentModel = "spring")
+public interface CashRegisterMapper {
 
-@Component
-public class CashRegisterMapper {
+    // ==== De Entidade para Domínio ====
+    CashRegister toDomain(CashRegisterEntity entity);
 
-    public CashRegister toDomain(CashRegisterEntity entity) {
-        if (entity == null) return null;
+    @Mapping(target = "cashRegisterId", source = "cashRegister.id")
+    CashTransaction toDomainTransaction(CashTransactionEntity entity);
 
-        List<CashTransaction> transactions = entity.getTransactions() == null ? 
-                Collections.emptyList() :
-                entity.getTransactions().stream()
-                        .map(this::toDomainTransaction)
-                        .collect(Collectors.toList());
+    // ==== De Domínio para Entidade ====
+    CashRegisterEntity toEntity(CashRegister domain);
 
-        return CashRegister.builder()
-                .id(entity.getId())
-                .providerId(entity.getProviderId())
-                .openTime(entity.getOpenTime())
-                .closeTime(entity.getCloseTime())
-                .initialBalance(entity.getInitialBalance())
-                .finalBalance(entity.getFinalBalance())
-                .calculatedBalance(entity.getCalculatedBalance())
-                .open(entity.isOpen())
-                .openedByUserId(entity.getOpenedByUserId())
-                .closedByUserId(entity.getClosedByUserId())
-                .transactions(transactions)
-                .build();
-    }
+    @Mapping(target = "cashRegister", ignore = true) // Ignora no mapeamento direto, resolvemos no AfterMapping
+    CashTransactionEntity toEntityTransaction(CashTransaction domain);
 
-    private CashTransaction toDomainTransaction(CashTransactionEntity entity) {
-        return CashTransaction.builder()
-                .id(entity.getId())
-                .cashRegisterId(entity.getCashRegister().getId())
-                .type(entity.getType())
-                .amount(entity.getAmount())
-                .description(entity.getDescription())
-                .timestamp(entity.getTimestamp())
-                .performedByUserId(entity.getPerformedByUserId())
-                .build();
-    }
-
-    public CashRegisterEntity toEntity(CashRegister domain) {
-        if (domain == null) return null;
-
-        CashRegisterEntity entity = CashRegisterEntity.builder()
-                .id(domain.getId())
-                .providerId(domain.getProviderId())
-                .openTime(domain.getOpenTime())
-                .closeTime(domain.getCloseTime())
-                .initialBalance(domain.getInitialBalance())
-                .finalBalance(domain.getFinalBalance())
-                .calculatedBalance(domain.getCalculatedBalance())
-                .isOpen(domain.isOpen())
-                .openedByUserId(domain.getOpenedByUserId())
-                .closedByUserId(domain.getClosedByUserId())
-                .build();
-
-        // Mapeia transações e configura a relação bidirecional
-        if (domain.getTransactions() != null) {
-            List<CashTransactionEntity> transactionEntities = domain.getTransactions().stream()
-                    .map(t -> {
-                        var tEntity = toEntityTransaction(t);
-                        tEntity.setCashRegister(entity); // Vincula o pai
-                        return tEntity;
-                    })
-                    .collect(Collectors.toList());
-            entity.setTransactions(transactionEntities);
+    // ✨ A Mágica da Relação Bidirecional:
+    // O MapStruct chama este método automaticamente após preencher o CashRegisterEntity
+    @AfterMapping
+    default void linkTransactionsToRegister(@MappingTarget CashRegisterEntity cashRegister) {
+        if (cashRegister.getTransactions() != null) {
+            cashRegister.getTransactions().forEach(transaction -> 
+                transaction.setCashRegister(cashRegister) // Garante que a Foreign Key não fique nula
+            );
         }
-
-        return entity;
-    }
-
-    private CashTransactionEntity toEntityTransaction(CashTransaction domain) {
-        return CashTransactionEntity.builder()
-                .id(domain.getId())
-                .type(domain.getType())
-                .amount(domain.getAmount())
-                .description(domain.getDescription())
-                .timestamp(domain.getTimestamp())
-                .performedByUserId(domain.getPerformedByUserId())
-                .build();
     }
 }

@@ -5,7 +5,10 @@ import com.stylo.api_agendamento.core.ports.ICashRegisterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -22,14 +25,23 @@ public class CashRegisterPersistenceAdapter implements ICashRegisterRepository {
     }
 
     @Override
-    public Optional<CashRegister> findOpenByProviderId(String providerId) {
-        return repository.findOpenByProviderId(providerId)
+    public Optional<CashRegister> findOpenByProviderId(UUID providerId) {
+        return repository.findByProviderIdAndIsOpenTrue(providerId)
                 .map(mapper::toDomain);
     }
 
     @Override
-    public Optional<CashRegister> findById(String id) {
+    public Optional<CashRegister> findById(UUID id) {
         return repository.findById(id)
                 .map(mapper::toDomain);
+    }
+
+    // ✨ NOVA IMPLEMENTAÇÃO
+    @Override
+    public List<CashRegister> findClosedByProviderAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end) {
+        return repository.findByProviderIdAndIsOpenFalseAndCloseTimeBetween(providerId, start, end)
+                .stream()
+                .map(mapper::toDomain)
+                .toList(); // Usando Java 16+ toList()
     }
 }

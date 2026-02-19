@@ -6,57 +6,74 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.UUID;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotificationAdapter implements INotificationProvider {
 
     private final FcmNotificationAdapter fcmAdapter;
-    private final ResendNotificationAdapter resendAdapter; // ✨ Agora chama a classe concreta
+    private final ResendNotificationAdapter resendAdapter;
     private final IUserRepository userRepository;
+    
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm");
 
     @Override
-    public void sendNotification(String userId, String title, String body) {
-        sendNotification(userId, title, body, null);
-    }
-
-    @Override
-    public void sendNotification(String userId, String title, String body, String actionUrl) {
+    public void sendPushNotification(UUID userId, String title, String body, String actionUrl) {
         userRepository.findById(userId).ifPresent(user -> {
-            // 1. Push
             if (user.getFcmToken() != null && !user.getFcmToken().isBlank()) {
                 fcmAdapter.sendPush(user.getFcmToken(), title, body, actionUrl);
             }
-            // 2. Email (se quiser mandar email para toda notificação, descomente abaixo)
-            // resendAdapter.sendEmail(user.getEmail(), title, body);
         });
     }
 
     @Override
-    public void sendAppointmentConfirmed(String userId, String details) {
-        sendNotification(userId, "✅ Agendamento Confirmado!", details);
+    public void sendAppointmentConfirmed(UUID userId, String clientName, String serviceName, LocalDateTime startTime) {
+        String details = String.format("Olá %s, seu agendamento de %s para o dia %s foi confirmado!", 
+                clientName, serviceName, startTime.format(DATE_FORMATTER));
+        
+        sendPushNotification(userId, "✅ Agendamento Confirmado!", details, "/appointments");
     }
 
     @Override
-    public void sendAppointmentCancelled(String userId, String details) {
-        sendNotification(userId, "❌ Agendamento Cancelado", details);
+    public void sendAppointmentCancelled(UUID userId, String details, String reason) {
+        String body = details + (reason != null ? "\nMotivo: " + reason : "");
+        sendPushNotification(userId, "❌ Agendamento Cancelado", body, "/appointments");
     }
 
     @Override
-    public void sendAppointmentRescheduled(String userId, String details) {
-        sendNotification(userId, "🔄 Agendamento Reagendado", details);
+    public void sendAppointmentRescheduled(UUID userId, String serviceName, LocalDateTime oldTime, LocalDateTime newTime) {
+        String body = String.format("Seu serviço de %s foi movido de %s para %s", 
+                serviceName, oldTime.format(DATE_FORMATTER), newTime.format(DATE_FORMATTER));
+        
+        sendPushNotification(userId, "🔄 Agendamento Reagendado", body, "/appointments");
     }
 
     @Override
-    public void sendAppointmentReminder(String userId, String title, String body, String actionUrl) {
-        sendNotification(userId, title, body, actionUrl);
-        // Opcional: Mandar e-mail de lembrete também
-        userRepository.findById(userId).ifPresent(u -> resendAdapter.sendEmail(u.getEmail(), title, body));
+    public void sendAppointmentReminder(String userId, String title, String body, String actionUrl, String email) {
+        // Envia Push se houver ID de usuário
+        if (userId != null) {
+            sendPushNotification(UUID.fromString(userId), title, body, actionUrl);
+        }
+        
+        // Envia E-mail de lembrete (Best effort)
+        if (email != null && !email.isBlank()) {
+            resendAdapter.sendEmail(email, title, body);
+        }
+    }
+
+    @Override
+    public void sendSystemAlert(String userId, String title, String body) {
+        if (userId != null) {
+            sendPushNotification(UUID.fromString(userId), "⚠️ Alerta Stylo: " + title, body, null);
+        }
     }
 
     @Override
     public void sendWelcomeEmail(String email, String name) {
-        // ✨ Chama o método específico do especialista em e-mail
         resendAdapter.sendWelcomeEmail(email, name);
     }
 

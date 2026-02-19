@@ -4,6 +4,7 @@ import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -23,13 +24,9 @@ public class UserPersistenceAdapter implements IUserRepository {
     }
 
     @Override
-    public void updateProfile(User user) {
-        jpaUserRepository.save(userMapper.toEntity(user));
-    }
-
-    @Override
-    public void delete(String id) {
-        jpaUserRepository.deleteById(UUID.fromString(id));
+    public Optional<User> findById(UUID id) {
+        return jpaUserRepository.findById(id)
+                .map(userMapper::toDomain);
     }
 
     @Override
@@ -39,14 +36,13 @@ public class UserPersistenceAdapter implements IUserRepository {
     }
 
     @Override
-    public Optional<User> findById(String id) {
-        return jpaUserRepository.findById(UUID.fromString(id))
-                .map(userMapper::toDomain);
+    public boolean existsByEmail(String email) {
+        return jpaUserRepository.existsByEmail(email);
     }
 
     @Override
-    public Optional<User> findByProfessionalId(String professionalId) {
-        return jpaUserRepository.findByProfessionalId(professionalId)
+    public Optional<User> findByProviderId(UUID providerId) {
+        return jpaUserRepository.findByServiceProviderId(providerId)
                 .map(userMapper::toDomain);
     }
 
@@ -54,5 +50,18 @@ public class UserPersistenceAdapter implements IUserRepository {
     public Optional<User> findByResetPasswordToken(String token) {
         return jpaUserRepository.findByResetPasswordToken(token)
                 .map(userMapper::toDomain);
+    }
+
+    @Override
+    public void delete(UUID id) {
+        jpaUserRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional
+    public void clearTokenIfInUse(String fcmToken) {
+        if (fcmToken != null && !fcmToken.isBlank()) {
+            jpaUserRepository.clearFcmToken(fcmToken);
+        }
     }
 }

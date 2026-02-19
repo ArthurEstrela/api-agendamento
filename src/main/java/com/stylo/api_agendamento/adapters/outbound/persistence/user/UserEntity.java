@@ -1,27 +1,34 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.user;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+    @Index(name = "idx_user_email", columnList = "email"),
+    @Index(name = "idx_user_provider", columnList = "provider_id")
+})
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class UserEntity extends BaseEntity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(columnDefinition = "uuid", updatable = false, nullable = false)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    @Email
     @Column(unique = true, nullable = false, length = 150)
     private String email;
 
@@ -35,14 +42,22 @@ public class UserEntity extends BaseEntity {
     @Column(nullable = false, length = 30)
     private UserRole role;
 
+    @Builder.Default
     @Column(nullable = false)
-    private boolean active;
+    private boolean active = true;
 
     @CreationTimestamp
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @Column(name = "phone_number", length = 20)
     private String phoneNumber;
+
+    @Column(name = "profile_picture_url")
     private String profilePictureUrl;
 
     @Column(name = "reset_password_token")
@@ -54,13 +69,6 @@ public class UserEntity extends BaseEntity {
     @Column(name = "fcm_token")
     private String fcmToken;
 
-    // ✨ NOVO CAMPO NO BANCO
-    @Column(name = "provider_id", columnDefinition = "uuid")
+    @Column(name = "provider_id")
     private UUID providerId;
-
-    @PrePersist
-    protected void onCreate() {
-        if (!this.active)
-            this.active = true;
-    }
 }

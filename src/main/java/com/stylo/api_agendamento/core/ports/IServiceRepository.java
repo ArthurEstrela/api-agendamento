@@ -12,11 +12,10 @@ public interface IServiceRepository {
 
     Optional<Service> findById(UUID id);
 
-    void delete(UUID id); // Soft delete recomendado na implementação
+    void delete(UUID id);
 
     /**
      * Busca serviços pelos IDs.
-     * Validação essencial no CreateAppointmentUseCase.
      */
     List<Service> findAllByIds(List<UUID> ids);
 
@@ -29,4 +28,14 @@ public interface IServiceRepository {
      * Lista apenas serviços ativos (para o cliente agendar).
      */
     List<Service> findAllActiveByProviderId(UUID providerId);
+
+    /**
+     * Lista todos os serviços cadastrados no sistema.
+     */
+    List<Service> findAll();
+
+    /**
+     * Lista serviços filtrando por uma categoria específica.
+     */
+    List<Service> findByCategoryId(UUID categoryId);
 }

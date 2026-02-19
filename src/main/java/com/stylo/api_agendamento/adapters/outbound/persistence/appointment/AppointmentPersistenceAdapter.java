@@ -4,7 +4,6 @@ import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import lombok.RequiredArgsConstructor;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -17,7 +16,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -34,37 +32,35 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
     }
 
     @Override
-    public Optional<Appointment> findById(String id) {
-        return jpaAppointmentRepository.findById(UUID.fromString(id))
+    public Optional<Appointment> findById(UUID id) {
+        return jpaAppointmentRepository.findById(id)
                 .map(appointmentMapper::toDomain);
     }
 
     @Override
-    public List<Appointment> findAllByProfessionalIdAndDate(String professionalId, LocalDate date) {
+    public List<Appointment> findAllByProfessionalIdAndDate(UUID professionalId, LocalDate date) {
         var startOfDay = date.atStartOfDay();
         var endOfDay = date.atTime(23, 59, 59);
 
-        // CORREÇÃO: Passamos Pageable.unpaged() para satisfazer a assinatura do Repository
-        // sem aplicar limite de registros, já que precisamos de todos para o cálculo do dia.
         return jpaAppointmentRepository.findAllByProfessionalIdAndStartTimeBetween(
-                UUID.fromString(professionalId), startOfDay, endOfDay, Pageable.unpaged())
+                        professionalId, startOfDay, endOfDay, Pageable.unpaged())
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
-    public List<Appointment> findAllByProviderIdAndPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
+    public List<Appointment> findAllByProviderIdAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end) {
         return jpaAppointmentRepository.findAllByProviderIdAndStartTimeBetween(
-                UUID.fromString(providerId), start, end)
+                        providerId, start, end)
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
-    public boolean hasConflictingAppointment(String professionalId, LocalDateTime start, LocalDateTime end) {
-        return jpaAppointmentRepository.existsOverlapping(UUID.fromString(professionalId), start, end);
+    public boolean hasConflictingAppointment(UUID professionalId, LocalDateTime start, LocalDateTime end) {
+        return jpaAppointmentRepository.existsOverlapping(professionalId, start, end);
     }
 
     @Override
@@ -72,7 +68,7 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         return jpaAppointmentRepository.findPendingReminders(now)
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -80,32 +76,31 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         return jpaAppointmentRepository.findToNotify(threshold)
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
-    public List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end) {
-        return jpaAppointmentRepository.findRevenueAppointments(UUID.fromString(providerId), start, end)
+    public List<Appointment> findRevenueInPeriod(UUID providerId, LocalDateTime start, LocalDateTime end) {
+        return jpaAppointmentRepository.findRevenueAppointments(providerId, start, end)
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
-    public BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end) {
+    public BigDecimal sumProfessionalCommissionByPeriod(UUID professionalId, LocalDateTime start, LocalDateTime end) {
         BigDecimal result = jpaAppointmentRepository.sumProfessionalCommissionByPeriod(
-                UUID.fromString(professionalId), start, end);
+                professionalId, start, end);
 
         return result != null ? result : BigDecimal.ZERO;
     }
 
     @Override
-    public PagedResult<Appointment> findAllByClientId(String clientId, int page, int size) {
-        // Agora usa corretamente PageRequest e Sort importados
+    public PagedResult<Appointment> findAllByClientId(UUID clientId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("startTime").descending());
 
         Page<AppointmentEntity> entityPage = jpaAppointmentRepository.findAllByClientId(
-                UUID.fromString(clientId),
+                clientId,
                 pageable);
 
         List<Appointment> domainItems = entityPage.getContent().stream()
@@ -121,11 +116,17 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
     }
 
     @Override
-    public List<Appointment> findPendingSettlementByProfessional(String professionalId) {
+    public List<Appointment> findPendingSettlementByProfessional(UUID professionalId) {
         return jpaAppointmentRepository
-                .findAllByProfessionalIdAndCommissionSettledFalse(UUID.fromString(professionalId))
+                .findAllByProfessionalIdAndCommissionSettledFalse(professionalId)
                 .stream()
                 .map(appointmentMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
+    }
+
+    @Override
+    public boolean existsByExternalEventId(String externalEventId) {
+        // Implementação do método que estava faltando na interface
+        return jpaAppointmentRepository.existsByExternalEventId(externalEventId);
     }
 }

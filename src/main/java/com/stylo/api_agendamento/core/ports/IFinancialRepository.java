@@ -6,7 +6,6 @@ import com.stylo.api_agendamento.core.domain.Payout;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -23,8 +22,12 @@ public interface IFinancialRepository {
     void deleteExpense(UUID expenseId);
 
     // --- RECEITAS (CAIXA / VENDAS) ---
-    // Registra uma entrada avulsa (fora do fluxo de agendamento, ex: venda de produto balcão)
     void registerRevenue(UUID serviceProviderId, BigDecimal amount, String description, PaymentMethod paymentMethod);
+
+    /**
+     * Calcula o lucro líquido (Taxas de serviço - Despesas) no período.
+     */
+    BigDecimal findNetProfitByProviderAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end);
 
     // --- PAGAMENTOS (COMISSÕES / SAQUES) ---
     Payout savePayout(Payout payout);

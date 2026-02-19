@@ -6,10 +6,15 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface AvailabilityMapper {
+
     DailyAvailabilityEntity toEntity(DailyAvailability domain);
     
+    // Mantido como default para garantir a imutabilidade do seu Value Object
     default DailyAvailability toDomain(DailyAvailabilityEntity entity) {
-        if (entity == null) return null;
+        if (entity == null) {
+            return null;
+        }
+        
         return new DailyAvailability(
             entity.getDayOfWeek(),
             entity.isOpen(),

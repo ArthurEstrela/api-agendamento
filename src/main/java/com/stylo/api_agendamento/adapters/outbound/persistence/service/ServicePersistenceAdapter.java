@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -25,51 +24,53 @@ public class ServicePersistenceAdapter implements IServiceRepository {
     }
 
     @Override
-    public Optional<Service> findById(String id) {
-        return jpaServiceRepository.findById(UUID.fromString(id))
+    public Optional<Service> findById(UUID id) {
+        return jpaServiceRepository.findById(id)
                 .map(serviceMapper::toDomain);
     }
 
     @Override
-    public void delete(String id) {
-        jpaServiceRepository.deleteById(UUID.fromString(id));
+    public void delete(UUID id) {
+        jpaServiceRepository.deleteById(id);
     }
 
     @Override
-    public List<Service> findAllByIds(List<String> ids) {
-        List<UUID> uuids = ids.stream()
-                .map(UUID::fromString)
-                .collect(Collectors.toList());
-        return jpaServiceRepository.findAllById(uuids)
+    public List<Service> findAllByIds(List<UUID> ids) {
+        return jpaServiceRepository.findAllById(ids)
                 .stream()
                 .map(serviceMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList(); // Java 16+
     }
 
     @Override
-    public List<Service> findAllByProviderId(String providerId) {
-        return jpaServiceRepository.findAllByServiceProviderId(UUID.fromString(providerId))
+    public List<Service> findAllByProviderId(UUID providerId) {
+        return jpaServiceRepository.findAllByServiceProviderId(providerId)
                 .stream()
                 .map(serviceMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // Implementação do método findAll() requisitado pelo erro
+    @Override
+    public List<Service> findAllActiveByProviderId(UUID providerId) {
+        return jpaServiceRepository.findAllByServiceProviderIdAndIsActiveTrue(providerId)
+                .stream()
+                .map(serviceMapper::toDomain)
+                .toList();
+    }
+
     @Override
     public List<Service> findAll() {
         return jpaServiceRepository.findAll()
                 .stream()
                 .map(serviceMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // Implementação do método findByCategoryId(String) requisitado pelo erro
     @Override
-    public List<Service> findByCategoryId(String categoryId) {
-        // Assume-se que o JpaServiceRepository possua um método de busca por categoria
-        return jpaServiceRepository.findAllByCategoryId(UUID.fromString(categoryId))
+    public List<Service> findByCategoryId(UUID categoryId) {
+        return jpaServiceRepository.findAllByCategoryId(categoryId)
                 .stream()
                 .map(serviceMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

@@ -1,12 +1,7 @@
 package com.stylo.api_agendamento.adapters.outbound.payment;
 
 import com.stripe.Stripe;
-import com.stripe.model.Account;
-import com.stripe.model.AccountLink;
-import com.stripe.model.Event;
-import com.stripe.model.PaymentIntent;
-import com.stripe.model.Refund;
-import com.stripe.model.Transfer;
+import com.stripe.model.*;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
 import com.stripe.param.*;
@@ -14,6 +9,7 @@ import com.stripe.param.checkout.SessionCreateParams;
 import com.stylo.api_agendamento.core.ports.IPaymentProvider;
 import com.stylo.api_agendamento.core.usecases.dto.PaymentWebhookInput;
 import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,7 +17,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
+@Slf4j
 @Component
 public class StripePaymentAdapter implements IPaymentProvider {
 
@@ -41,7 +39,6 @@ public class StripePaymentAdapter implements IPaymentProvider {
         try {
             Event event = Webhook.constructEvent(rawPayload, signatureHeader, webhookSecret);
 
-            // Extrai a Session se for checkout, ou PaymentIntent se for direto
             if (event.getDataObjectDeserializer().getObject().isPresent()) {
                 Object stripeObject = event.getDataObjectDeserializer().getObject().get();
 
@@ -50,24 +47,21 @@ public class StripePaymentAdapter implements IPaymentProvider {
                             event.getId(),
                             session.getPaymentIntent(),
                             event.getType(),
-                            session.getPaymentStatus(), // "paid", "unpaid"
+                            session.getPaymentStatus(),
                             BigDecimal.valueOf(session.getAmountTotal() / 100.0),
                             session.getMetadata(),
                             Instant.ofEpochSecond(event.getCreated()));
                 }
             }
-            // Se não for Session, retornamos null ou lançamos erro dependendo da estratégia
-            // Aqui permitimos passar sem payload rico se for apenas um evento de status
-            // simples
-            throw new SecurityException("Evento Stripe ignorado ou payload vazio.");
-
+            throw new SecurityException("Evento Stripe sem payload de Sessão válido.");
         } catch (Exception e) {
-            throw new SecurityException("Webhook inválido ou erro de parse: " + e.getMessage());
+            log.error("Erro na validação do Webhook Stripe: {}", e.getMessage());
+            throw new SecurityException("Webhook inválido: " + e.getMessage());
         }
     }
 
     @Override
-    public String generatePaymentLink(String appointmentId, BigDecimal amount, String destinationAccountId,
+    public String createPaymentLink(UUID appointmentId, BigDecimal amount, String destinationAccountId,
             BigDecimal feePercentage) {
         try {
             long amountInCents = amount.multiply(BigDecimal.valueOf(100)).longValue();
@@ -75,10 +69,9 @@ public class StripePaymentAdapter implements IPaymentProvider {
             SessionCreateParams.Builder paramsBuilder = SessionCreateParams.builder()
                     .addPaymentMethodType(SessionCreateParams.PaymentMethodType.CARD)
                     .setMode(SessionCreateParams.Mode.PAYMENT)
-                    .setSuccessUrl("https://seusite.com/agendamentos/sucesso")
-                    .setCancelUrl("https://seusite.com/agendamentos/falha")
-                    .putMetadata("context", "APPOINTMENT")
-                    .putMetadata("appointmentId", appointmentId)
+                    .setSuccessUrl("https://app.stylo.com/agendamentos/sucesso")
+                    .setCancelUrl("https://app.stylo.com/agendamentos/falha")
+                    .putMetadata("appointmentId", appointmentId.toString())
                     .addLineItem(SessionCreateParams.LineItem.builder()
                             .setQuantity(1L)
                             .setPriceData(SessionCreateParams.LineItem.PriceData.builder()
@@ -90,38 +83,32 @@ public class StripePaymentAdapter implements IPaymentProvider {
                                     .build())
                             .build());
 
-            // ✨ A MÁGICA DO SPLIT AUTOMÁTICO
-            // Se tiver um ID de barbeiro (destinationAccountId), o Stripe divide o dinheiro
-            // agora.
+            // ✨ SPLIT DE PAGAMENTO (Marketplace Logic)
             if (destinationAccountId != null && !destinationAccountId.isBlank()) {
-
-                // Calcula sua comissão em centavos
-                long appFee = amount.multiply(feePercentage)
+                long appFeeInCents = amount.multiply(feePercentage)
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
                         .multiply(BigDecimal.valueOf(100))
                         .longValue();
 
                 paramsBuilder.setPaymentIntentData(
                         SessionCreateParams.PaymentIntentData.builder()
-                                .setApplicationFeeAmount(appFee) // Sua parte (fica na sua conta)
-                                .setTransferData(
-                                        SessionCreateParams.PaymentIntentData.TransferData.builder()
-                                                .setDestination(destinationAccountId) // O resto vai pro barbeiro
-                                                .build())
+                                .setApplicationFeeAmount(appFeeInCents)
+                                .setTransferData(SessionCreateParams.PaymentIntentData.TransferData.builder()
+                                        .setDestination(destinationAccountId)
+                                        .build())
                                 .build());
             }
 
             Session session = Session.create(paramsBuilder.build());
             return session.getUrl();
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao gerar link Stripe Checkout: " + e.getMessage());
+            throw new RuntimeException("Falha ao gerar checkout Stripe: " + e.getMessage());
         }
     }
 
     @Override
-    public ConnectOnboardingResult createConnectAccountLink(String providerId, String email) {
+    public ConnectOnboardingResult createConnectAccountLink(UUID providerId, String email) {
         try {
-            // 1. Criar a conta (Express é ideal para SaaS no Brasil)
             AccountCreateParams params = AccountCreateParams.builder()
                     .setType(AccountCreateParams.Type.EXPRESS)
                     .setCountry("BR")
@@ -130,12 +117,11 @@ public class StripePaymentAdapter implements IPaymentProvider {
                             .setTransfers(
                                     AccountCreateParams.Capabilities.Transfers.builder().setRequested(true).build())
                             .build())
-                    .setMetadata(Map.of("providerId", providerId))
+                    .setMetadata(Map.of("providerId", providerId.toString()))
                     .build();
 
             Account account = Account.create(params);
 
-            // 2. Gerar o Link
             AccountLinkCreateParams linkParams = AccountLinkCreateParams.builder()
                     .setAccount(account.getId())
                     .setRefreshUrl("https://app.stylo.com/settings/payments/refresh")
@@ -143,18 +129,14 @@ public class StripePaymentAdapter implements IPaymentProvider {
                     .setType(AccountLinkCreateParams.Type.ACCOUNT_ONBOARDING)
                     .build();
 
-            AccountLink accountLink = AccountLink.create(linkParams);
-
-            // ✨ CORREÇÃO: Retorna o ID e a URL para o UseCase salvar no banco
-            return new ConnectOnboardingResult(account.getId(), accountLink.getUrl());
-
+            return new ConnectOnboardingResult(account.getId(), AccountLink.create(linkParams).getUrl());
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao criar conta Stripe Connect: " + e.getMessage());
+            throw new RuntimeException("Erro no onboarding Stripe Connect: " + e.getMessage());
         }
     }
 
     @Override
-    public boolean processPayment(String customerId, BigDecimal amount, String paymentMethodId) {
+    public boolean processDirectPayment(String customerId, BigDecimal amount, String paymentMethodId) {
         try {
             PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
                     .setAmount(amount.multiply(BigDecimal.valueOf(100)).longValue())
@@ -168,44 +150,37 @@ public class StripePaymentAdapter implements IPaymentProvider {
             PaymentIntent intent = PaymentIntent.create(params);
             return "succeeded".equals(intent.getStatus());
         } catch (Exception e) {
-            // Logar erro real é importante
-            System.err.println("Erro Stripe Payment: " + e.getMessage());
+            log.error("Erro no pagamento direto: {}", e.getMessage());
             return false;
         }
     }
 
     @Override
-    public void refund(String externalPaymentId, BigDecimal amount) {
+    public void refundPayment(String externalPaymentId, BigDecimal amount) {
         try {
-            RefundCreateParams.Builder params = RefundCreateParams.builder()
-                    .setPaymentIntent(externalPaymentId);
-
+            RefundCreateParams.Builder params = RefundCreateParams.builder().setPaymentIntent(externalPaymentId);
             if (amount != null) {
                 params.setAmount(amount.multiply(BigDecimal.valueOf(100)).longValue());
             }
-
             Refund.create(params.build());
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao processar estorno: " + e.getMessage());
+            throw new RuntimeException("Erro ao processar estorno Stripe: " + e.getMessage());
         }
     }
 
     @Override
-    public void executeSplit(String paymentId, String targetAccountId, BigDecimal profAmount,
-            BigDecimal providerAmount) {
-        // Método de fallback para transferências manuais (se não usar o split
-        // automático no checkout)
+    public void executeTransfer(String sourceTransactionId, String destinationAccountId, BigDecimal amount) {
         try {
             TransferCreateParams params = TransferCreateParams.builder()
-                    .setAmount(profAmount.multiply(BigDecimal.valueOf(100)).longValue())
+                    .setAmount(amount.multiply(BigDecimal.valueOf(100)).longValue())
                     .setCurrency("brl")
-                    .setDestination(targetAccountId)
-                    .setSourceTransaction(paymentId) // Importante: vincula à cobrança original
+                    .setDestination(destinationAccountId)
+                    .setSourceTransaction(sourceTransactionId)
                     .build();
 
             Transfer.create(params);
         } catch (Exception e) {
-            throw new RuntimeException("Falha ao executar Transferência Manual: " + e.getMessage());
+            throw new RuntimeException("Erro na transferência manual Stripe: " + e.getMessage());
         }
     }
 
@@ -215,8 +190,7 @@ public class StripePaymentAdapter implements IPaymentProvider {
             return false;
         try {
             Account account = Account.retrieve(stripeAccountId);
-            return Boolean.TRUE.equals(account.getChargesEnabled())
-                    && Boolean.TRUE.equals(account.getPayoutsEnabled());
+            return Boolean.TRUE.equals(account.getChargesEnabled()) && Boolean.TRUE.equals(account.getPayoutsEnabled());
         } catch (Exception e) {
             return false;
         }
@@ -225,13 +199,13 @@ public class StripePaymentAdapter implements IPaymentProvider {
     @Override
     public String continueOnboarding(String stripeAccountId) {
         try {
-            AccountLinkCreateParams linkParams = AccountLinkCreateParams.builder()
+            AccountLinkCreateParams params = AccountLinkCreateParams.builder()
                     .setAccount(stripeAccountId)
-                    .setRefreshUrl("https://seu-app.com/painel/financeiro")
-                    .setReturnUrl("https://seu-app.com/painel/financeiro")
+                    .setRefreshUrl("https://app.stylo.com/settings/payments")
+                    .setReturnUrl("https://app.stylo.com/settings/payments")
                     .setType(AccountLinkCreateParams.Type.ACCOUNT_ONBOARDING)
                     .build();
-            return AccountLink.create(linkParams).getUrl();
+            return AccountLink.create(params).getUrl();
         } catch (Exception e) {
             throw new RuntimeException("Erro ao gerar link de continuação: " + e.getMessage());
         }
@@ -240,13 +214,9 @@ public class StripePaymentAdapter implements IPaymentProvider {
     @Override
     public String createLoginLink(String stripeAccountId) {
         try {
-            // Gera link mágico para o dashboard financeiro do Stripe (sem senha)
-            return com.stripe.model.LoginLink.createOnAccount(
-                    stripeAccountId,
-                    (Map<String, Object>) null,
-                    null).getUrl();
+            return LoginLink.createOnAccount(stripeAccountId, (Map<String, Object>) null, null).getUrl();
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao gerar link de login Stripe: " + e.getMessage());
+            throw new RuntimeException("Erro ao gerar Login Link Stripe: " + e.getMessage());
         }
     }
 }

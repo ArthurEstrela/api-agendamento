@@ -6,7 +6,8 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring", uses = { ServiceMapper.class })
 public interface ProfessionalMapper {
-    ProfessionalEntity toEntity(Professional domain);
 
     Professional toDomain(ProfessionalEntity entity);
+
+    ProfessionalEntity toEntity(Professional domain);
 }

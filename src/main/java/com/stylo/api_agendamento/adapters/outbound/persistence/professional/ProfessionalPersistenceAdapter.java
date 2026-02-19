@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -25,22 +24,34 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
     }
 
     @Override
-    public Optional<Professional> findById(String id) {
-        return jpaProfessionalRepository.findById(UUID.fromString(id))
+    public Optional<Professional> findById(UUID id) {
+        return jpaProfessionalRepository.findById(id)
                 .map(professionalMapper::toDomain);
     }
 
     @Override
-    public List<Professional> findAllByProviderId(String providerId) {
-        return jpaProfessionalRepository.findAllByServiceProviderId(UUID.fromString(providerId))
-                .stream()
-                .map(professionalMapper::toDomain)
-                .collect(Collectors.toList());
+    public Optional<Professional> findByEmail(String email) {
+        return jpaProfessionalRepository.findByEmail(email)
+                .map(professionalMapper::toDomain);
     }
 
     @Override
-    public Optional<Professional> findByIdWithLock(String id) {
-        return jpaProfessionalRepository.findByIdWithLock(UUID.fromString(id))
+    public List<Professional> findAllByProviderId(UUID providerId) {
+        return jpaProfessionalRepository.findAllByServiceProviderId(providerId)
+                .stream()
+                .map(professionalMapper::toDomain)
+                .toList(); // Java 16+
+    }
+
+    @Override
+    public Optional<Professional> findByIdWithLock(UUID id) {
+        return jpaProfessionalRepository.findByIdWithLock(id)
+                .map(professionalMapper::toDomain);
+    }
+
+    @Override
+    public Optional<Professional> findByGatewayAccountId(String gatewayAccountId) {
+        return jpaProfessionalRepository.findByGatewayAccountId(gatewayAccountId)
                 .map(professionalMapper::toDomain);
     }
 }

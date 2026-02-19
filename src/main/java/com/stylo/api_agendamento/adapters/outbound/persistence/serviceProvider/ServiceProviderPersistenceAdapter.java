@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -28,8 +27,8 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
     }
 
     @Override
-    public Optional<ServiceProvider> findById(String id) {
-        return jpaServiceProviderRepository.findById(UUID.fromString(id))
+    public Optional<ServiceProvider> findById(UUID id) {
+        return jpaServiceProviderRepository.findById(id)
                 .map(serviceProviderMapper::toDomain);
     }
 
@@ -39,7 +38,6 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
                 .map(serviceProviderMapper::toDomain);
     }
 
-    // Implementação do método que estava faltando
     @Override
     public boolean existsBySlug(String slug) {
         return jpaServiceProviderRepository.existsByPublicProfileSlug(slug);
@@ -55,16 +53,15 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
         return jpaServiceProviderRepository.findExpiredTrials(now)
                 .stream()
                 .map(serviceProviderMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
     public List<ServiceProvider> findAllWithPublicProfile() {
-        // Assume que o JpaRepository tem um método que busca onde o slug não é nulo
         return jpaServiceProviderRepository.findByPublicProfileSlugIsNotNull()
                 .stream()
                 .map(serviceProviderMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -72,7 +69,7 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
         return jpaServiceProviderRepository.findExpiredGracePeriods(now)
                 .stream()
                 .map(serviceProviderMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
@@ -80,6 +77,6 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
         return jpaServiceProviderRepository.findUpcomingExpirations(threshold)
                 .stream()
                 .map(serviceProviderMapper::toDomain)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

@@ -5,6 +5,8 @@ import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")
 public interface ExpenseMapper {
-    ExpenseEntity toEntity(Expense domain);
+
     Expense toDomain(ExpenseEntity entity);
+
+    ExpenseEntity toEntity(Expense domain);
 }

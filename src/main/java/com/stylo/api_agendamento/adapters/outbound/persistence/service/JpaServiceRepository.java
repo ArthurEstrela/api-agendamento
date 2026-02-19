@@ -9,14 +9,15 @@ import java.util.UUID;
 @Repository
 public interface JpaServiceRepository extends JpaRepository<ServiceEntity, UUID> {
     
-    // Busca todos os serviços oferecidos por um estabelecimento específico (Multi-tenant)
+    // Busca todos os serviços por estabelecimento
     List<ServiceEntity> findAllByServiceProviderId(UUID serviceProviderId);
     
-    // Busca serviços específicos por ID dentro de um salão (segurança extra)
+    // Filtro para serviços ativos (Exibição para o Cliente final)
+    List<ServiceEntity> findAllByServiceProviderIdAndIsActiveTrue(UUID serviceProviderId);
+    
+    // Busca serviços específicos por ID dentro de um estabelecimento (Segurança extra)
     List<ServiceEntity> findAllByIdInAndServiceProviderId(List<UUID> ids, UUID serviceProviderId);
 
+    // Busca por categoria
     List<ServiceEntity> findAllByCategoryId(UUID categoryId);
-
-    // Caso queiras filtrar serviços ativos/inativos no futuro
-    // List<ServiceEntity> findAllByServiceProviderIdAndActiveTrue(UUID serviceProviderId);
 }

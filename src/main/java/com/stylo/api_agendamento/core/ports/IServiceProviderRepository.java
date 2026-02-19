@@ -21,11 +21,16 @@ public interface IServiceProviderRepository {
     Optional<ServiceProvider> findBySlug(Slug slug);
 
     // --- VALIDAÇÕES DE UNICIDADE ---
-    boolean existsByDocument(Document document); // CPF/CNPJ único
+    boolean existsByDocument(Document document); 
     boolean existsBySlug(String slugValue);
 
-    // --- JOBS DE ASSINATURA (SAAS) ---
+    // --- JOBS DE ASSINATURA E SITEMAP ---
     
+    /**
+     * Lista todos os estabelecimentos que possuem perfil público configurado.
+     */
+    List<ServiceProvider> findAllWithPublicProfile();
+
     /**
      * Busca estabelecimentos cujo período de teste acabou hoje.
      */
@@ -37,7 +42,7 @@ public interface IServiceProviderRepository {
     List<ServiceProvider> findExpiredGracePeriods(LocalDateTime threshold);
 
     /**
-     * Busca assinaturas que vão vencer em breve (para enviar emails de aviso).
+     * Busca assinaturas que vão vencer em breve.
      */
     List<ServiceProvider> findUpcomingExpirations(LocalDateTime threshold);
 }

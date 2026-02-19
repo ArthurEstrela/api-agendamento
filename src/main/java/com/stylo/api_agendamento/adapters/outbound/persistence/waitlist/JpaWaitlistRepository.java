@@ -1,15 +1,18 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.waitlist;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+@Repository
 public interface JpaWaitlistRepository extends JpaRepository<WaitlistEntity, UUID> {
 
-    @Query("SELECT w FROM WaitlistEntity w WHERE w.professionalId = :profId AND w.desiredDate = :date AND w.notified = false ORDER BY w.requestTime ASC")
-    List<WaitlistEntity> findActiveByProfessionalAndDate(@Param("profId") UUID professionalId, @Param("date") LocalDate date);
+    // Busca ativa por profissional e data (ordenado por ordem de chegada)
+    List<WaitlistEntity> findAllByProfessionalIdAndDesiredDateAndNotifiedFalseOrderByRequestTimeAsc(UUID professionalId, LocalDate desiredDate);
+
+    // Busca toda a fila de um estabelecimento (SaaS/Multitenancy)
+    List<WaitlistEntity> findAllByServiceProviderIdAndNotifiedFalseOrderByRequestTimeDesc(UUID serviceProviderId);
 }

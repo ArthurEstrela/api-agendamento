@@ -7,11 +7,11 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface ServiceMapper {
     
-    // Mapeia o serviceProviderId do domínio para o objeto aninhado na Entidade
-    @Mapping(target = "serviceProvider.id", source = "serviceProviderId")
-    ServiceEntity toEntity(Service domain);
-
-    // Mapeia o ID do objeto aninhado na Entidade de volta para o campo do domínio
-    @Mapping(target = "serviceProviderId", source = "serviceProvider.id")
+    // Mapeia o ID da entidade (Foreign Key) de volta para o campo puro no domínio
+    @Mapping(target = "serviceProviderId", source = "serviceProviderId")
     Service toDomain(ServiceEntity entity);
+
+    // Cria uma referência Lazy usando apenas o ID para salvar no banco de forma otimizada
+    @Mapping(target = "serviceProviderId", source = "serviceProviderId")
+    ServiceEntity toEntity(Service domain);
 }

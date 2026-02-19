@@ -8,13 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
 
+@Repository
 public interface JpaProfessionalRepository extends JpaRepository<ProfessionalEntity, UUID> {
+    
     Optional<ProfessionalEntity> findByEmail(String email);
 
     List<ProfessionalEntity> findAllByServiceProviderId(UUID providerId);
+
+    // Busca o profissional pelo ID da conta no Stripe/Gateway de pagamento
+    Optional<ProfessionalEntity> findByGatewayAccountId(String gatewayAccountId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM ProfessionalEntity p WHERE p.id = :id")

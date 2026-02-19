@@ -1,13 +1,18 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.review;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Review;
 import com.stylo.api_agendamento.core.ports.IReviewRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -24,35 +29,51 @@ public class ReviewPersistenceAdapter implements IReviewRepository {
     }
 
     @Override
-    public List<Review> findByProfessionalId(String professionalId) {
-        return jpaReviewRepository.findAllByProfessionalId(UUID.fromString(professionalId))
-                .stream()
-                .map(reviewMapper::toDomain)
-                .collect(Collectors.toList());
+    public Optional<Review> findById(UUID id) {
+        return jpaReviewRepository.findById(id)
+                .map(reviewMapper::toDomain);
     }
 
     @Override
-    public List<Review> findByServiceProviderId(String providerId) {
-        return jpaReviewRepository.findAllByServiceProviderId(UUID.fromString(providerId))
-                .stream()
-                .map(reviewMapper::toDomain)
-                .collect(Collectors.toList());
+    public PagedResult<Review> findAllByProfessionalId(UUID professionalId, int page, int size) {
+        // Ordena pelas mais recentes primeiro
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<ReviewEntity> entityPage = jpaReviewRepository.findAllByProfessionalId(professionalId, pageable);
+
+        return toPagedResult(entityPage);
     }
 
     @Override
-    public List<Review> findAllByProviderId(String providerId) {
-        // Geralmente findAllByProviderId e findByServiceProviderId fazem a mesma coisa no seu contrato
-        return findByServiceProviderId(providerId);
+    public PagedResult<Review> findAllByProviderId(UUID providerId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<ReviewEntity> entityPage = jpaReviewRepository.findAllByServiceProviderId(providerId, pageable);
+
+        return toPagedResult(entityPage);
     }
 
     @Override
-    public Double getAverageRating(String professionalId) {
-        Double avg = jpaReviewRepository.getAverageRatingByProfessionalId(UUID.fromString(professionalId));
+    public Double getAverageRatingByProfessional(UUID professionalId) {
+        Double avg = jpaReviewRepository.getAverageRatingByProfessionalId(professionalId);
         return avg != null ? avg : 0.0;
     }
 
     @Override
-    public boolean existsByAppointmentId(String appointmentId) {
-        return jpaReviewRepository.existsByAppointmentId(UUID.fromString(appointmentId));
+    public boolean existsByAppointmentId(UUID appointmentId) {
+        return jpaReviewRepository.existsByAppointmentId(appointmentId);
+    }
+
+    // --- Método Auxiliar de Mapeamento de Página ---
+    private PagedResult<Review> toPagedResult(Page<ReviewEntity> entityPage) {
+        List<Review> domainItems = entityPage.getContent().stream()
+                .map(reviewMapper::toDomain)
+                .toList();
+
+        return new PagedResult<>(
+                domainItems,
+                entityPage.getNumber(),
+                entityPage.getSize(),
+                entityPage.getTotalElements(),
+                entityPage.getTotalPages()
+        );
     }
 }

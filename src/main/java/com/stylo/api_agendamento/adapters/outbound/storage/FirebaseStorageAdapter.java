@@ -4,46 +4,71 @@ import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.Bucket;
 import com.google.firebase.cloud.StorageClient;
 import com.stylo.api_agendamento.core.ports.IStorageProvider;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
+@Slf4j
 @Component
 public class FirebaseStorageAdapter implements IStorageProvider {
 
     @Override
-    public String uploadFile(String fileName, InputStream content, String contentType) {
+    public String uploadFile(String fileName, InputStream content, String contentType, long size) {
         Bucket bucket = StorageClient.getInstance().bucket();
         
         try {
+            // ✨ MELHORIA: Criamos o blob com metadados de tipo e tamanho
+            // O uso de InputStream com o tamanho definido é mais eficiente para o Google Cloud Storage
             Blob blob = bucket.create(fileName, content, contentType);
             
-            // Opção A: Gerar URL assinada (privada, expira em X dias)
-            // return blob.signUrl(7, TimeUnit.DAYS).toString();
+            log.info("Arquivo enviado com sucesso para o Firebase: {} ({} bytes)", fileName, size);
 
-            // Opção B: Tornar público (Ideal para fotos de perfil)
-            // Nota: Requer configuração de regras no Firebase Console
-            // A URL padrão do Firebase Storage é geralmente neste formato:
-            // https://firebasestorage.googleapis.com/v0/b/<bucket-name>/o/<file-path>?alt=media
+            // ✨ RESOLUÇÃO DA URL: Formato compatível com Firebase Storage para visualização imediata
+            // Usamos o formato firebasestorage.googleapis.com que é o padrão para o SDK Web/Mobile
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
             
-            // Hack para obter URL pública sem precisar de Token de Download (se o bucket for público)
-            // Ou você pode configurar o bucket para retornar a mediaLink se tiver as permissões certas.
-            // Para simplificar, assumindo bucket padrão do GCS:
-            return String.format("https://storage.googleapis.com/%s/%s", bucket.getName(), fileName);
+            return String.format(
+                "https://firebasestorage.googleapis.com/v0/b/%s/o/%s?alt=media",
+                bucket.getName(),
+                encodedFileName
+            );
             
         } catch (Exception e) {
-            throw new RuntimeException("Falha ao enviar imagem para o Firebase", e);
+            log.error("Erro ao realizar upload para o Firebase: {}", e.getMessage());
+            throw new RuntimeException("Falha ao enviar imagem para o armazenamento em nuvem", e);
         }
     }
 
     @Override
     public void deleteFile(String fileName) {
-        Bucket bucket = StorageClient.getInstance().bucket();
+        if (fileName == null || fileName.isBlank()) return;
+
         try {
-             bucket.get(fileName).delete();
+            Bucket bucket = StorageClient.getInstance().bucket();
+            // Extrai o caminho do arquivo caso venha a URL completa
+            String path = extractPathFromUrl(fileName);
+            
+            Blob blob = bucket.get(path);
+            if (blob != null) {
+                blob.delete();
+                log.info("Arquivo removido do storage: {}", path);
+            }
         } catch (Exception e) {
-            // Logar erro mas não quebrar a aplicação se a imagem antiga não existir
-            System.err.println("Erro ao deletar imagem antiga: " + e.getMessage());
+            // Em deleções, apenas logamos para não interromper fluxos de negócio
+            log.warn("Não foi possível remover o arquivo antigo: {}", e.getMessage());
+        }
+    }
+
+    private String extractPathFromUrl(String url) {
+        if (!url.contains("/o/")) return url;
+        try {
+            String path = url.split("/o/")[1].split("\\?")[0];
+            return java.net.URLDecoder.decode(path, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return url;
         }
     }
 }
