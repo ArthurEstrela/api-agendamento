@@ -68,8 +68,7 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             ZonedDateTime endZoned = appointment.getEndTime().atZone(zoneId);
 
             Event event = new Event()
-                    .setSummary(
-                            "✂️ " + appointment.getClientName() + " - " + appointment.getServices().get(0).getName())
+                    .setSummary("✂️ " + appointment.getClientName() + " - " + appointment.getServicesSnapshot())
                     .setDescription(buildDescription(appointment))
                     .setLocation("Stylo - " + appointment.getBusinessName());
 
@@ -88,7 +87,7 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             return executedEvent.getId();
 
         } catch (BusinessException be) {
-            log.warn("Integração Google interrompida para {}: {}", appointment.getProfessionalId(), be.getMessage());
+            log.warn("Integração Google interrompida: {}", be.getMessage());
             throw be;
         } catch (Exception e) {
             log.error("Erro técnico ao sincronizar com Google: {}", e.getMessage());
@@ -97,7 +96,50 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
     }
 
     @Override
-    public void deleteEvent(UUID professionalId, String externalEventId) {
+    public void updateEvent(Appointment appointment) {
+        String externalEventId = appointment.getExternalEventId();
+
+        if (externalEventId == null || externalEventId.isBlank()) {
+            log.warn("Agendamento {} não possui ID externo. Tentando criar novo evento.", appointment.getId());
+            this.createEvent(appointment);
+            return;
+        }
+
+        try {
+            Calendar service = getGoogleServiceForProfessional(appointment.getProfessionalId());
+            ZoneId zoneId = appointment.getZoneId();
+
+            // Busca evento para atualizar
+            Event event = service.events().get("primary", externalEventId).execute();
+
+            event.setSummary("✂️ " + appointment.getClientName() + " - " + appointment.getServicesSnapshot())
+                    .setDescription(buildDescription(appointment))
+                    .setStart(new EventDateTime()
+                            .setDateTime(
+                                    new DateTime(appointment.getStartTime().atZone(zoneId).toInstant().toEpochMilli()))
+                            .setTimeZone(zoneId.getId()))
+                    .setEnd(new EventDateTime()
+                            .setDateTime(
+                                    new DateTime(appointment.getEndTime().atZone(zoneId).toInstant().toEpochMilli()))
+                            .setTimeZone(zoneId.getId()));
+
+            service.events().update("primary", externalEventId, event).execute();
+            log.info("Evento Google atualizado: {}", externalEventId);
+
+        } catch (HttpResponseException e) {
+            if (e.getStatusCode() == 404) {
+                log.warn("Evento {} não encontrado no Google. Criando novo.", externalEventId);
+                this.createEvent(appointment);
+            } else {
+                throw new RuntimeException("Erro ao atualizar evento Google", e);
+            }
+        } catch (Exception e) {
+            log.error("Falha técnica ao atualizar evento Google: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteEvent(String externalEventId, UUID professionalId) {
         if (externalEventId == null || externalEventId.isBlank())
             return;
 
@@ -105,16 +147,20 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             Calendar service = getGoogleServiceForProfessional(professionalId);
             service.events().delete("primary", externalEventId).execute();
             log.info("Evento removido do Google: {}", externalEventId);
-
         } catch (HttpResponseException e) {
             if (e.getStatusCode() == 404 || e.getStatusCode() == 410) {
                 log.info("Evento Google já inexistente: {}", externalEventId);
-            } else {
-                throw new RuntimeException("Erro ao deletar evento Google", e);
             }
         } catch (Exception e) {
             log.error("Erro ao remover evento Google: {}", e.getMessage());
         }
+    }
+
+    @Override
+    public void stopWatchingCalendar(UUID professionalId) {
+        // ✨ Nota: Em implementações reais, você deve persistir o 'id' e 'resourceId'
+        // do canal criado no watch para poder pará-lo via API.
+        log.info("Encerrando monitoramento de calendário para profissional: {}", professionalId);
     }
 
     @Override
@@ -136,7 +182,6 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             return events.getItems().stream()
                     .map(evt -> toExternalEvent(evt, professionalZone))
                     .toList();
-
         } catch (Exception e) {
             log.error("Falha ao buscar agenda externa do profissional {}", professionalId);
             return Collections.emptyList();
@@ -159,15 +204,11 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
         }
     }
 
-    // --- Métodos Privados de Apoio ---
+    // --- Métodos Auxiliares ---
 
     private String buildDescription(Appointment appt) {
-        String services = appt.getServices().stream()
-                .map(com.stylo.api_agendamento.core.domain.Service::getName)
-                .reduce((a, b) -> a + ", " + b).orElse("");
-
         return "📱 Cliente: " + appt.getClientName() + "\n" +
-                "💇 Serviços: " + services + "\n" +
+                "💇 Serviços: " + appt.getServicesSnapshot() + "\n" +
                 "📞 Telefone: " + (appt.getClientPhone() != null ? appt.getClientPhone().value() : "Não informado");
     }
 
@@ -177,7 +218,7 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
         LocalDateTime start;
         LocalDateTime end;
 
-        if (gStart == null) { // Eventos de dia inteiro
+        if (gStart == null) {
             long startMillis = googleEvent.getStart().getDate().getValue();
             start = Instant.ofEpochMilli(startMillis).atZone(zoneId).toLocalDateTime();
             end = start.plusDays(1).minusMinutes(1);
@@ -234,68 +275,18 @@ public class GoogleCalendarAdapter implements ICalendarProvider {
             var transport = GoogleNetHttpTransport.newTrustedTransport();
             TokenResponse response = new GoogleRefreshTokenRequest(transport, JSON_FACTORY, refreshToken, clientId,
                     clientSecret).execute();
-
             LocalDateTime newExpiresAt = LocalDateTime.now().plusSeconds(response.getExpiresInSeconds() - 60);
-
             tokenRepository.saveTokens(professionalId, response.getAccessToken(), refreshToken, newExpiresAt);
-
             return new IGoogleTokenRepository.TokenData(response.getAccessToken(), refreshToken, newExpiresAt,
                     GoogleConnectionStatus.CONNECTED);
-
         } catch (HttpResponseException e) {
             if (e.getStatusCode() == 400 || e.getStatusCode() == 401) {
-                log.warn("Acesso Google revogado para {}. Desconectando integração.", professionalId);
                 tokenRepository.markAsDisconnected(professionalId);
                 throw new BusinessException("Conexão com Google Calendar perdida. É necessário reconectar.");
             }
             throw new RuntimeException("Erro ao renovar acesso Google", e);
         } catch (Exception e) {
             throw new RuntimeException("Falha na renovação do token Google", e);
-        }
-    }
-
-    @Override
-    public void updateEvent(Appointment appointment, String externalEventId) {
-        if (externalEventId == null || externalEventId.isBlank()) {
-            // Se não tinha ID antes, tentamos criar um novo para manter a sincronia
-            createEvent(appointment);
-            return;
-        }
-
-        try {
-            Calendar service = getGoogleServiceForProfessional(appointment.getProfessionalId());
-
-            ZoneId zoneId = appointment.getZoneId() != null ? appointment.getZoneId() : ZoneId.of(DEFAULT_TIMEZONE);
-            ZonedDateTime startZoned = appointment.getStartTime().atZone(zoneId);
-            ZonedDateTime endZoned = appointment.getEndTime().atZone(zoneId);
-
-            // Buscamos o evento atual para preservar campos que não controlamos
-            Event event = service.events().get("primary", externalEventId).execute();
-
-            // Atualizamos apenas o que mudou
-            event.setSummary("✂️ " + appointment.getClientName() + " - " + appointment.getServices().get(0).getName())
-                    .setDescription(buildDescription(appointment))
-                    .setStart(new EventDateTime()
-                            .setDateTime(new DateTime(startZoned.toInstant().toEpochMilli()))
-                            .setTimeZone(zoneId.getId()))
-                    .setEnd(new EventDateTime()
-                            .setDateTime(new DateTime(endZoned.toInstant().toEpochMilli()))
-                            .setTimeZone(zoneId.getId()));
-
-            service.events().update("primary", externalEventId, event).execute();
-            log.info("Evento Google atualizado: ID {} para profissional {}", externalEventId,
-                    appointment.getProfessionalId());
-
-        } catch (HttpResponseException e) {
-            if (e.getStatusCode() == 404) {
-                log.warn("Evento {} não encontrado no Google para atualização. Criando novo.", externalEventId);
-                createEvent(appointment);
-            } else {
-                throw new RuntimeException("Erro ao atualizar evento no Google Calendar", e);
-            }
-        } catch (Exception e) {
-            log.error("Falha técnica ao atualizar evento Google: {}", e.getMessage());
-            throw new RuntimeException("Erro na integração Google Calendar", e);
         }
     }
 }

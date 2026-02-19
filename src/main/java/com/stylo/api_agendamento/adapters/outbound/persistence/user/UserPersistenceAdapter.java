@@ -40,9 +40,16 @@ public class UserPersistenceAdapter implements IUserRepository {
         return jpaUserRepository.existsByEmail(email);
     }
 
+    // ✨ NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public Optional<User> findByProfessionalId(UUID professionalId) {
+        return jpaUserRepository.findByProfessionalId(professionalId)
+                .map(userMapper::toDomain);
+    }
+
     @Override
     public Optional<User> findByProviderId(UUID providerId) {
-        return jpaUserRepository.findByServiceProviderId(providerId)
+        return jpaUserRepository.findByProviderId(providerId)
                 .map(userMapper::toDomain);
     }
 

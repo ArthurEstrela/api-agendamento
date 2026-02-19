@@ -15,9 +15,17 @@ public interface ICalendarProvider {
     String createEvent(Appointment appointment);
 
     /**
-     * Atualiza um evento existente (ex: reagendamento).
+     * Atualiza um evento existente.
+     * ✨ CORREÇÃO: O externalEventId é extraído diretamente do objeto Appointment.
      */
-    void updateEvent(Appointment appointment, String externalEventId);
+    void updateEvent(Appointment appointment);
+
+    /**
+     * Remove o evento do calendário externo.
+     * ✨ CORREÇÃO: Ordem dos parâmetros ajustada para (externalEventId, professionalId) 
+     * conforme a necessidade do fluxo de sincronização.
+     */
+    void deleteEvent(String externalEventId, UUID professionalId);
 
     /**
      * Busca eventos recentes do calendário externo para sincronização reversa (Bloqueio de agenda).
@@ -30,7 +38,8 @@ public interface ICalendarProvider {
     void watchCalendar(UUID professionalId, String webhookUrl);
 
     /**
-     * Remove o evento do calendário externo.
+     * ✨ COMPLEMENTO: Cancela o monitoramento do calendário.
+     * Essencial para processos de limpeza ou quando um profissional desvincula sua conta.
      */
-    void deleteEvent(UUID professionalId, String externalEventId);
+    void stopWatchingCalendar(UUID professionalId);
 }

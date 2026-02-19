@@ -23,6 +23,8 @@ public interface IUserRepository {
      */
     Optional<User> findByProviderId(UUID providerId);
 
+    Optional<User> findByProfessionalId(UUID professionalId);
+
     Optional<User> findByResetPasswordToken(String token);
 
     void delete(UUID id);

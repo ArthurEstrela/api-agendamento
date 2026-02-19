@@ -18,9 +18,8 @@ public class AuditConfiguration {
 
     @Bean
     public AuditorAware<String> auditorProvider() {
-        // Retorna um lambda que busca o ID do usuário atual
-        // Se não tiver usuário (ex: job agendado), retorna Empty ou "SYSTEM"
         return () -> userContext.getCurrentUserIdOptional()
-                .or(() -> Optional.of("SYSTEM")); 
+                .map(uuid -> uuid.toString()) // 1. Converte UUID para String (agora temos um Optional<String>)
+                .or(() -> Optional.of("SYSTEM")); // 2. Agora o tipo coincide com Optional<String>
     }
 }

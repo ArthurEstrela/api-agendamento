@@ -16,26 +16,28 @@ public class AuditEventListener {
 
     private final JpaAuditLogRepository auditRepository;
 
-    @Async // ✨ Importante: Executa em outra thread para não impactar performance
+    @Async
     @EventListener
     public void handleAuditEvent(AuditLogEvent event) {
         try {
+            // ✨ Em Java Records, acessamos os campos sem o prefixo "get"
             var logEntity = AuditLogEntity.builder()
-                    .entityName(event.getEntityName())
-                    .entityId(event.getEntityId())
-                    .action(event.getAction())
-                    .fieldName(event.getFieldName())
-                    .oldValue(event.getOldValue())
-                    .newValue(event.getNewValue())
-                    .modifiedBy(event.getModifiedBy())
-                    .modifiedAt(event.getTimestamp())
+                    .providerId(event.providerId()) // Adicionado campo faltante
+                    .entityName(event.entityName())
+                    .entityId(event.entityId())
+                    .action(event.action())
+                    .fieldName(event.fieldName())
+                    .oldValue(event.oldValue())
+                    .newValue(event.newValue())
+                    .modifiedBy(event.modifiedBy())
+                    .modifiedAt(event.timestamp())
                     .build();
 
             auditRepository.save(logEntity);
-            log.info("Auditoria registrada: {} {} alterado por {}", event.getEntityName(), event.getFieldName(), event.getModifiedBy());
+            log.info("Auditoria registrada: {} {} alterado por {}", 
+                    event.entityName(), event.fieldName(), event.modifiedBy());
 
         } catch (Exception e) {
-            // Auditoria não deve quebrar o sistema, mas deve ser logada se falhar
             log.error("Falha ao salvar log de auditoria", e);
         }
     }

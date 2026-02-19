@@ -20,8 +20,14 @@ public interface JpaUserRepository extends JpaRepository<UserEntity, UUID> {
     // Busca o dono do estabelecimento (Provider)
     Optional<UserEntity> findByServiceProviderId(UUID providerId);
 
-    // Limpa tokens FCM de outros usuários para garantir que a notificação vá para a pessoa certa
+    Optional<UserEntity> findByProviderId(UUID providerId);
+
+    // Limpa tokens FCM de outros usuários para garantir que a notificação vá para a
+    // pessoa certa
     @Modifying
     @Query("UPDATE UserEntity u SET u.fcmToken = null WHERE u.fcmToken = :token")
     void clearFcmToken(@Param("token") String token);
+
+    @Query("SELECT u FROM UserEntity u WHERE u.email = (SELECT p.email FROM ProfessionalEntity p WHERE p.id = :professionalId)")
+    Optional<UserEntity> findByProfessionalId(@Param("professionalId") UUID professionalId);
 }
