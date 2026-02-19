@@ -1,29 +1,31 @@
 package com.stylo.api_agendamento.core.ports;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Client;
+
 import java.util.Optional;
+import java.util.UUID;
 
 public interface IClientRepository {
 
-    /**
-     * Salva ou atualiza um cliente no sistema.
-     */
     Client save(Client client);
 
-    /**
-     * Busca um cliente pelo identificador único.
-     */
-    Optional<Client> findById(String id);
+    Optional<Client> findById(UUID id);
 
-    /**
-     * Busca um cliente pelo e-mail (usado em logins/validações).
-     */
     Optional<Client> findByEmail(String email);
+    
+    boolean existsByEmail(String email);
+
+    void delete(UUID id);
 
     /**
-     * Remove um cliente do sistema.
+     * Busca a ficha do cliente dentro de um estabelecimento específico.
+     * (Um User global pode ter fichas diferentes em Providers diferentes).
      */
-    void delete(String id);
+    Optional<Client> findByUserAndProvider(UUID userId, UUID serviceProviderId);
 
-    Optional<Client> findByUserAndProvider(String userId, String serviceProviderId);
+    /**
+     * Lista clientes de um estabelecimento com paginação e filtro por nome.
+     */
+    PagedResult<Client> findAllByProviderId(UUID providerId, String nameFilter, int page, int size);
 }

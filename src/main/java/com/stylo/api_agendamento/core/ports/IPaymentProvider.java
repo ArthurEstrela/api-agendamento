@@ -1,32 +1,48 @@
 package com.stylo.api_agendamento.core.ports;
 
 import com.stylo.api_agendamento.core.usecases.dto.PaymentWebhookInput;
+
 import java.math.BigDecimal;
+import java.util.UUID;
 
 public interface IPaymentProvider {
 
-    // Agora aceita destinationAccountId (ID do barbeiro) e feePercentage (sua taxa)
-    String generatePaymentLink(String appointmentId, BigDecimal amount, String destinationAccountId,
-            BigDecimal feePercentage);
+    // --- COBRANÇAS ---
+    /**
+     * Gera um link de pagamento ou PaymentIntent (Checkout).
+     * @param destinationAccountId ID da conta conectada (Stripe Connect) que receberá o valor.
+     * @param applicationFeeAmount Valor que fica para a plataforma (Sua taxa).
+     */
+    String createPaymentLink(UUID appointmentId, BigDecimal amount, String destinationAccountId, BigDecimal applicationFeeAmount);
 
-    boolean processPayment(String customerId, BigDecimal amount, String paymentMethodId);
+    boolean processDirectPayment(String customerId, BigDecimal amount, String paymentMethodId);
 
-    void refund(String externalPaymentId, BigDecimal amount);
+    void refundPayment(String externalPaymentId, BigDecimal amount);
 
-    void executeSplit(String paymentId, String targetAccountId, BigDecimal profAmount, BigDecimal providerAmount);
+    /**
+     * Executa a divisão do dinheiro (Split) após o recebimento.
+     */
+    void executeTransfer(String sourceChargeId, String targetAccountId, BigDecimal amount);
 
-    // ✨ Mudança Crítica: Retorna um Record com ID e URL
-    ConnectOnboardingResult createConnectAccountLink(String providerId, String email);
-
-    boolean isAccountFullyOnboarded(String stripeAccountId);
-
-    PaymentWebhookInput validateAndParseWebhook(String rawPayload, String signatureHeader);
-
-    // DTO simples para o retorno do onboarding
-    record ConnectOnboardingResult(String accountId, String onboardingUrl) {
-    }
+    // --- ONBOARDING (STRIPE CONNECT) ---
+    
+    /**
+     * Cria o link para o profissional/salão conectar sua conta bancária.
+     */
+    ConnectOnboardingResult createConnectAccountLink(UUID providerId, String email);
 
     String continueOnboarding(String stripeAccountId);
 
+    /**
+     * Cria um link para o dashboard do Stripe (para o usuário ver saldo/saques).
+     */
     String createLoginLink(String stripeAccountId);
+
+    boolean isAccountFullyOnboarded(String stripeAccountId);
+
+    // --- WEBHOOKS ---
+    PaymentWebhookInput validateAndParseWebhook(String rawPayload, String signatureHeader);
+
+    // --- DTOs ---
+    record ConnectOnboardingResult(String accountId, String onboardingUrl) {}
 }

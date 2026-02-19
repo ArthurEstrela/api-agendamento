@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 @Getter
 @Builder(toBuilder = true)
@@ -18,17 +20,18 @@ import java.util.List;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class Appointment {
 
-    private String id;
-    private String clientId;
+    // ✨ MELHORIA: Identidade forte com UUID
+    private UUID id;
+    private UUID clientId;
     private String clientName;
     private String clientEmail;
     private String businessName;
     private ClientPhone clientPhone;
 
-    private String serviceProviderId;
-    private String providerId;
+    // ✨ MELHORIA: Padronizado para UUID e nome único (removeu duplicidade de providerId)
+    private UUID serviceProviderId;
 
-    private String professionalId;
+    private UUID professionalId;
     private String professionalName;
 
     @Builder.Default
@@ -49,8 +52,10 @@ public class Appointment {
     @Setter
     private BigDecimal finalPrice; // Preço Final Cobrado (Com descontos)
 
-    // ✨ CAMPOS FALTANTES ADICIONADOS AQUI:
-    private String couponId;
+    // ✨ MELHORIA: CouponId agora é UUID (se o cupom for uma entidade)
+    // Se o cupom for apenas um código texto ("VERAO10"), mantenha String. 
+    // Assumindo padronização de IDs de entidades:
+    private UUID couponId; 
     private BigDecimal discountAmount;
 
     private BigDecimal professionalCommission;
@@ -75,6 +80,7 @@ public class Appointment {
     private boolean reminderSent;
     private boolean notified;
 
+    // IDs externos (Stripe/Google) continuam String pois não controlamos o formato
     @Setter
     private String externalEventId;
 
@@ -86,23 +92,23 @@ public class Appointment {
     private boolean commissionSettled;
     private LocalDateTime settledAt;
 
-    // --- FACTORIES (Atualizadas com Validações de Negócio) ---
+    // --- FACTORIES (Atualizadas com UUID e Geração de ID) ---
 
-    public static Appointment create(String clientId, String clientName, String clientEmail,
+    public static Appointment create(UUID clientId, String clientName, String clientEmail,
             String businessName, ClientPhone phone,
-            String serviceProviderId, String profId, String profName,
+            UUID serviceProviderId, UUID profId, String profName,
             List<Service> services, LocalDateTime start, Integer reminderMinutes,
             String timeZone) {
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
 
-        // ✨ VALIDAÇÃO 1: Preço Negativo (Defesa do Domínio)
         if (serviceTotal.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException("O valor total dos serviços não pode ser negativo.");
         }
 
         Appointment appointment = Appointment.builder()
+                .id(UUID.randomUUID()) // ✨ A entidade já nasce com ID
                 .clientId(clientId)
                 .clientName(clientName)
                 .clientEmail(clientEmail)
@@ -118,7 +124,7 @@ public class Appointment {
                 .status(AppointmentStatus.PENDING)
                 .price(serviceTotal)
                 .finalPrice(serviceTotal)
-                .discountAmount(BigDecimal.ZERO) // Inicializa zerado para evitar null pointer
+                .discountAmount(BigDecimal.ZERO)
                 .reminderMinutes(reminderMinutes != null ? reminderMinutes : 0)
                 .reminderSent(false)
                 .notified(false)
@@ -128,7 +134,6 @@ public class Appointment {
 
         appointment.calculateEndTime();
 
-        // ✨ VALIDAÇÃO 2: Coerência Temporal
         if (!appointment.getEndTime().isAfter(appointment.getStartTime())) {
             throw new BusinessException("A duração total do agendamento deve ser maior que zero.");
         }
@@ -137,19 +142,19 @@ public class Appointment {
     }
 
     public static Appointment createManual(String clientName, ClientPhone phone,
-            String serviceProviderId, String profId, String profName,
+            UUID serviceProviderId, UUID profId, String profName,
             List<Service> services, LocalDateTime start, String notes,
             String timeZone) {
 
         validateServices(services);
         BigDecimal serviceTotal = calculateServiceTotal(services);
 
-        // ✨ VALIDAÇÃO 1 (Manual)
         if (serviceTotal.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException("O valor total dos serviços não pode ser negativo.");
         }
 
         Appointment appointment = Appointment.builder()
+                .id(UUID.randomUUID()) // ✨ ID Gerado
                 .clientName(clientName)
                 .clientPhone(phone)
                 .serviceProviderId(serviceProviderId)
@@ -170,7 +175,6 @@ public class Appointment {
 
         appointment.calculateEndTime();
 
-        // ✨ VALIDAÇÃO 2 (Manual)
         if (!appointment.getEndTime().isAfter(appointment.getStartTime())) {
             throw new BusinessException("A duração total do agendamento deve ser maior que zero.");
         }
@@ -178,15 +182,15 @@ public class Appointment {
         return appointment;
     }
 
-    public static Appointment createPersonalBlock(String profId, String profName, String serviceProviderId,
+    public static Appointment createPersonalBlock(UUID profId, String profName, UUID serviceProviderId,
             LocalDateTime start, LocalDateTime end, String reason, String timeZone) {
 
-        // ✨ VALIDAÇÃO EXTRA: Para bloqueios, o input de fim vem direto do usuário
         if (end == null || !end.isAfter(start)) {
             throw new BusinessException("O horário de término do bloqueio deve ser posterior ao início.");
         }
 
         return Appointment.builder()
+                .id(UUID.randomUUID()) // ✨ ID Gerado
                 .professionalId(profId)
                 .professionalName(profName)
                 .serviceProviderId(serviceProviderId)
@@ -240,7 +244,7 @@ public class Appointment {
             Integer qty = quantities.get(i);
 
             this.products.add(AppointmentItem.builder()
-                    .productId(p.getId())
+                    .productId(p.getId()) // Assumindo que Product.getId() agora retorna UUID
                     .productName(p.getName())
                     .unitPrice(p.getPrice())
                     .quantity(qty)
@@ -258,22 +262,19 @@ public class Appointment {
 
         // Aplica Desconto
         if (discountValue != null && discountValue.compareTo(BigDecimal.ZERO) > 0) {
-            // ✨ VALIDAÇÃO: Desconto não pode ser maior que o preço
             if (discountValue.compareTo(this.price) > 0) {
                 throw new BusinessException("O desconto não pode ser maior que o valor total.");
             }
             this.finalPrice = this.price.subtract(discountValue);
-            this.discountAmount = discountValue; // Atualiza o valor do desconto registrado
+            this.discountAmount = discountValue;
         } else {
             this.finalPrice = this.price;
         }
 
-        // Garante que finalPrice nunca fique negativo (Redundância de segurança)
         if (this.finalPrice.compareTo(BigDecimal.ZERO) < 0) {
             this.finalPrice = BigDecimal.ZERO;
         }
 
-        // Registra Comissão e Taxa do Salão
         this.professionalCommission = commissionValue != null ? commissionValue : BigDecimal.ZERO;
         this.serviceProviderFee = this.finalPrice.subtract(this.professionalCommission);
 
@@ -295,7 +296,6 @@ public class Appointment {
         this.startTime = newStartTime;
         calculateEndTime();
 
-        // ✨ VALIDAÇÃO NO REAGENDAMENTO TAMBÉM
         if (!this.endTime.isAfter(this.startTime)) {
             throw new BusinessException("Erro ao reagendar: duração inválida.");
         }
@@ -311,6 +311,59 @@ public class Appointment {
 
     public BigDecimal calculateOriginalServiceTotal() {
         return calculateServiceTotal(this.services);
+    }
+
+    public void markAsNoShow() {
+        if (this.status != AppointmentStatus.SCHEDULED) {
+            throw new BusinessException("Apenas agendamentos confirmados podem ser marcados como No-Show.");
+        }
+        this.status = AppointmentStatus.NO_SHOW;
+    }
+
+    public boolean isEligibleForRefund(int minHoursBefore) {
+        if (!this.paid || this.externalPaymentId == null)
+            return false;
+
+        LocalDateTime limit = LocalDateTime.now().plusHours(minHoursBefore);
+        return this.startTime.isAfter(limit);
+    }
+
+    public void markCommissionAsSettled() {
+        this.commissionSettled = true;
+        this.settledAt = LocalDateTime.now();
+    }
+
+    public boolean isPaid() {
+        return this.externalPaymentId != null;
+    }
+
+    public void removeProduct(UUID productId) { // ✨ Atualizado para UUID
+        this.products.removeIf(item -> item.getProductId().equals(productId));
+        recalculateTotals();
+    }
+
+    public boolean hasProducts() {
+        return this.products != null && !this.products.isEmpty();
+    }
+
+    public void confirmPayment(String externalPaymentId) {
+        if (this.paid && this.status == AppointmentStatus.SCHEDULED) {
+            return;
+        }
+
+        if (this.status == AppointmentStatus.CANCELLED) {
+            throw new BusinessException(
+                    "Recebemos pagamento para um agendamento cancelado. Necessário estorno manual.");
+        }
+
+        this.paid = true;
+        this.externalPaymentId = externalPaymentId;
+
+        if (this.status == AppointmentStatus.PENDING) {
+            this.status = AppointmentStatus.SCHEDULED;
+        }
+
+        this.settledAt = LocalDateTime.now();
     }
 
     // --- MÉTODOS PRIVADOS ---
@@ -347,13 +400,29 @@ public class Appointment {
         }
     }
 
+    // --- IMPLEMENTAÇÃO DE IDENTIDADE DE ENTIDADE ---
+    // Em DDD, Entidades são iguais se seus IDs são iguais.
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Appointment that = (Appointment) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
     // --- SUBCLASSES ---
     @Getter
     @Builder
     @AllArgsConstructor
     @NoArgsConstructor
     public static class AppointmentItem {
-        private String productId;
+        private UUID productId; // ✨ UUID
         private String productName;
         private BigDecimal unitPrice;
         private Integer quantity;
@@ -363,62 +432,5 @@ public class Appointment {
                 return BigDecimal.ZERO;
             return unitPrice.multiply(new BigDecimal(quantity));
         }
-    }
-
-    public void markAsNoShow() {
-        if (this.status != AppointmentStatus.SCHEDULED) {
-            throw new BusinessException("Apenas agendamentos confirmados podem ser marcados como No-Show.");
-        }
-        this.status = AppointmentStatus.NO_SHOW;
-    }
-
-    public boolean isEligibleForRefund(int minHoursBefore) {
-        if (!this.paid || this.externalPaymentId == null)
-            return false;
-
-        LocalDateTime limit = LocalDateTime.now().plusHours(minHoursBefore);
-        return this.startTime.isAfter(limit);
-    }
-
-    public void markCommissionAsSettled() {
-        this.commissionSettled = true;
-        this.settledAt = LocalDateTime.now();
-    }
-
-    public boolean isPaid() {
-        return this.externalPaymentId != null;
-    }
-
-    public void removeProduct(String productId) {
-        this.products.removeIf(item -> item.getProductId().equals(productId));
-        recalculateTotals();
-    }
-
-    // Método auxiliar para facilitar leitura
-    public boolean hasProducts() {
-        return this.products != null && !this.products.isEmpty();
-    }
-
-    public void confirmPayment(String externalPaymentId) {
-        // Idempotência de domínio: se já está pago, não faz nada
-        if (this.paid && this.status == AppointmentStatus.SCHEDULED) {
-            return;
-        }
-
-        if (this.status == AppointmentStatus.CANCELLED) {
-            throw new BusinessException(
-                    "Recebemos pagamento para um agendamento cancelado. Necessário estorno manual.");
-        }
-
-        this.paid = true;
-        this.externalPaymentId = externalPaymentId;
-
-        // Se estava pendente, agora está agendado oficialmente
-        if (this.status == AppointmentStatus.PENDING) {
-            this.status = AppointmentStatus.SCHEDULED;
-        }
-
-        // Registramos quando foi "liquidado" (opcional, dependendo do fluxo de split)
-        this.settledAt = LocalDateTime.now();
     }
 }

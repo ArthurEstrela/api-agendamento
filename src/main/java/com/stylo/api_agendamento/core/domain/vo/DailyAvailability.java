@@ -11,17 +11,23 @@ public record DailyAvailability(
     LocalTime endTime
 ) {
     public DailyAvailability {
-        if (isOpen && startTime != null && endTime != null) {
-            if (startTime.isAfter(endTime) || startTime.equals(endTime)) {
-                throw new BusinessException("O horário de início deve ser anterior ao horário de término.");
+        if (isOpen) {
+            if (startTime == null || endTime == null) {
+                throw new BusinessException("Horários são obrigatórios para dias de funcionamento.");
+            }
+            if (!endTime.isAfter(startTime)) {
+                throw new BusinessException("O horário de término deve ser posterior ao início para " + dayOfWeek);
             }
         }
     }
 
-    // Verifica se um horário específico cabe dentro deste dia de trabalho
     public boolean contains(LocalTime start, int durationMinutes) {
         if (!isOpen) return false;
+        
         LocalTime end = start.plusMinutes(durationMinutes);
+        
+        // Verifica se o serviço cabe dentro do expediente
+        // (start >= startTime) AND (end <= endTime)
         return !start.isBefore(startTime) && !end.isAfter(endTime);
     }
 }

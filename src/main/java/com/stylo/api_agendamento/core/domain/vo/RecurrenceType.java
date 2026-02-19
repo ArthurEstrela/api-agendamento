@@ -1,8 +1,15 @@
 package com.stylo.api_agendamento.core.domain.vo;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
+@Getter
+@RequiredArgsConstructor
 public enum RecurrenceType {
-    DAILY,      // Todo dia
-    WEEKLY,     // Toda semana (Ex: Toda Sexta)
-    BIWEEKLY,   // Quinzenal
-    MONTHLY     // Todo mês (Ex: Todo dia 15)
+    DAILY("Diário"),
+    WEEKLY("Semanal"),
+    BIWEEKLY("Quinzenal"),
+    MONTHLY("Mensal");
+    
+    private final String description;
 }

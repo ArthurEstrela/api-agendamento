@@ -1,36 +1,61 @@
 package com.stylo.api_agendamento.core.ports;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
+import com.stylo.api_agendamento.core.domain.Appointment;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
-import com.stylo.api_agendamento.core.common.PagedResult;
-import com.stylo.api_agendamento.core.domain.Appointment;
+import java.util.UUID;
 
 public interface IAppointmentRepository {
+
     Appointment save(Appointment appointment);
 
-    Optional<Appointment> findById(String id);
+    Optional<Appointment> findById(UUID id);
 
-    // Método que faltava para o GetAvailableSlotsUseCase
-    List<Appointment> findAllByProfessionalIdAndDate(String professionalId, LocalDate date);
+    /**
+     * Busca agendamentos de um profissional em um dia específico.
+     * Útil para montagem de grid/agenda visual.
+     */
+    List<Appointment> findAllByProfessionalIdAndDate(UUID professionalId, LocalDate date);
 
-    // Mantemos este para validações atômicas de conflito no momento de salvar
-    boolean hasConflictingAppointment(String professionalId, LocalDateTime start, LocalDateTime end);
+    /**
+     * Verifica conflitos de horário (Double Booking).
+     * Deve ignorar o próprio agendamento (caso seja uma edição).
+     */
+    boolean hasConflictingAppointment(UUID professionalId, LocalDateTime start, LocalDateTime end);
 
-    List<Appointment> findAllByProviderIdAndPeriod(String providerId, LocalDateTime start, LocalDateTime end);
+    /**
+     * Busca agendamentos para relatórios administrativos do salão.
+     */
+    List<Appointment> findAllByProviderIdAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end);
 
-    List<Appointment> findAppointmentsToNotify(LocalDateTime now);
+    /**
+     * Busca agendamentos que precisam de notificação (ex: lembrete 1h antes).
+     */
+    List<Appointment> findAppointmentsToNotify(LocalDateTime targetTime);
 
-    List<Appointment> findPendingReminders(LocalDateTime targetTime);
+    /**
+     * Busca receita gerada (Agendamentos Concluídos).
+     */
+    List<Appointment> findRevenueInPeriod(UUID providerId, LocalDateTime start, LocalDateTime end);
 
-    List<Appointment> findRevenueInPeriod(String providerId, LocalDateTime start, LocalDateTime end);
+    /**
+     * Calcula comissão total de um profissional no período.
+     * Otimizado para não carregar objetos em memória, apenas o valor.
+     */
+    BigDecimal sumProfessionalCommissionByPeriod(UUID professionalId, LocalDateTime start, LocalDateTime end);
 
-    BigDecimal sumProfessionalCommissionByPeriod(String professionalId, LocalDateTime start, LocalDateTime end);
+    /**
+     * Histórico de agendamentos do cliente (Paginado).
+     */
+    PagedResult<Appointment> findAllByClientId(UUID clientId, int page, int size);
 
-    PagedResult<Appointment> findAllByClientId(String clientId, int page, int size);
-
-    List<Appointment> findPendingSettlementByProfessional(String professionalId);
+    /**
+     * Busca agendamentos concluídos mas que ainda não tiveram comissão paga/processada.
+     */
+    List<Appointment> findPendingSettlementByProfessional(UUID professionalId);
 }

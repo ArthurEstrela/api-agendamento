@@ -3,17 +3,19 @@ package com.stylo.api_agendamento.core.ports;
 import java.io.InputStream;
 
 public interface IStorageProvider {
+    
     /**
-     * Faz upload de um arquivo e retorna a URL pública.
-     * @param fileName Nome do arquivo (ex: users/uuid/profile.jpg)
-     * @param content Stream do conteúdo do arquivo
-     * @param contentType Tipo do arquivo (ex: image/jpeg)
-     * @return URL pública do arquivo
+     * Faz upload de um arquivo para nuvem (S3/Firebase).
+     * * @param path Caminho/Nome do arquivo (ex: "users/{uuid}/avatar.jpg")
+     * @param content Stream de dados
+     * @param contentType MIME Type (ex: "image/jpeg")
+     * @param contentLength Tamanho do arquivo em bytes (Essencial para performance de I/O na nuvem)
+     * @return URL pública assinada ou direta do arquivo.
      */
-    String uploadFile(String fileName, InputStream content, String contentType);
+    String uploadFile(String path, InputStream content, String contentType, long contentLength);
 
     /**
-     * Deleta um arquivo (útil para quando o usuário troca de foto).
+     * Remove o arquivo do bucket.
      */
-    void deleteFile(String fileName);
+    void deleteFile(String path);
 }

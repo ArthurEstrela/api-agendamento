@@ -6,6 +6,7 @@ import com.stylo.api_agendamento.core.domain.coupon.Coupon;
 import com.stylo.api_agendamento.core.domain.events.AppointmentCreatedEvent;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.exceptions.ScheduleConflictException;
 import com.stylo.api_agendamento.core.ports.*;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -31,38 +33,35 @@ public class CreateAppointmentUseCase {
     private final IUserRepository userRepository;
     private final IServiceProviderRepository serviceProviderRepository;
     private final ICouponRepository couponRepository;
-    private final ApplyCouponUseCase applyCouponUseCase;
     private final IEventPublisher eventPublisher;
 
-    // ✨ Componentes para Concorrência e Transação Programática
+    // Componentes para Concorrência Distribuída e Transação Programática
     private final RedissonClient redissonClient;
     private final PlatformTransactionManager transactionManager;
 
-    public Appointment execute(CreateAppointmentInput input) {
+    public Appointment execute(Input input) {
 
-        // 1. Definição da Chave de Lock (Escopo: O Profissional que receberá o agendamento)
-        // Garante fila única para este profissional em ambiente distribuído.
+        // 1. Lock Distribuído (Escopo: Profissional)
+        // Garante que apenas uma requisição por vez tente agendar para este profissional.
         String lockKey = "lock:appointment:professional:" + input.professionalId();
         RLock lock = redissonClient.getLock(lockKey);
 
         try {
-            // 2. Tenta adquirir o lock distribuído
-            // waitTime: 2s (espera na fila) | leaseTime: 5s (solta se o servidor morrer)
+            // Tenta adquirir o lock: espera até 2s, segura por 5s
             boolean isLocked = lock.tryLock(2, 5, TimeUnit.SECONDS);
 
             if (!isLocked) {
-                // Fail-fast: Protege o sistema em picos de acesso
-                throw new BusinessException("A agenda deste profissional está sendo atualizada. Tente novamente em instantes.");
+                log.warn("Concorrência detectada para o profissional {}", input.professionalId());
+                throw new BusinessException("A agenda deste profissional está sendo atualizada por outro usuário. Tente novamente.");
             }
 
             try {
-                // 3. Execução Transacional (Dentro do Lock)
-                // TransactionTemplate garante que a transação inicie APÓS o lock e commite ANTES do unlock.
+                // 2. Execução Transacional Programática
+                // Garante que a transação de banco de dados ocorra estritamente DENTRO do tempo do Lock Distribuído.
                 TransactionTemplate template = new TransactionTemplate(transactionManager);
                 return template.execute(status -> executeInTransaction(input));
 
             } finally {
-                // Sempre libera o lock, sucesso ou erro
                 if (lock.isHeldByCurrentThread()) {
                     lock.unlock();
                 }
@@ -74,117 +73,139 @@ public class CreateAppointmentUseCase {
         }
     }
 
-    // Lógica de negócio pura, executada dentro da transação segura
-    protected Appointment executeInTransaction(CreateAppointmentInput input) {
+    // Lógica de negócio protegida por transação e lock
+    protected Appointment executeInTransaction(Input input) {
 
-        // 1. Busca Profissional COM LOCK PESSIMISTA (SELECT ... FOR UPDATE)
-        // Isso trava a linha do profissional no banco para esta transação.
+        // 1. Busca Profissional (Lock Pessimista no Banco para garantir leitura consistente)
         Professional professional = professionalRepository.findByIdWithLock(input.professionalId())
-                .orElseThrow(() -> new BusinessException("Profissional não encontrado."));
+                .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 2. Validações de Cliente
-        User client = userRepository.findById(input.clientId())
-                .orElseThrow(() -> new BusinessException("Cliente não encontrado."));
+        // 2. Validações de Entidades Relacionadas
+        User clientUser = userRepository.findById(input.clientId())
+                .orElseThrow(() -> new EntityNotFoundException("Cliente não encontrado."));
 
-        // 3. Validação de Serviços
+        ServiceProvider provider = serviceProviderRepository.findById(professional.getServiceProviderId())
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado."));
+
+        if (!provider.isSubscriptionActive()) {
+            throw new BusinessException("O estabelecimento não possui uma assinatura ativa para receber agendamentos.");
+        }
+
+        // 3. Validação e Busca de Serviços
         List<Service> requestedServices = serviceRepository.findAllByIds(input.serviceIds());
+        
         if (requestedServices.isEmpty()) {
             throw new BusinessException("Selecione ao menos um serviço.");
         }
+        
+        if (requestedServices.size() != input.serviceIds().size()) {
+            throw new BusinessException("Um ou mais serviços selecionados não foram encontrados ou estão inativos.");
+        }
 
-        // 4. Validação de Competência e Horário
+        // ✨ Segurança: Tenant Isolation
+        // Garante que os serviços pertençam ao mesmo estabelecimento do profissional
+        boolean servicesBelongToProvider = requestedServices.stream()
+                .allMatch(s -> s.getServiceProviderId().equals(provider.getId()));
+        
+        if (!servicesBelongToProvider) {
+            throw new BusinessException("Erro de consistência: Serviços não pertencem ao estabelecimento do profissional.");
+        }
+
+        // 4. Validação de Competência e Disponibilidade
         professional.validateCanPerform(requestedServices);
 
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
         
-        // Calcula o preço base (soma dos serviços)
-        BigDecimal basePrice = requestedServices.stream()
-                .map(Service::getPrice)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
+        // Verifica se o profissional trabalha nesse horário e se cabe na grade
         if (!professional.isAvailable(input.startTime(), totalDuration)) {
             throw new BusinessException("Profissional indisponível neste horário (fora do expediente ou pausa).");
         }
 
-        // 5. Lógica de Cupom de Desconto (✨ NOVO)
+        // 5. Cálculo Financeiro e Cupons
+        BigDecimal basePrice = requestedServices.stream()
+                .map(Service::getPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         Coupon coupon = null;
         BigDecimal discountAmount = BigDecimal.ZERO;
 
         if (input.couponCode() != null && !input.couponCode().isBlank()) {
-            var result = applyCouponUseCase.validateAndCalculate(
-                    input.couponCode(), 
-                    professional.getServiceProviderId(), 
-                    basePrice
-            );
-            coupon = result.coupon();
-            discountAmount = result.discountAmount();
+            // Lógica de Cupom Inline para aproveitar o contexto transacional
+            coupon = couponRepository.findByCodeAndProviderId(input.couponCode(), provider.getId())
+                    .orElseThrow(() -> new BusinessException("Cupom inválido ou não encontrado."));
+            
+            // O método calculateDiscount do domínio já valida validade, uso e valor mínimo
+            discountAmount = coupon.calculateDiscount(basePrice);
         }
 
-        // Calcula preço final (nunca negativo)
         BigDecimal finalPrice = basePrice.subtract(discountAmount).max(BigDecimal.ZERO);
 
-        // 6. Proteção contra Double Booking (Check Final no Banco)
-        // Seguro devido ao Lock Pessimista no Profissional
+        // 6. Check Final de Conflito (Double Booking)
+        // Verifica se já existe agendamento overlapping no banco
         boolean hasConflict = appointmentRepository.hasConflictingAppointment(
                 input.professionalId(),
                 input.startTime(),
                 input.startTime().plusMinutes(totalDuration));
 
         if (hasConflict) {
-            throw new ScheduleConflictException("Este horário acabou de ser ocupado por outro cliente.");
+            throw new ScheduleConflictException("Desculpe, este horário acabou de ser ocupado por outro cliente.");
         }
 
-        // 7. Recuperação do TimeZone
-        String timeZone = serviceProviderRepository.findById(professional.getServiceProviderId())
-                .map(ServiceProvider::getTimeZone)
-                .orElse("America/Sao_Paulo");
-
-        // 8. Criação da Entidade
-        // Cria o objeto base usando o Factory Method e enriquece com dados financeiros via Builder
+        // 7. Construção da Entidade Appointment (Usando Factory do Domínio)
         Appointment appointment = Appointment.create(
-                        client.getId(),
-                        client.getName(),
-                        client.getEmail(),
-                        professional.getServiceProviderName(),
-                        new ClientPhone(client.getPhoneNumber()),
-                        professional.getServiceProviderId(),
-                        professional.getId(),
-                        professional.getName(),
-                        requestedServices,
-                        input.startTime(),
-                        input.reminderMinutes(),
-                        timeZone)
-                .toBuilder() // ✨ Enriquece com dados financeiros
-                .price(finalPrice) // Valor final a ser cobrado
+                clientUser.getId(),
+                clientUser.getName(),
+                clientUser.getEmail(),
+                provider.getBusinessName(),
+                new ClientPhone(clientUser.getPhoneNumber()),
+                provider.getId(),
+                professional.getId(),
+                professional.getName(),
+                requestedServices,
+                input.startTime(),
+                input.reminderMinutes(),
+                provider.getTimeZone() // Usa o fuso horário configurado no estabelecimento
+        );
+
+        // Enriquecimento com dados financeiros e opcionais
+        appointment = appointment.toBuilder()
+                .price(basePrice)         // Preço original
+                .finalPrice(finalPrice)   // Preço com desconto
                 .couponId(coupon != null ? coupon.getId() : null)
                 .discountAmount(discountAmount)
+                .notes(input.notes())
                 .build();
 
-        // 9. Persistência e Atualização de Cupom
+        // 8. Persistência
+        // Se houve uso de cupom, incrementa o uso
         if (coupon != null) {
             coupon.incrementUsage();
-            couponRepository.save(coupon); // Salva incremento de uso na mesma transação
+            couponRepository.save(coupon);
         }
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
-        log.info("Agendamento criado com segurança (ID: {}, Valor: {}).", savedAppointment.getId(), finalPrice);
+        log.info("Agendamento criado com sucesso. ID: {}", savedAppointment.getId());
 
-        // 10. Publicação do Evento
+        // 9. Publicação de Evento (Assíncrono)
+        // Dispara notificações (Push, Email) e atualizações de Dashboard
         eventPublisher.publish(new AppointmentCreatedEvent(
                 savedAppointment.getId(),
                 professional.getId(),
-                client.getName(),
-                savedAppointment.getStartTime()));
+                clientUser.getName(),
+                savedAppointment.getStartTime()
+        ));
 
         return savedAppointment;
     }
 
-    public record CreateAppointmentInput(
-            String clientId,
-            String professionalId,
-            List<String> serviceIds,
+    // Input Record atualizado com UUIDs
+    public record Input(
+            UUID clientId,
+            UUID professionalId,
+            List<UUID> serviceIds,
             LocalDateTime startTime,
             Integer reminderMinutes,
-            String couponCode // ✨ Novo campo opcional
+            String couponCode,
+            String notes // Campo útil para observações do cliente
     ) {}
 }

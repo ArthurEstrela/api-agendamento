@@ -1,10 +1,11 @@
 package com.stylo.api_agendamento.core.domain.events;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record AppointmentCreatedEvent(
-    String appointmentId,
-    String professionalId,
+    UUID appointmentId,
+    UUID professionalId,
     String clientName,
     LocalDateTime startTime
 ) {}

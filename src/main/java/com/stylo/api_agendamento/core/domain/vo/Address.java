@@ -1,16 +1,26 @@
 package com.stylo.api_agendamento.core.domain.vo;
 
-import lombok.Getter;
-import lombok.AllArgsConstructor;
+import com.stylo.api_agendamento.core.exceptions.BusinessException;
 
-@Getter
-@AllArgsConstructor
-public class Address {
-    private final String street;
-    private final String number;
-    private final String complement;
-    private final String neighborhood;
-    private final String city;
-    private final String state;
-    private final String zipCode;
+public record Address(
+    String street,
+    String number,
+    String complement,
+    String neighborhood,
+    String city,
+    String state,
+    String zipCode
+) {
+    public Address {
+        if (street == null || street.isBlank()) throw new BusinessException("A rua é obrigatória.");
+        if (city == null || city.isBlank()) throw new BusinessException("A cidade é obrigatória.");
+        if (state == null || state.isBlank()) throw new BusinessException("O estado é obrigatório.");
+        
+        // Validação básica de CEP (apenas números, 8 dígitos)
+        if (zipCode != null) {
+            String cleanZip = zipCode.replaceAll("\\D", "");
+            if (cleanZip.length() != 8) throw new BusinessException("CEP inválido.");
+            zipCode = cleanZip; // Armazena limpo
+        }
+    }
 }

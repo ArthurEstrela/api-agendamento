@@ -1,14 +1,34 @@
 package com.stylo.api_agendamento.core.ports;
 
-import java.util.List;
-
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Review;
 
+import java.util.Optional;
+import java.util.UUID;
+
 public interface IReviewRepository {
+    
     Review save(Review review);
-    List<Review> findByProfessionalId(String professionalId);
-    List<Review> findByServiceProviderId(String providerId);
-    Double getAverageRating(String professionalId);
-    boolean existsByAppointmentId(String appointmentId);
-    List<Review> findAllByProviderId(String providerId);
+
+    Optional<Review> findById(UUID id);
+
+    /**
+     * Lista avaliações de um profissional específico (Paginado).
+     */
+    PagedResult<Review> findAllByProfessionalId(UUID professionalId, int page, int size);
+
+    /**
+     * Lista todas as avaliações do estabelecimento (Visão do Dono).
+     */
+    PagedResult<Review> findAllByProviderId(UUID providerId, int page, int size);
+
+    /**
+     * Calcula a média de estrelas (1.0 a 5.0).
+     */
+    Double getAverageRatingByProfessional(UUID professionalId);
+    
+    /**
+     * Garante que o cliente só avalie uma vez por agendamento.
+     */
+    boolean existsByAppointmentId(UUID appointmentId);
 }

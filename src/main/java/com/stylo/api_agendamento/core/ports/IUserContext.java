@@ -5,20 +5,32 @@ import com.stylo.api_agendamento.core.domain.UserPermission;
 import com.stylo.api_agendamento.core.domain.UserRole;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface IUserContext {
-    String getCurrentUserId();
+    
+    /**
+     * Retorna o ID do usuário logado. 
+     * Lança exceção se não houver usuário autenticado.
+     */
+    UUID getCurrentUserId();
+
+    /**
+     * Retorna o ID de forma segura (sem exceção).
+     */
+    Optional<UUID> getCurrentUserIdOptional();
+
     String getCurrentUserEmail();
+    
     UserRole getCurrentUserRole();
 
     boolean hasRole(UserRole role);
     
-    // ✨ NOVO: Permite checar permissões granulares direto na regra de negócio
     boolean hasPermission(UserPermission permission);
 
-    Optional<String> getCurrentUserIdOptional();
-
-    // ✨ NOVO: Expõe o usuário completo para acessarmos providerId, fcmToken, etc.
-    // Isso evita que tenhamos que buscar o usuário no banco toda vez.
+    /**
+     * Retorna a entidade completa do usuário logado.
+     * Útil para acessar dados como providerId, clientId, nome, etc. sem ir ao repositório novamente.
+     */
     User getCurrentUser();
 }

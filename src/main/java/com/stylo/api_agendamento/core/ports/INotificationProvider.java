@@ -1,22 +1,27 @@
 package com.stylo.api_agendamento.core.ports;
 
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 public interface INotificationProvider {
-    // Método para confirmação de agendamento
-    void sendAppointmentConfirmed(String clientId, String message);
 
-    // Método para reagendamento
-    void sendAppointmentRescheduled(String clientId, String message);
+    // --- AGENDAMENTOS ---
+    void sendAppointmentConfirmed(UUID clientId, String clientName, String serviceName, LocalDateTime startTime);
+    
+    void sendAppointmentRescheduled(UUID clientId, String clientName, LocalDateTime oldTime, LocalDateTime newTime);
+    
+    void sendAppointmentCancelled(UUID clientId, String clientName, String reason);
+    
+    void sendAppointmentReminder(String toEmailOrPhone, String clientName, String businessName, String startTime);
 
-    // Você também pode adicionar para cancelamentos futuramente
-    void sendAppointmentCancelled(String clientId, String message);
+    // --- PUSH NOTIFICATIONS (APP) ---
+    void sendPushNotification(UUID userId, String title, String body, String actionUrl);
 
-    void sendAppointmentReminder(String to, String clientName, String businessName, String startTime);
-
-    void sendNotification(String userId, String title, String body);
-
-    void sendNotification(String userId, String title, String body, String actionUrl);
-
+    // --- EMAILS TRANSACIONAIS ---
     void sendWelcomeEmail(String email, String name);
-
+    
     void sendPasswordResetEmail(String email, String name, String resetLink);
+
+    // --- INTERNO ---
+    void sendSystemAlert(String adminEmail, String subject, String message);
 }

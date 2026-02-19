@@ -1,25 +1,33 @@
 package com.stylo.api_agendamento.core.ports;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Expense;
 import com.stylo.api_agendamento.core.domain.Payout;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
 public interface IFinancialRepository {
-    void saveExpense(Expense expense);
 
-    List<Expense> findExpensesByProvider(String providerId, LocalDateTime start, LocalDateTime end);
+    // --- DESPESAS ---
+    Expense saveExpense(Expense expense);
 
-    // Aqui o UseCase vai buscar os Appointments pagos para calcular o lucro
-    void registerRevenue(String serviceProviderId, BigDecimal amount, String description, PaymentMethod paymentMethod);
+    List<Expense> findExpensesByProviderAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end);
+    
+    PagedResult<Expense> findAllExpensesByProviderId(UUID providerId, int page, int size);
 
-    List<Expense> findAllExpensesByProviderIdAndPeriod(String providerId, LocalDate start, LocalDate end);
+    void deleteExpense(UUID expenseId);
 
-    void deleteExpense(String expenseId);
+    // --- RECEITAS (CAIXA / VENDAS) ---
+    // Registra uma entrada avulsa (fora do fluxo de agendamento, ex: venda de produto balcão)
+    void registerRevenue(UUID serviceProviderId, BigDecimal amount, String description, PaymentMethod paymentMethod);
 
+    // --- PAGAMENTOS (COMISSÕES / SAQUES) ---
     Payout savePayout(Payout payout);
+    
+    List<Payout> findPayoutsByProfessional(UUID professionalId, int page, int size);
 }

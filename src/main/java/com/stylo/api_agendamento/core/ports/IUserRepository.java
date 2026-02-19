@@ -1,20 +1,29 @@
 package com.stylo.api_agendamento.core.ports;
 
-import java.util.Optional;
 import com.stylo.api_agendamento.core.domain.User;
 
+import java.util.Optional;
+import java.util.UUID;
+
 public interface IUserRepository {
-    Optional<User> findById(String id);
+    
+    User save(User user);
+
+    Optional<User> findById(UUID id);
 
     Optional<User> findByEmail(String email);
 
-    Optional<User> findByProfessionalId(String professionalId);
+    /**
+     * Verifica existência (mais leve que carregar a entidade inteira).
+     */
+    boolean existsByEmail(String email);
 
-    User save(User user);
-
-    void updateProfile(User user);
-
-    void delete(String id);
+    /**
+     * Busca usuário vinculado a um perfil profissional específico.
+     */
+    Optional<User> findByProviderId(UUID providerId);
 
     Optional<User> findByResetPasswordToken(String token);
+    
+    void delete(UUID id);
 }
