@@ -2,6 +2,7 @@ package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
+import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.ServiceProvider.SubscriptionStatus;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
@@ -30,7 +31,7 @@ public class HandlePaymentWebhookUseCase {
         // 1. Chave de Idempotência (Evita processar o mesmo evento duas vezes)
         String idempotencyKey = "webhook_event:" + input.eventId();
         Optional<String> cached = cacheService.get(idempotencyKey, String.class);
-        
+
         if (cached.isPresent()) {
             log.info("Evento de webhook {} já processado. Ignorando.", input.eventId());
             return;
@@ -52,7 +53,8 @@ public class HandlePaymentWebhookUseCase {
     }
 
     private void handleAppointmentPayment(PaymentWebhookInput input) {
-        if (!isPaymentSuccessful(input.status())) return;
+        if (!isPaymentSuccessful(input.status()))
+            return;
 
         String appointmentIdStr = input.metadata().get("appointmentId");
         if (appointmentIdStr == null) {
@@ -64,35 +66,47 @@ public class HandlePaymentWebhookUseCase {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new EntityNotFoundException("Agendamento não encontrado: " + appointmentId));
 
-        // Confirma o pagamento no domínio (Muda status para SCHEDULED/PAID)
+        // ✨ BLINDAGEM FINANCEIRA: Idempotência de Domínio
+        // Se o banco cair após processar, mas antes do Stripe receber o 200 OK,
+        // o Stripe vai reenviar o evento. Isso impede que o mesmo serviço seja "pago"
+        // duas vezes.
+        if (appointment.getStatus() == AppointmentStatus.CONFIRMED) {
+            log.info("Agendamento {} já consta como PAGO no banco. Ignorando evento duplicado do Stripe.",
+                    appointment.getId());
+            return;
+        }
+
         appointment.confirmPayment(input.gatewayPaymentId());
         appointmentRepository.save(appointment);
-        
+
         log.info("Agendamento {} pago e confirmado via Webhook.", appointment.getId());
     }
 
     private void handleSubscriptionPayment(PaymentWebhookInput input) {
         String providerIdStr = input.metadata().get("providerId");
-        if (providerIdStr == null) return;
+        if (providerIdStr == null)
+            return;
 
         UUID providerId = UUID.fromString(providerIdStr);
         ServiceProvider provider = serviceProviderRepository.findById(providerId)
                 .orElseThrow(() -> new EntityNotFoundException("Provedor não encontrado: " + providerId));
 
         if (isPaymentSuccessful(input.status())) {
-            // Reativa a assinatura
-            provider.updateSubscriptionStatus(SubscriptionStatus.ACTIVE);
-            log.info("Assinatura do provedor {} reativada com sucesso.", provider.getBusinessName());
-        } 
-        else if ("invoice.payment_failed".equals(input.eventType())) {
+            // ✨ BLINDAGEM DE SAAS: Só atualiza se realmente precisar
+            if (provider.getSubscriptionStatus() != SubscriptionStatus.ACTIVE) {
+                provider.updateSubscriptionStatus(SubscriptionStatus.ACTIVE);
+                log.info("Assinatura do provedor {} reativada com sucesso.", provider.getBusinessName());
+                serviceProviderRepository.save(provider);
+            }
+        } else if ("invoice.payment_failed".equals(input.eventType())) {
             handleSubscriptionFailure(provider);
+            serviceProviderRepository.save(provider);
         }
-
-        serviceProviderRepository.save(provider);
     }
 
     private void handleSubscriptionFailure(ServiceProvider provider) {
-        // Se já estava ativo, entra em Grace Period (Carência de 3 dias antes de bloquear)
+        // Se já estava ativo, entra em Grace Period (Carência de 3 dias antes de
+        // bloquear)
         if (provider.isSubscriptionActive() && provider.getSubscriptionStatus() != SubscriptionStatus.GRACE_PERIOD) {
             provider.startGracePeriod(3);
             log.warn("Falha no pagamento de {}. Entrando em Grace Period.", provider.getBusinessName());
@@ -104,8 +118,8 @@ public class HandlePaymentWebhookUseCase {
     }
 
     private boolean isPaymentSuccessful(String status) {
-        return "succeeded".equalsIgnoreCase(status) 
-            || "paid".equalsIgnoreCase(status) 
-            || "approved".equalsIgnoreCase(status);
+        return "succeeded".equalsIgnoreCase(status)
+                || "paid".equalsIgnoreCase(status)
+                || "approved".equalsIgnoreCase(status);
     }
 }

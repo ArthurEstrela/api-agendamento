@@ -1,10 +1,8 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
-import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.AuthenticationRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ForgotPasswordRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.RegisterClientRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ResetPasswordRequest;
-import com.stylo.api_agendamento.adapters.outbound.security.TokenService;
 import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
@@ -19,6 +17,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,17 +26,16 @@ import java.util.Map;
 @RestController
 @RequestMapping("/v1/auth")
 @RequiredArgsConstructor
-@Tag(name = "Autenticação", description = "Endpoints públicos para login, registro de clientes e recuperação de senha")
+@Tag(name = "Autenticação", description = "Endpoints públicos para registro e sincronização de usuários via Firebase")
 public class AuthController {
 
     private final IUserRepository userRepository;
-    private final TokenService tokenService;
     private final PasswordEncoder passwordEncoder;
     
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
 
-    @Operation(summary = "Registrar Cliente", description = "Cria uma nova conta para um cliente final usar o aplicativo.")
+    @Operation(summary = "Registrar Cliente", description = "Cria uma nova conta no banco de dados após o usuário ser criado no Firebase.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Cliente registrado com sucesso"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos ou e-mail já em uso")
@@ -45,30 +43,25 @@ public class AuthController {
     @PostMapping("/register/client")
     public ResponseEntity<Map<String, Object>> register(@RequestBody @Valid RegisterClientRequest request) {
         
-        // 1. Validação Antecipada: Evita erro 500 de Constraint do Banco de Dados
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new BusinessException("Este e-mail já está cadastrado em nosso sistema.");
         }
 
-        // 2. Criptografar a senha antes de salvar no banco
+        // Mantemos a criptografia local caso você ainda queira ter a senha salva no PostgreSQL
+        // (embora o Firebase também vá gerenciar essa senha no front-end)
         String encryptedPassword = passwordEncoder.encode(request.password());
         
-        // 3. Criação da entidade de Domínio
-        // ✨ CORREÇÃO: Usando a assinatura exata do seu Factory Method (4 parâmetros)
         User newUser = User.create(
             request.name(), 
             request.email(), 
-            request.phoneNumber(), // Injetando o telefone direto na criação
+            request.phoneNumber(), 
             UserRole.CLIENT
         );
 
-        // ✨ CORREÇÃO: Utilizando o método de negócio correto para a senha
         newUser.changePassword(encryptedPassword);
         
-        // 4. Persistência
         User savedUser = userRepository.save(newUser);
         
-        // Retorna um DTO/Map limpo (Segurança: Sem devolver a Hash)
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
             "id", savedUser.getId(),
             "name", savedUser.getName(),
@@ -77,32 +70,36 @@ public class AuthController {
         ));
     }
 
-    @Operation(summary = "Login", description = "Autentica um usuário (Cliente ou Staff) e retorna o Token JWT.")
+    @Operation(summary = "Obter dados do usuário (Substitui o Login antigo)", description = "Retorna os dados do banco após o front-end enviar o token do Firebase.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Login bem-sucedido. Retorna o Token JWT."),
-            @ApiResponse(responseCode = "400", description = "Credenciais inválidas")
+            @ApiResponse(responseCode = "200", description = "Retorna os dados do usuário sincronizado."),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido.")
     })
-    @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody @Valid AuthenticationRequest request) {
-        // 1. Busca o usuário pelo e-mail
-        var user = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BusinessException("Usuário ou senha inválidos."));
-
-        // 2. Valida a senha usando o PasswordEncoder
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            throw new BusinessException("Usuário ou senha inválidos.");
+    @GetMapping("/me") // Mudamos de POST /login para GET /me
+    public ResponseEntity<Map<String, Object>> getMe() {
+        // Como o SecurityFilter já validou o token do Firebase que veio no cabeçalho,
+        // o usuário já estará logado no contexto do Spring!
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        // 3. Gera o Token JWT
-        String token = tokenService.generateToken(user);
+        User user = (User) authentication.getPrincipal();
 
-        // Retornando como JSON (Map) para o front-end fazer o parse corretamente
-        return ResponseEntity.ok(Map.of("token", token));
+        // Retornamos os dados do banco para o React preencher o Dashboard
+        return ResponseEntity.ok(Map.of(
+            "id", user.getId(),
+            "name", user.getName(),
+            "email", user.getEmail(),
+            "role", user.getRole()
+        ));
     }
 
     @Operation(summary = "Esqueci minha senha", description = "Inicia o fluxo de recuperação enviando um e-mail com o link de reset.")
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+        // DICA: No futuro, você pode remover isso e usar a função nativa do Firebase no React: sendPasswordResetEmail()
         requestPasswordResetUseCase.execute(request.email());
         return ResponseEntity.noContent().build();
     }

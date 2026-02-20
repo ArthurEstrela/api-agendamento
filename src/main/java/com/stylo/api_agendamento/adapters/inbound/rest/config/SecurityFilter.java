@@ -7,9 +7,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,28 +20,49 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class SecurityFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(SecurityFilter.class);
+
     private final TokenService tokenService;
     private final IUserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) 
             throws ServletException, IOException {
+        
         var token = this.recoverToken(request);
+        
         if (token != null) {
-            var login = tokenService.validateToken(token);
-            var user = userRepository.findByEmail(login)
-                    .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
-
-            // Aqui adaptamos o seu User do domínio para o UserDetails do Spring Security
-            var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            var email = tokenService.validateToken(token);
+            
+            if (email != null && !email.isBlank()) {
+                // Busca o usuário no banco local pelo e-mail verificado pelo Firebase
+                userRepository.findByEmail(email).ifPresentOrElse(
+                    user -> {
+                        // Usuário encontrado: Autentica no contexto do Spring Security
+                        var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    },
+                    () -> {
+                        // Usuário logado no Firebase, mas não existe no BD Postgres.
+                        // O Spring Security irá retornar 403/401 automaticamente dependendo da rota.
+                        logger.warn("Aviso: Token Firebase válido, mas usuário não encontrado no banco local (e-mail: {})", email);
+                    }
+                );
+            }
         }
+        
         filterChain.doFilter(request, response);
     }
 
     private String recoverToken(HttpServletRequest request) {
         var authHeader = request.getHeader("Authorization");
-        if (authHeader == null) return null;
-        return authHeader.replace("Bearer ", "");
+        
+        // Verifica se o cabeçalho existe e começa com o padrão correto
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        
+        // Retorna apenas o token usando substring (mais eficiente e seguro que o replace)
+        return authHeader.substring(7);
     }
 }

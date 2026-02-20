@@ -1,51 +1,42 @@
 package com.stylo.api_agendamento.adapters.outbound.security;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTCreationException;
-import com.auth0.jwt.exceptions.JWTVerificationException;
-import com.stylo.api_agendamento.core.domain.User;
-import org.springframework.beans.factory.annotation.Value;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 
 @Service
 public class TokenService {
 
-    @Value("${api.security.token.secret}")
-    private String secret;
+    private static final Logger logger = LoggerFactory.getLogger(TokenService.class);
 
-    public String generateToken(User user) {
-        try {
-            Algorithm algorithm = Algorithm.HMAC256(secret);
-            return JWT.create()
-                    .withIssuer("stylo-api")
-                    .withSubject(user.getEmail())
-                    .withClaim("role", user.getRole().name())
-                    .withExpiresAt(genExpirationDate())
-                    .sign(algorithm);
-        } catch (JWTCreationException exception) {
-            throw new RuntimeException("Erro ao gerar token", exception);
-        }
-    }
-
+    /**
+     * Valida o token gerado pelo Front-end (Firebase Auth)
+     * 
+     * @param token O ID Token (Bearer) enviado na requisição.
+     * @return O e-mail do usuário caso o token seja válido, ou null se for
+     *         inválido/expirado.
+     */
     public String validateToken(String token) {
-        try {
-            Algorithm algorithm = Algorithm.HMAC256(secret);
-            return JWT.require(algorithm)
-                    .withIssuer("stylo-api")
-                    .build()
-                    .verify(token)
-                    .getSubject();
-        } catch (JWTVerificationException exception) {
-            return "";
+        if (token == null || token.isBlank()) {
+            return null;
         }
-    }
 
-    private Instant genExpirationDate() {
-        return LocalDateTime.now().plusHours(2).toInstant(ZoneOffset.of("-03:00"));
+        try {
+            // O Firebase Admin verifica a assinatura do token e confere se ele não expirou.
+            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);
+
+            // Retornamos o e-mail associado ao token para buscar no banco local
+            return decodedToken.getEmail();
+
+        } catch (FirebaseAuthException e) {
+            logger.error("Erro na validação do token Firebase: {}", e.getMessage());
+            return null;
+        } catch (IllegalArgumentException e) {
+            logger.error("Token Firebase malformado: {}", e.getMessage());
+            return null;
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -31,6 +32,10 @@ public class SecurityConfigurations {
 
     private final SecurityFilter securityFilter;
 
+    // ✨ INJEÇÃO DA URL DO FRONT-END (Vem do application.properties ou Variável de Ambiente)
+    @Value("${stylo.frontend-url}")
+    private String frontendUrl;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -41,8 +46,10 @@ public class SecurityConfigurations {
                         // --- PÚBLICO ---
                         .requestMatchers(HttpMethod.POST, "/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/service-providers/**").permitAll()
-                        .requestMatchers("/v1/webhooks/**").permitAll()
-                        // ... outros endpoints públicos ...
+                        // Rota exata do webhook do Stripe mapeada no PaymentController
+                        .requestMatchers(HttpMethod.POST, "/v1/payments/webhook").permitAll() 
+                        // Documentação do Swagger/OpenAPI
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // --- FINANCEIRO (Proteção Crítica) ---
                         // Apenas quem tem FINANCIAL_READ vê o dashboard
@@ -73,8 +80,7 @@ public class SecurityConfigurations {
 
                         .requestMatchers("/v1/pos/**").hasAnyAuthority(
                                 UserPermission.APPOINTMENT_MANAGE_ALL.getPermission(), // Recepcionista
-                                UserPermission.APPOINTMENT_WRITE.getPermission() // Profissional (para fechar a própria
-                                                                                 // conta)
+                                UserPermission.APPOINTMENT_WRITE.getPermission() // Profissional (para fechar a própria conta)
                         )
 
                         // --- AGENDAMENTOS ESPECIAIS ---
@@ -84,26 +90,31 @@ public class SecurityConfigurations {
 
                         .requestMatchers("/v1/financial/cash-register/**")
                         .hasAuthority(UserPermission.FINANCIAL_WRITE.getPermission())
+                        
                         // Qualquer outra requisição precisa apenas estar autenticada
-                        // (o controle fino de "ver o próprio agendamento" vs "ver todos"
-                        // geralmente é feito dentro do Service/UseCase validando o ID)
-                        .anyRequest().authenticated())
-
+                        .anyRequest().authenticated()
+                )
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
     /**
-     * Configuração de CORS para permitir que o Front-end (localhost ou produção)
-     * acesse a API sem bloqueio do navegador.
+     * Configuração de CORS blindada para produção.
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Em produção, troque "*" pelo domínio do seu front (ex: https://stylo.app.br)
-        configuration.setAllowedOrigins(List.of("*"));
+        
+        // Permite APENAS o domínio seguro do SaaS (ou localhost durante o dev)
+        configuration.setAllowedOrigins(List.of(frontendUrl));
+        
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        
+        // Incluído Stripe-Signature para garantir o tráfego do Webhook
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Stripe-Signature"));
+        
+        // Essencial para frameworks modernos de front-end
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

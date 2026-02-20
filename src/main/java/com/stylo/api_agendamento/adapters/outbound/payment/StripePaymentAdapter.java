@@ -1,6 +1,7 @@
 package com.stylo.api_agendamento.adapters.outbound.payment;
 
 import com.stripe.Stripe;
+import com.stripe.exception.SignatureVerificationException; // ✨ IMPORT ADICIONADO AQUI
 import com.stripe.model.*;
 import com.stripe.model.checkout.Session;
 import com.stripe.net.Webhook;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,28 +37,51 @@ public class StripePaymentAdapter implements IPaymentProvider {
     }
 
     @Override
-    public PaymentWebhookInput validateAndParseWebhook(String rawPayload, String signatureHeader) {
+    public PaymentWebhookInput validateAndParseWebhook(String payload, String signature) {
         try {
-            Event event = Webhook.constructEvent(rawPayload, signatureHeader, webhookSecret);
+            // 1. O Coração da Segurança: Valida a assinatura HMAC SHA-256
+            Event event = Webhook.constructEvent(payload, signature, webhookSecret);
 
-            if (event.getDataObjectDeserializer().getObject().isPresent()) {
-                Object stripeObject = event.getDataObjectDeserializer().getObject().get();
+            String eventId = event.getId();
+            String eventType = event.getType();
+            Instant timestamp = Instant.ofEpochSecond(event.getCreated());
 
-                if (stripeObject instanceof Session session) {
-                    return new PaymentWebhookInput(
-                            event.getId(),
-                            session.getPaymentIntent(),
-                            event.getType(),
-                            session.getPaymentStatus(),
-                            BigDecimal.valueOf(session.getAmountTotal() / 100.0),
-                            session.getMetadata(),
-                            Instant.ofEpochSecond(event.getCreated()));
+            String gatewayPaymentId = null;
+            String status = "unknown";
+            BigDecimal amount = BigDecimal.ZERO;
+            Map<String, String> metadata = new HashMap<>();
+
+            // 2. Extrai os dados baseado no tipo de objeto que o Stripe enviou
+            EventDataObjectDeserializer dataObjectDeserializer = event.getDataObjectDeserializer();
+            if (dataObjectDeserializer.getObject().isPresent()) {
+                StripeObject stripeObject = dataObjectDeserializer.getObject().get();
+
+                // Caso o pagamento seja via PaymentIntent direto
+                if (stripeObject instanceof PaymentIntent paymentIntent) {
+                    gatewayPaymentId = paymentIntent.getId();
+                    status = paymentIntent.getStatus();
+                    amount = BigDecimal.valueOf(paymentIntent.getAmount() / 100.0); // Converte de centavos para Real
+                    metadata = paymentIntent.getMetadata();
+                } 
+                // Caso o pagamento seja via Checkout Session (Mais comum em assinaturas SaaS)
+                else if (stripeObject instanceof Session session) {
+                    gatewayPaymentId = session.getPaymentIntent();
+                    status = session.getPaymentStatus();
+                    amount = session.getAmountTotal() != null ? 
+                             BigDecimal.valueOf(session.getAmountTotal() / 100.0) : BigDecimal.ZERO;
+                    metadata = session.getMetadata();
                 }
             }
-            throw new SecurityException("Evento Stripe sem payload de Sessão válido.");
+
+            return new PaymentWebhookInput(
+                    eventId, gatewayPaymentId, eventType, status, amount, metadata, timestamp
+            );
+
+        } catch (SignatureVerificationException e) {
+            // Falha criptográfica: A requisição foi alterada no meio do caminho ou forjada
+            throw new SecurityException("Assinatura do Stripe inválida. Tentativa de fraude bloqueada.", e);
         } catch (Exception e) {
-            log.error("Erro na validação do Webhook Stripe: {}", e.getMessage());
-            throw new SecurityException("Webhook inválido: " + e.getMessage());
+            throw new IllegalArgumentException("Falha ao interpretar o payload do webhook.", e);
         }
     }
 
