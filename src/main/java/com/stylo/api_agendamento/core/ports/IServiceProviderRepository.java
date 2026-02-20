@@ -4,6 +4,7 @@ import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
+import com.stylo.api_agendamento.core.usecases.dto.ProviderSearchCriteria;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,4 +50,6 @@ public interface IServiceProviderRepository {
     List<ServiceProvider> findUpcomingExpirations(LocalDateTime threshold);
 
     PagedResult<ServiceProvider> getFavoriteProvidersByClient(UUID clientId, int page, int size);
+
+    PagedResult<ServiceProvider> searchProviders(ProviderSearchCriteria criteria, int page, int size);
 }

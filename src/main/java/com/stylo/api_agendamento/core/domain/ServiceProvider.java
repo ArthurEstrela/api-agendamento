@@ -23,7 +23,7 @@ public class ServiceProvider {
     private String businessName;
     private Document document; // CPF ou CNPJ (Value Object)
     private String ownerEmail;
-    
+
     private Slug publicProfileSlug; // URL amigável (ex: stylo.com/barbearia-do-ze)
     private Address businessAddress;
     private String businessPhone;
@@ -32,6 +32,13 @@ public class ServiceProvider {
     private String logoUrl;
     private String bannerUrl;
 
+    // --- ✨ NOVOS CAMPOS: RANKING E AVALIAÇÃO (Busca Avançada) ---
+    @Builder.Default
+    private Double averageRating = 0.0;
+
+    @Builder.Default
+    private Integer totalReviews = 0;
+
     // --- 3. CONFIGURAÇÕES FINANCEIRAS (PIX & STRIPE) ---
     private String pixKey;
     private String pixKeyType; // Poderia ser um Enum (EMAIL, CPF, PHONE, RANDOM)
@@ -39,7 +46,7 @@ public class ServiceProvider {
     // Configurações do Stripe Connect (Plataforma)
     private String stripeAccountId; // Conta conectada (ex: acct_xyz)
     private String stripeCustomerId; // Cliente na plataforma (para pagar a assinatura)
-    
+
     @Builder.Default
     private boolean onlinePaymentsEnabled = false;
 
@@ -53,14 +60,14 @@ public class ServiceProvider {
     private SubscriptionStatus subscriptionStatus;
     private LocalDateTime trialEndsAt;
     private LocalDateTime gracePeriodEndsAt;
-    
+
     // --- 5. CONFIGURAÇÕES OPERACIONAIS ---
     @Builder.Default
     private List<PaymentMethod> paymentMethods = new ArrayList<>();
-    
+
     private Integer cancellationMinHours; // Ex: 2 horas antes
     private Integer maxNoShowsAllowed; // Ex: 3 faltas bloqueia o cliente
-    
+
     private String timeZone;
 
     private boolean isActive;
@@ -71,11 +78,15 @@ public class ServiceProvider {
 
     public static ServiceProvider create(String businessName, Document doc, Slug slug, Address address,
             String ownerEmail) {
-        
-        if (businessName == null || businessName.isBlank()) throw new BusinessException("Nome do estabelecimento é obrigatório.");
-        if (doc == null) throw new BusinessException("Documento (CPF/CNPJ) é obrigatório.");
-        if (slug == null) throw new BusinessException("Slug do perfil é obrigatório.");
-        if (ownerEmail == null || !ownerEmail.contains("@")) throw new BusinessException("E-mail do proprietário inválido.");
+
+        if (businessName == null || businessName.isBlank())
+            throw new BusinessException("Nome do estabelecimento é obrigatório.");
+        if (doc == null)
+            throw new BusinessException("Documento (CPF/CNPJ) é obrigatório.");
+        if (slug == null)
+            throw new BusinessException("Slug do perfil é obrigatório.");
+        if (ownerEmail == null || !ownerEmail.contains("@"))
+            throw new BusinessException("E-mail do proprietário inválido.");
 
         return ServiceProvider.builder()
                 .id(UUID.randomUUID()) // Identidade gerada
@@ -94,10 +105,41 @@ public class ServiceProvider {
                 .commissionsEnabled(false)
                 .onlinePaymentsEnabled(false)
                 .platformFeePercentage(new BigDecimal("2.00"))
+                .averageRating(0.0) // ✨ Inicialização segura
+                .totalReviews(0) // ✨ Inicialização segura
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
+    }
+
+    // --- MÉTODOS DE NEGÓCIO: AVALIAÇÕES E RANKING ---
+
+    /**
+     * ✨ Recalcula a média de avaliação quando um novo Review é recebido.
+     * Pode ser chamado pelo CreateReviewUseCase.
+     */
+    public void updateRating(int newRatingScore) {
+        if (newRatingScore < 1 || newRatingScore > 5) {
+            throw new BusinessException("A nota de avaliação deve ser entre 1 e 5.");
+        }
+
+        // Se for a primeira avaliação
+        if (this.totalReviews == 0 || this.averageRating == 0.0) {
+            this.averageRating = (double) newRatingScore;
+            this.totalReviews = 1;
+        } else {
+            // Fórmula padrão para recalcular média progressiva sem buscar tudo do banco
+            double currentTotalScore = this.averageRating * this.totalReviews;
+            this.totalReviews++;
+
+            double newAverage = (currentTotalScore + newRatingScore) / this.totalReviews;
+
+            // Arredonda para 2 casas decimais (ex: 4.85)
+            this.averageRating = Math.round(newAverage * 100.0) / 100.0;
+        }
+
+        this.updatedAt = LocalDateTime.now();
     }
 
     // --- MÉTODOS DE NEGÓCIO: FINANCEIRO ---
@@ -107,9 +149,9 @@ public class ServiceProvider {
      * Regra: Habilitado E com conta Stripe vinculada.
      */
     public boolean canReceiveOnlinePayments() {
-        return this.onlinePaymentsEnabled 
-            && this.stripeAccountId != null 
-            && !this.stripeAccountId.isBlank();
+        return this.onlinePaymentsEnabled
+                && this.stripeAccountId != null
+                && !this.stripeAccountId.isBlank();
     }
 
     public void enableOnlinePayments(String stripeAccountId) {
@@ -144,7 +186,8 @@ public class ServiceProvider {
         if (minHours > 0) {
             LocalDateTime limit = LocalDateTime.now().plusHours(minHours);
             if (appointmentStartTime.isBefore(limit)) {
-                throw new BusinessException("O prazo mínimo para cancelamento é de " + minHours + " horas de antecedência.");
+                throw new BusinessException(
+                        "O prazo mínimo para cancelamento é de " + minHours + " horas de antecedência.");
             }
         }
     }
@@ -158,10 +201,14 @@ public class ServiceProvider {
     }
 
     public void updateProfile(String name, String phone, String logoUrl, String bannerUrl) {
-        if (name != null && !name.isBlank()) this.businessName = name;
-        if (phone != null) this.businessPhone = phone;
-        if (logoUrl != null) this.logoUrl = logoUrl;
-        if (bannerUrl != null) this.bannerUrl = bannerUrl;
+        if (name != null && !name.isBlank())
+            this.businessName = name;
+        if (phone != null)
+            this.businessPhone = phone;
+        if (logoUrl != null)
+            this.logoUrl = logoUrl;
+        if (bannerUrl != null)
+            this.bannerUrl = bannerUrl;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -173,7 +220,8 @@ public class ServiceProvider {
     }
 
     public void updateSlug(Slug newSlug) {
-        if (newSlug == null) throw new BusinessException("A URL do perfil não pode ser vazia.");
+        if (newSlug == null)
+            throw new BusinessException("A URL do perfil não pode ser vazia.");
         this.publicProfileSlug = newSlug;
         this.updatedAt = LocalDateTime.now();
     }
@@ -181,11 +229,12 @@ public class ServiceProvider {
     // --- MÉTODOS DE NEGÓCIO: ASSINATURA ---
 
     public boolean isSubscriptionActive() {
-        if (!this.isActive) return false;
-        
+        if (!this.isActive)
+            return false;
+
         return this.subscriptionStatus == SubscriptionStatus.ACTIVE ||
-               this.subscriptionStatus == SubscriptionStatus.TRIAL ||
-               this.subscriptionStatus == SubscriptionStatus.GRACE_PERIOD;
+                this.subscriptionStatus == SubscriptionStatus.TRIAL ||
+                this.subscriptionStatus == SubscriptionStatus.GRACE_PERIOD;
     }
 
     public void startGracePeriod(int days) {
@@ -195,10 +244,11 @@ public class ServiceProvider {
     }
 
     public void updateSubscriptionStatus(SubscriptionStatus newStatus) {
-        if (newStatus == null) return;
-        
+        if (newStatus == null)
+            return;
+
         this.subscriptionStatus = newStatus;
-        
+
         if (newStatus == SubscriptionStatus.ACTIVE) {
             this.gracePeriodEndsAt = null; // Limpa período de carência se ativou
         }
@@ -227,8 +277,10 @@ public class ServiceProvider {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         ServiceProvider that = (ServiceProvider) o;
         return Objects.equals(id, that.id);
     }
@@ -243,9 +295,9 @@ public class ServiceProvider {
     public enum SubscriptionStatus {
         TRIAL,
         ACTIVE,
-        PAST_DUE,   // Pagamento falhou, mas ainda acessa (curto prazo)
+        PAST_DUE, // Pagamento falhou, mas ainda acessa (curto prazo)
         GRACE_PERIOD, // Período de graça manual
         CANCELED,
-        EXPIRED     // Trial acabou e não pagou
+        EXPIRED // Trial acabou e não pagou
     }
 }

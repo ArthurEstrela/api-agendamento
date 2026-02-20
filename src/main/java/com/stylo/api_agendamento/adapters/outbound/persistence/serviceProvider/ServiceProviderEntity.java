@@ -3,6 +3,7 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider;
 import com.stylo.api_agendamento.adapters.outbound.persistence.AddressVo;
 import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
+import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
@@ -12,7 +13,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -64,9 +67,7 @@ public class ServiceProviderEntity extends BaseEntity {
 
     // ✨ PROTEÇÃO: Inicialização segura de coleção
     @ElementCollection(targetClass = PaymentMethod.class, fetch = FetchType.LAZY)
-    @CollectionTable(name = "provider_payment_methods", 
-            joinColumns = @JoinColumn(name = "provider_id"), 
-            foreignKey = @ForeignKey(name = "fk_payment_methods_provider"))
+    @CollectionTable(name = "provider_payment_methods", joinColumns = @JoinColumn(name = "provider_id"), foreignKey = @ForeignKey(name = "fk_payment_methods_provider"))
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_method")
     @Builder.Default
@@ -90,6 +91,17 @@ public class ServiceProviderEntity extends BaseEntity {
 
     @Column(name = "grace_period_ends_at")
     private LocalDateTime gracePeriodEndsAt;
+
+    @OneToMany(mappedBy = "provider", fetch = FetchType.LAZY)
+    private Set<ServiceEntity> services = new HashSet<>();
+
+    @Column(name = "average_rating", precision = 3, scale = 2)
+    @Builder.Default
+    private Double averageRating = 0.0;
+
+    @Column(name = "total_reviews")
+    @Builder.Default
+    private Integer totalReviews = 0;
 
     // --- CAMPOS DE AUDITORIA ---
     @CreationTimestamp
@@ -124,5 +136,10 @@ public class ServiceProviderEntity extends BaseEntity {
         if (this.onlinePaymentsEnabled == null) {
             this.onlinePaymentsEnabled = false;
         }
+        // Garante que não ficam nulos no banco
+        if (this.averageRating == null)
+            this.averageRating = 0.0;
+        if (this.totalReviews == null)
+            this.totalReviews = 0;
     }
 }

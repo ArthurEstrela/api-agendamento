@@ -5,10 +5,13 @@ import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
+import com.stylo.api_agendamento.core.usecases.dto.ProviderSearchCriteria;
+
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
@@ -91,6 +94,28 @@ public class ServiceProviderPersistenceAdapter implements IServiceProviderReposi
         Pageable pageable = PageRequest.of(page, size);
         Page<ServiceProviderEntity> entityPage = jpaServiceProviderRepository.findFavoriteProvidersByClientId(clientId,
                 pageable);
+
+        List<ServiceProvider> domainList = entityPage.getContent().stream()
+                .map(serviceProviderMapper::toDomain)
+                .collect(Collectors.toList());
+
+        return new PagedResult<>(
+                domainList,
+                entityPage.getNumber(),
+                entityPage.getSize(),
+                entityPage.getTotalElements(),
+                entityPage.getTotalPages());
+    }
+
+    @Override
+    public PagedResult<ServiceProvider> searchProviders(ProviderSearchCriteria criteria, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        // Constrói os filtros dinâmicos
+        Specification<ServiceProviderEntity> spec = ServiceProviderSpecification.build(criteria);
+
+        // Executa a busca super otimizada
+        Page<ServiceProviderEntity> entityPage = jpaServiceProviderRepository.findAll(spec, pageable);
 
         List<ServiceProvider> domainList = entityPage.getContent().stream()
                 .map(serviceProviderMapper::toDomain)
