@@ -29,7 +29,7 @@ public class AppointmentEntity extends BaseEntity {
     // --- DADOS DO CLIENTE (Snapshots) ---
     @Column(name = "client_id")
     private UUID clientId; // Nullable para Walk-ins (clientes sem conta)
-    
+
     @Column(name = "client_name")
     private String clientName;
 
@@ -54,9 +54,7 @@ public class AppointmentEntity extends BaseEntity {
 
     // --- SERVIÇOS (Catálogo) ---
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "appointment_services", 
-            joinColumns = @JoinColumn(name = "appointment_id"), 
-            inverseJoinColumns = @JoinColumn(name = "service_id"))
+    @JoinTable(name = "appointment_services", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     @Builder.Default
     private List<ServiceEntity> services = new ArrayList<>();
 
@@ -84,10 +82,10 @@ public class AppointmentEntity extends BaseEntity {
 
     // --- FINANCEIRO (Com precisão garantida) ---
     @Column(name = "total_price", precision = 19, scale = 2)
-    private BigDecimal totalPrice; 
+    private BigDecimal totalPrice;
 
     @Column(name = "final_price", precision = 19, scale = 2)
-    private BigDecimal finalPrice; 
+    private BigDecimal finalPrice;
 
     @Column(name = "coupon_id")
     private UUID couponId; // ✨ Corrigido de String para UUID
@@ -100,7 +98,7 @@ public class AppointmentEntity extends BaseEntity {
     private BigDecimal professionalCommission;
 
     @Column(name = "service_provider_fee", precision = 19, scale = 2)
-    private BigDecimal serviceProviderFee; 
+    private BigDecimal serviceProviderFee;
 
     @Column(name = "commission_settled")
     private boolean commissionSettled;
@@ -134,16 +132,20 @@ public class AppointmentEntity extends BaseEntity {
 
     // --- ITENS DA COMANDA (PRODUTOS FÍSICOS) ---
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "appointment_id") 
+    @JoinColumn(name = "appointment_id")
     @Builder.Default
     private List<AppointmentItemEntity> items = new ArrayList<>();
-    
+
     // --- CALLBACKS JPA ---
     @PrePersist
     protected void onCreate() {
-        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
-        if (this.discountAmount == null) this.discountAmount = BigDecimal.ZERO;
-        if (this.totalPrice == null) this.totalPrice = BigDecimal.ZERO;
-        if (this.finalPrice == null) this.finalPrice = BigDecimal.ZERO;
+        if (this.createdAt == null)
+            this.createdAt = LocalDateTime.now();
+        if (this.discountAmount == null)
+            this.discountAmount = BigDecimal.ZERO;
+        if (this.totalPrice == null)
+            this.totalPrice = BigDecimal.ZERO;
+        if (this.finalPrice == null)
+            this.finalPrice = BigDecimal.ZERO;
     }
 }

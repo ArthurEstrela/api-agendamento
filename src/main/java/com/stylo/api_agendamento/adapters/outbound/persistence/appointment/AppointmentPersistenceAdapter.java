@@ -51,7 +51,7 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
 
     @Override
     public List<Appointment> findAllByProviderIdAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end) {
-        return jpaAppointmentRepository.findAllByProviderIdAndStartTimeBetween(
+        return jpaAppointmentRepository.findAllByServiceProviderIdAndStartTimeBetween(
                         providerId, start, end)
                 .stream()
                 .map(appointmentMapper::toDomain)

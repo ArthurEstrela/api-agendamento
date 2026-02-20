@@ -1,11 +1,11 @@
 CREATE TABLE stock_movements (
-    id VARCHAR(36) PRIMARY KEY,
-    product_id VARCHAR(36) NOT NULL,
-    provider_id VARCHAR(36) NOT NULL,
+    id UUID PRIMARY KEY,
+    product_id UUID NOT NULL,
+    provider_id UUID NOT NULL,
     type VARCHAR(20) NOT NULL, -- SALE, INTERNAL_USE, RESTOCK
     quantity INTEGER NOT NULL,
     reason VARCHAR(255),
-    performed_by_user_id VARCHAR(36),
+    performed_by_user_id UUID,
     created_at TIMESTAMP NOT NULL,
     CONSTRAINT fk_movement_product FOREIGN KEY (product_id) REFERENCES products(id)
 );

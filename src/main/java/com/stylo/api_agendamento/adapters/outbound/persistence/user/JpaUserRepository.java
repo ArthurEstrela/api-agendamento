@@ -17,9 +17,6 @@ public interface JpaUserRepository extends JpaRepository<UserEntity, UUID> {
 
     Optional<UserEntity> findByResetPasswordToken(String token);
 
-    // Busca o dono do estabelecimento (Provider)
-    Optional<UserEntity> findByServiceProviderId(UUID providerId);
-
     Optional<UserEntity> findByProviderId(UUID providerId);
 
     // Limpa tokens FCM de outros usuários para garantir que a notificação vá para a
