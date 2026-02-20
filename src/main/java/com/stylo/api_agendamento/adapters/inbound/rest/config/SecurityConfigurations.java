@@ -51,6 +51,10 @@ public class SecurityConfigurations {
                         // Documentação do Swagger/OpenAPI
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
+                        // --- ÁREA DO CLIENTE (Novo) ---
+                        // ✨ Apenas clientes podem gerenciar seus favoritos
+                        .requestMatchers("/v1/clients/me/favorites/**").hasAuthority(APPOINTMENT_READ.getPermission()) // Ou crie uma permissão específica CLIENT_PROFILE
+
                         // --- FINANCEIRO (Proteção Crítica) ---
                         // Apenas quem tem FINANCIAL_READ vê o dashboard
                         .requestMatchers(HttpMethod.GET, "/v1/financial/**")
@@ -78,6 +82,7 @@ public class SecurityConfigurations {
                         // Validar cupom: Aberto para autenticados (Clientes usando o app)
                         .requestMatchers(HttpMethod.GET, "/v1/coupons/validate").authenticated()
 
+                        // --- PONTO DE VENDA (POS) ---
                         .requestMatchers("/v1/pos/**").hasAnyAuthority(
                                 UserPermission.APPOINTMENT_MANAGE_ALL.getPermission(), // Recepcionista
                                 UserPermission.APPOINTMENT_WRITE.getPermission() // Profissional (para fechar a própria conta)
@@ -106,12 +111,12 @@ public class SecurityConfigurations {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Permite APENAS o domínio seguro do SaaS (ou localhost durante o dev)
-        configuration.setAllowedOrigins(List.of(frontendUrl));
+        configuration.setAllowedOrigins(List.of(frontendUrl, "http://localhost:5173")); // ✨ Adicionado localhost para dev
         
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         
-        // Incluído Stripe-Signature para garantir o tráfego do Webhook
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Stripe-Signature"));
+        // ✨ Incluído headers padrões para React/Axios além do Stripe
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Stripe-Signature", "X-Requested-With", "Accept"));
         
         // Essencial para frameworks modernos de front-end
         configuration.setAllowCredentials(true);
