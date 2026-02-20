@@ -4,8 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
@@ -33,7 +33,7 @@ public class ClientEntity extends BaseEntity {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Embedded // Value Object embutido nas colunas desta mesma tabela
+    @Embedded
     private DocumentVo document;
 
     @Column(name = "date_of_birth")
@@ -41,10 +41,13 @@ public class ClientEntity extends BaseEntity {
     
     private String gender;
 
-    // ✨ OTIMIZAÇÃO: Lazy Loading explícito e inicialização segura
+    // ✨ OTIMIZAÇÃO: Usando Set com ElementCollection
     @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(name = "client_favorite_professionals", joinColumns = @JoinColumn(name = "client_id"))
-    @Column(name = "professional_id")
+    @CollectionTable(
+        name = "client_favorite_providers", 
+        joinColumns = @JoinColumn(name = "client_id")
+    )
+    @Column(name = "provider_id")
     @Builder.Default
-    private List<UUID> favoriteProfessionals = new ArrayList<>();
+    private Set<UUID> favoriteProviders = new HashSet<>();
 }

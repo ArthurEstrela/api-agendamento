@@ -60,12 +60,11 @@ public class ClientPersistenceAdapter implements IClientRepository {
     public PagedResult<Client> findAllByProviderId(UUID providerId, String nameFilter, int page, int size) {
         // Ordena por nome em ordem alfabética para facilitar a busca do salão/barbearia
         Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-        
+
         Page<ClientEntity> entityPage = jpaClientRepository.findAllByProviderIdAndNameFilter(
-                providerId, 
-                nameFilter, 
-                pageable
-        );
+                providerId,
+                nameFilter,
+                pageable);
 
         List<Client> domainItems = entityPage.getContent().stream()
                 .map(clientMapper::toDomain)
@@ -76,7 +75,7 @@ public class ClientPersistenceAdapter implements IClientRepository {
                 entityPage.getNumber(),
                 entityPage.getSize(),
                 entityPage.getTotalElements(),
-                entityPage.getTotalPages()
-        );
+                entityPage.getTotalPages());
     }
+
 }

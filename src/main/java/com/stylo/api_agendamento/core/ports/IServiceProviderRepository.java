@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.core.ports;
 
+import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
@@ -10,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface IServiceProviderRepository {
-    
+
     ServiceProvider save(ServiceProvider provider);
 
     Optional<ServiceProvider> findById(UUID id);
@@ -21,11 +22,12 @@ public interface IServiceProviderRepository {
     Optional<ServiceProvider> findBySlug(Slug slug);
 
     // --- VALIDAÇÕES DE UNICIDADE ---
-    boolean existsByDocument(Document document); 
+    boolean existsByDocument(Document document);
+
     boolean existsBySlug(String slugValue);
 
     // --- JOBS DE ASSINATURA E SITEMAP ---
-    
+
     /**
      * Lista todos os estabelecimentos que possuem perfil público configurado.
      */
@@ -45,4 +47,6 @@ public interface IServiceProviderRepository {
      * Busca assinaturas que vão vencer em breve.
      */
     List<ServiceProvider> findUpcomingExpirations(LocalDateTime threshold);
+
+    PagedResult<ServiceProvider> getFavoriteProvidersByClient(UUID clientId, int page, int size);
 }

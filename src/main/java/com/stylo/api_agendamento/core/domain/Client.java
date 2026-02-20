@@ -6,9 +6,10 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
@@ -25,8 +26,9 @@ public class Client {
     private LocalDate dateOfBirth;
     private String gender;
 
+    // ✨ OTIMIZAÇÃO: Usando Set para garantir unicidade e melhor performance no JPA
     @Builder.Default
-    private List<UUID> favoriteProfessionals = new ArrayList<>();
+    private Set<UUID> favoriteProviders = new HashSet<>(); // Barbearias/Salões
 
     private int noShowCount;
 
@@ -39,47 +41,60 @@ public class Client {
         if (name == null || name.isBlank()) {
             throw new BusinessException("O nome do cliente é obrigatório.");
         }
-        
+
         if (email == null || !email.contains("@")) {
             throw new BusinessException("E-mail de cliente inválido.");
         }
 
         return Client.builder()
-                .id(UUID.randomUUID()) // ✨ Gera identidade ao nascer
+                .id(UUID.randomUUID())
                 .name(name)
                 .email(email)
                 .phoneNumber(phone)
                 .cpf(cpf)
-                .favoriteProfessionals(new ArrayList<>()) // ✨ Lista mutável para evitar erro
+                .favoriteProviders(new HashSet<>())
                 .noShowCount(0)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
     }
 
+    // --- ENCAPSULAMENTO DE LISTAS (DDD Puro) ---
+
+    public Set<UUID> getFavoriteProviders() {
+        return favoriteProviders != null
+                ? Collections.unmodifiableSet(favoriteProviders)
+                : Collections.emptySet();
+    }
+
     // --- MÉTODOS DE NEGÓCIO ---
 
-    public void addFavoriteProfessional(UUID professionalId) {
-        if (this.favoriteProfessionals == null) {
-            this.favoriteProfessionals = new ArrayList<>();
-        }
-        if (!this.favoriteProfessionals.contains(professionalId)) {
-            this.favoriteProfessionals.add(professionalId);
+    public void addFavoriteProvider(UUID providerId) {
+        if (providerId == null)
+            throw new BusinessException("ID do estabelecimento inválido.");
+
+        if (this.favoriteProviders == null)
+            this.favoriteProviders = new HashSet<>();
+
+        // O método .add() do Set retorna true apenas se o elemento não existia antes
+        if (this.favoriteProviders.add(providerId)) {
             this.updatedAt = LocalDateTime.now();
         }
     }
 
-    public void removeFavoriteProfessional(UUID professionalId) {
-        if (this.favoriteProfessionals != null) {
-            this.favoriteProfessionals.remove(professionalId);
-            this.updatedAt = LocalDateTime.now();
+    public void removeFavoriteProvider(UUID providerId) {
+        if (this.favoriteProviders != null && providerId != null) {
+            // O método .remove() retorna true se realmente removeu algo
+            if (this.favoriteProviders.remove(providerId)) {
+                this.updatedAt = LocalDateTime.now();
+            }
         }
     }
 
     public void updateContact(String name, ClientPhone phone) {
         if (name == null || name.isBlank())
             throw new BusinessException("Nome inválido para atualização.");
-        
+
         this.name = name;
         this.phoneNumber = phone;
         this.updatedAt = LocalDateTime.now();
@@ -103,8 +118,10 @@ public class Client {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Client client = (Client) o;
         return Objects.equals(id, client.id);
     }

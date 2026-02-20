@@ -13,7 +13,7 @@ public interface IClientRepository {
     Optional<Client> findById(UUID id);
 
     Optional<Client> findByEmail(String email);
-    
+
     boolean existsByEmail(String email);
 
     void delete(UUID id);
