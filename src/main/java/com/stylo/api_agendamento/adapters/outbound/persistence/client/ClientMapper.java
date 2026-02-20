@@ -5,8 +5,9 @@ import com.stylo.api_agendamento.core.domain.Client;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ClientMapper {
 
     @Mapping(target = "phoneNumber", source = "phoneNumber.value")

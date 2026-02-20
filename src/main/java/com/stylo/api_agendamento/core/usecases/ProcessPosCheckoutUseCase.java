@@ -25,11 +25,9 @@ public class ProcessPosCheckoutUseCase {
     private final ManageCashRegisterUseCase manageCashRegisterUseCase;
     private final ApplyCouponUseCase applyCouponUseCase;
     private final ICouponRepository couponRepository;
-    private final IUserContext userContext;
 
     @Transactional
     public Response execute(Input input) {
-        UUID operatorId = userContext.getCurrentUserId();
 
         // 1. Busca Agendamento e Profissional
         Appointment appointment = appointmentRepository.findById(input.appointmentId())
@@ -44,13 +42,14 @@ public class ProcessPosCheckoutUseCase {
 
         // 2. Consolidação de Totais (Serviços + Produtos)
         BigDecimal baseTotal = appointment.calculateOriginalServiceTotal();
-        
-        // ✨ CORREÇÃO AQUI: Voltamos a usar o cálculo com Stream que já funcionava na sua base
+
+        // ✨ CORREÇÃO AQUI: Voltamos a usar o cálculo com Stream que já funcionava na
+        // sua base
         if (appointment.hasProducts()) {
-             BigDecimal productsTotal = appointment.getProducts().stream()
-                     .map(Appointment.AppointmentItem::getTotal)
-                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-             baseTotal = baseTotal.add(productsTotal);
+            BigDecimal productsTotal = appointment.getProducts().stream()
+                    .map(Appointment.AppointmentItem::getTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            baseTotal = baseTotal.add(productsTotal);
         }
 
         // 3. Aplicação de Cupom de Checkout
@@ -59,10 +58,9 @@ public class ProcessPosCheckoutUseCase {
 
         if (input.couponCode() != null && !input.couponCode().isBlank()) {
             var result = applyCouponUseCase.validateAndCalculate(
-                    input.couponCode(), 
-                    appointment.getServiceProviderId(), 
-                    baseTotal
-            );
+                    input.couponCode(),
+                    appointment.getServiceProviderId(),
+                    baseTotal);
             coupon = result.coupon();
             discount = result.discountAmount();
         } else {
@@ -70,7 +68,7 @@ public class ProcessPosCheckoutUseCase {
         }
 
         BigDecimal finalPrice = baseTotal.subtract(discount).max(BigDecimal.ZERO);
-        
+
         // 4. Cálculo de Troco (Se pago em dinheiro)
         BigDecimal change = BigDecimal.ZERO;
         if (input.amountGiven() != null && input.method() == PaymentMethod.CASH) {
@@ -85,18 +83,18 @@ public class ProcessPosCheckoutUseCase {
             manageCashRegisterUseCase.addOperation(
                     CashTransactionType.SALE,
                     finalPrice,
-                    "Checkout Comanda #" + appointment.getId().toString().substring(0, 8)
-            );
+                    "Checkout Comanda #" + appointment.getId().toString().substring(0, 8));
         }
 
         // 6. Finalização do Agendamento no Domínio
         BigDecimal commission = professional.calculateCommissionFor(finalPrice);
-        
+
         appointment.setPaymentMethod(input.method());
         appointment.setFinalPrice(finalPrice);
         appointment.setDiscountAmount(discount);
-        if (coupon != null) appointment.setCouponId(coupon.getId());
-        
+        if (coupon != null)
+            appointment.setCouponId(coupon.getId());
+
         appointment.confirmPayment("POS-OFFLINE-" + UUID.randomUUID().toString().substring(0, 8));
         appointment.complete(professional, discount, commission);
 
@@ -115,11 +113,11 @@ public class ProcessPosCheckoutUseCase {
             UUID appointmentId,
             PaymentMethod method,
             BigDecimal amountGiven,
-            String couponCode
-    ) {}
+            String couponCode) {
+    }
 
     public record Response(
             Appointment appointment,
-            BigDecimal change
-    ) {}
+            BigDecimal change) {
+    }
 }

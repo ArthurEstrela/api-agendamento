@@ -1,0 +1,1 @@
+ALTER TABLE clients ADD COLUMN no_show_count INTEGER DEFAULT 0;

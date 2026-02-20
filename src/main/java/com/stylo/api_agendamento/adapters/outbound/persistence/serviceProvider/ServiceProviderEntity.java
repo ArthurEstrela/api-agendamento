@@ -93,6 +93,7 @@ public class ServiceProviderEntity extends BaseEntity {
     private LocalDateTime gracePeriodEndsAt;
 
     @OneToMany(mappedBy = "provider", fetch = FetchType.LAZY)
+    @Builder.Default
     private Set<ServiceEntity> services = new HashSet<>();
 
     @Column(name = "average_rating", precision = 3, scale = 2)

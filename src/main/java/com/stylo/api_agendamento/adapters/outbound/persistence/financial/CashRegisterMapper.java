@@ -6,8 +6,10 @@ import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
+import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring")
+// ✨ CORREÇÃO: unmappedTargetPolicy = ReportingPolicy.IGNORE
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface CashRegisterMapper {
 
     // ==== De Entidade para Domínio ====

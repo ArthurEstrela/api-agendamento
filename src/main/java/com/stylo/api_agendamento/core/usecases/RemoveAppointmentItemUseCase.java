@@ -2,8 +2,6 @@ package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.Appointment;
-import com.stylo.api_agendamento.core.domain.AppointmentStatus;
-import com.stylo.api_agendamento.core.domain.Product;
 import com.stylo.api_agendamento.core.domain.stock.StockMovement;
 import com.stylo.api_agendamento.core.domain.stock.StockMovementType;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;

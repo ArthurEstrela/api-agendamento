@@ -3,8 +3,9 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.mapper;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity;
 import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
 import org.mapstruct.Mapper;
+import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface AvailabilityMapper {
 
     DailyAvailabilityEntity toEntity(DailyAvailability domain);

@@ -5,7 +5,6 @@ import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.domain.financial.CashRegister;
 import com.stylo.api_agendamento.core.domain.financial.CashTransactionType;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
-import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.ICashRegisterRepository;
 import com.stylo.api_agendamento.core.ports.IUserContext;
 import lombok.RequiredArgsConstructor;

@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder; // Adicione isso se for codificar a senha
 
 import java.util.ArrayList;
-import java.util.UUID;
 
 @Slf4j
 @UseCase

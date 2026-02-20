@@ -4,8 +4,9 @@ import com.stylo.api_agendamento.core.domain.Waitlist;
 import com.stylo.api_agendamento.core.domain.vo.ClientPhone;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface WaitlistMapper {
 
     // ==== Entidade -> Domínio ====

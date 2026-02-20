@@ -2,8 +2,9 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.review;
 
 import com.stylo.api_agendamento.core.domain.Review;
 import org.mapstruct.Mapper;
+import org.mapstruct.ReportingPolicy;
 
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ReviewMapper {
 
     Review toDomain(ReviewEntity entity);

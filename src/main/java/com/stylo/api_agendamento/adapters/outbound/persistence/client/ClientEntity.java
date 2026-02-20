@@ -38,15 +38,16 @@ public class ClientEntity extends BaseEntity {
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
-    
+
     private String gender;
+
+    @Column(name = "no_show_count")
+    @Builder.Default
+    private Integer noShowCount = 0;
 
     // ✨ OTIMIZAÇÃO: Usando Set com ElementCollection
     @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-        name = "client_favorite_providers", 
-        joinColumns = @JoinColumn(name = "client_id")
-    )
+    @CollectionTable(name = "client_favorite_providers", joinColumns = @JoinColumn(name = "client_id"))
     @Column(name = "provider_id")
     @Builder.Default
     private Set<UUID> favoriteProviders = new HashSet<>();

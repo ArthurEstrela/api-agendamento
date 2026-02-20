@@ -20,14 +20,13 @@ public class FirebaseStorageAdapter implements IStorageProvider {
         Bucket bucket = StorageClient.getInstance().bucket();
         
         try {
-            // ✨ MELHORIA: Criamos o blob com metadados de tipo e tamanho
-            // O uso de InputStream com o tamanho definido é mais eficiente para o Google Cloud Storage
-            Blob blob = bucket.create(fileName, content, contentType);
+            // ✨ CORREÇÃO: Removida a variável 'blob' não utilizada.
+            // O upload é feito diretamente. Passar o contentType ajuda o navegador a renderizar a imagem.
+            bucket.create(fileName, content, contentType);
             
             log.info("Arquivo enviado com sucesso para o Firebase: {} ({} bytes)", fileName, size);
 
-            // ✨ RESOLUÇÃO DA URL: Formato compatível com Firebase Storage para visualização imediata
-            // Usamos o formato firebasestorage.googleapis.com que é o padrão para o SDK Web/Mobile
+            // ✨ RESOLUÇÃO DA URL: Formato compatível com Firebase Storage
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8);
             
             return String.format(
@@ -48,7 +47,6 @@ public class FirebaseStorageAdapter implements IStorageProvider {
 
         try {
             Bucket bucket = StorageClient.getInstance().bucket();
-            // Extrai o caminho do arquivo caso venha a URL completa
             String path = extractPathFromUrl(fileName);
             
             Blob blob = bucket.get(path);
@@ -57,7 +55,6 @@ public class FirebaseStorageAdapter implements IStorageProvider {
                 log.info("Arquivo removido do storage: {}", path);
             }
         } catch (Exception e) {
-            // Em deleções, apenas logamos para não interromper fluxos de negócio
             log.warn("Não foi possível remover o arquivo antigo: {}", e.getMessage());
         }
     }

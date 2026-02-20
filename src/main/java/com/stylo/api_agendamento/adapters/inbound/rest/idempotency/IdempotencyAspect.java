@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Duration; // ✨ NOVA IMPORTAÇÃO
 import java.util.concurrent.TimeUnit;
 
 @Aspect
@@ -77,7 +78,10 @@ public class IdempotencyAspect {
                             responseEntity.getBody()
                     );
                     
-                    bucket.set(cacheValue, idempotent.ttl(), idempotent.unit());
+                    // ✨ CORREÇÃO: Usando a nova API do Redisson com java.time.Duration
+                    Duration ttlDuration = Duration.ofMillis(idempotent.unit().toMillis(idempotent.ttl()));
+                    bucket.set(cacheValue, ttlDuration);
+                    
                     log.info("✅ Resposta salva com Idempotency-Key: {}", idempotencyKey);
                 }
             }
