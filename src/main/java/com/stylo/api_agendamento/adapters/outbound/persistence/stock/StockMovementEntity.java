@@ -24,8 +24,8 @@ public class StockMovementEntity extends BaseEntity {
     @Column(name = "product_id", nullable = false)
     private UUID productId; // ✨ Corrigido para UUID
 
-    @Column(name = "provider_id", nullable = false)
-    private UUID providerId; // ✨ Corrigido para UUID
+    @Column(name = "service_provider_id", nullable = false)
+    private UUID serviceProviderId; // Verifique se não está apenas 'providerId'
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

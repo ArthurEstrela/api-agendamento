@@ -11,16 +11,13 @@ import java.util.UUID;
 
 public interface JpaProductRepository extends JpaRepository<ProductEntity, UUID> {
 
-    // Listagem paginada para o painel administrativo
     Page<ProductEntity> findAllByServiceProviderId(UUID serviceProviderId, Pageable pageable);
 
-    // Listagem para a tela de venda/agendamento
     List<ProductEntity> findByServiceProviderIdAndIsActiveTrue(UUID serviceProviderId);
 
-    // Busca produtos em lote (usado no checkout)
     List<ProductEntity> findAllByIdIn(List<UUID> ids);
 
-    // Lógica de Estoque Baixo: quantidade atual <= nível de alerta
-    @Query("SELECT p FROM ProductEntity p WHERE p.serviceProviderId = :providerId AND p.quantity <= p.lowStockAlert")
+    // ✨ CORREÇÃO: Os nomes devem bater com os campos da ProductEntity (stockQuantity e minStockAlert)
+    @Query("SELECT p FROM ProductEntity p WHERE p.serviceProviderId = :providerId AND p.stockQuantity <= p.minStockAlert")
     List<ProductEntity> findLowStockProducts(@Param("providerId") UUID providerId);
 }

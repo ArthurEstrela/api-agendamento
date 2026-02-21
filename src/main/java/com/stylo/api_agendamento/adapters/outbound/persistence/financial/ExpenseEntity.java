@@ -9,10 +9,10 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 
 @Entity
 @Table(name = "expenses")
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder(toBuilder = true)
 public class ExpenseEntity extends BaseEntity {
 
@@ -20,8 +20,8 @@ public class ExpenseEntity extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "provider_id", nullable = false)
-    private UUID providerId;
+    @Column(name = "service_provider_id", nullable = false)
+    private UUID serviceProviderId;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -33,8 +33,8 @@ public class ExpenseEntity extends BaseEntity {
     private LocalDateTime date;
 
     private String category;
-    
+
     private String type; // ONE_TIME ou RECURRING
-    
+
     private String frequency;
 }

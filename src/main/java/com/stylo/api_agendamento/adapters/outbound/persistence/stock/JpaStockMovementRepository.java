@@ -9,7 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface JpaStockMovementRepository extends JpaRepository<StockMovementEntity, UUID> {
-    
+
     // Busca movimentações de um produto específico (Histórico individual)
     Page<StockMovementEntity> findAllByProductId(UUID productId, Pageable pageable);
 

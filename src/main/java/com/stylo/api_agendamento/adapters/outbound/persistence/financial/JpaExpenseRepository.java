@@ -14,7 +14,9 @@ public interface JpaExpenseRepository extends JpaRepository<ExpenseEntity, UUID>
 
     // O nome correto (ServiceProviderId) garante que o JPA faça o mapeamento
     // automático
-    List<ExpenseEntity> findAllByServiceProviderIdAndDateBetween(UUID serviceProviderId, LocalDateTime start,
+    List<ExpenseEntity> findAllByServiceProviderIdAndDateBetween(
+            UUID serviceProviderId,
+            LocalDateTime start,
             LocalDateTime end);
 
     // Adicione este método para suportar a listagem paginada por estabelecimento
