@@ -45,8 +45,8 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
                                                                                                         // aqui
     List<AppointmentEntity> findAllByNotifiedFalseAndStatusScheduled();
 
-    List<AppointmentEntity> findAllByProviderIdAndStatusAndStartTimeBetween(UUID providerId, String status,
-            LocalDateTime start, LocalDateTime end);
+    List<AppointmentEntity> findAllByServiceProviderIdAndStatusAndStartTimeBetween(UUID serviceProviderId,
+            String status, LocalDateTime start, LocalDateTime end);
 
     @Query("SELECT a FROM AppointmentEntity a WHERE a.status = 'CONFIRMED' " +
             "AND a.reminderSent = false " +

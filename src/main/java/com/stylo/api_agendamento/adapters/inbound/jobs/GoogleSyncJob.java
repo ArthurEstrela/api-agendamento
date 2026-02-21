@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.adapters.inbound.jobs;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.google.GoogleSyncRetryEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.google.GoogleSyncRetryRepository;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.GoogleSyncRetry;
@@ -26,23 +27,27 @@ public class GoogleSyncJob {
     @Scheduled(cron = "0 */5 * * * *") // Roda a cada 5 minutos
     @Transactional // ✨ Garante consistência ao atualizar Agendamento + Retry
     public void processPendingSyncs() {
-        List<GoogleSyncRetry> pendings = retryRepository.findByStatusAndNextRetryAtBefore(
-                GoogleSyncRetry.SyncStatus.PENDING, LocalDateTime.now());
+        // ✨ CORREÇÃO 1: Busca como String usando .name() e recebe uma lista de Entities
+        List<GoogleSyncRetryEntity> pendingEntities = retryRepository.findByStatusAndNextRetryAtBefore(
+                GoogleSyncRetry.SyncStatus.PENDING.name(), LocalDateTime.now());
 
-        if (pendings.isEmpty()) return;
+        if (pendingEntities.isEmpty()) return;
 
-        log.info("Processando {} sincronizações pendentes com Google Calendar...", pendings.size());
+        log.info("Processando {} sincronizações pendentes com Google Calendar...", pendingEntities.size());
 
-        for (GoogleSyncRetry retry : pendings) {
+        for (GoogleSyncRetryEntity entity : pendingEntities) {
+            // Converte a entidade do banco para a entidade rica de negócio (DDD)
+            GoogleSyncRetry retry = mapToDomain(entity);
+            
             try {
                 processRetry(retry);
             } catch (Exception e) {
                 log.warn("Falha na tentativa {} para o agendamento {}: {}", 
                         retry.getAttemptCount() + 1, retry.getAppointmentId(), e.getMessage());
                 
-                // ✨ CORREÇÃO: Usa o método de domínio para registrar a falha e calcular backoff
+                // ✨ Usa o método de domínio para registrar a falha e calcular backoff
                 retry.registerFailure(e.getMessage());
-                retryRepository.save(retry);
+                saveRetry(retry); // ✨ CORREÇÃO 2: Salva utilizando o método auxiliar de mapeamento
             }
         }
     }
@@ -55,11 +60,11 @@ public class GoogleSyncJob {
         if (appt == null) {
             log.warn("Agendamento {} não encontrado. Cancelando retry.", retry.getAppointmentId());
             retry.markAsCompleted(); // Ou criar um status ABORTED, mas COMPLETED resolve o loop
-            retryRepository.save(retry);
+            saveRetry(retry);
             return;
         }
 
-        // ✨ MELHORIA: Suporte a todas as operações (Create, Update, Delete)
+        // ✨ Suporte a todas as operações (Create, Update, Delete)
         switch (retry.getOperation()) {
             case CREATE -> handleCreate(appt, retry);
             case UPDATE -> handleUpdate(appt, retry);
@@ -71,7 +76,7 @@ public class GoogleSyncJob {
         // Se já tem ID externo, já foi sincronizado por outro fluxo
         if (appt.getExternalEventId() != null) {
             retry.markAsCompleted();
-            retryRepository.save(retry);
+            saveRetry(retry);
             return;
         }
 
@@ -80,8 +85,8 @@ public class GoogleSyncJob {
             appt.setExternalEventId(eventId);
             appointmentRepository.save(appt);
             
-            retry.markAsCompleted(); // ✨ CORREÇÃO: Usa método de domínio
-            retryRepository.save(retry);
+            retry.markAsCompleted(); 
+            saveRetry(retry);
             log.info("Sincronização (CREATE) concluída para agendamento {}", appt.getId());
         }
     }
@@ -94,7 +99,7 @@ public class GoogleSyncJob {
         }
         calendarProvider.updateEvent(appt);
         retry.markAsCompleted();
-        retryRepository.save(retry);
+        saveRetry(retry);
     }
 
     private void handleDelete(Appointment appt, GoogleSyncRetry retry) {
@@ -102,6 +107,39 @@ public class GoogleSyncJob {
             calendarProvider.deleteEvent(appt.getExternalEventId(), appt.getProfessionalId());
         }
         retry.markAsCompleted();
-        retryRepository.save(retry);
+        saveRetry(retry);
+    }
+
+    // --- MÉTODOS AUXILIARES DE MAPEAMENTO (MAPPER INTERNO) ---
+
+    private GoogleSyncRetry mapToDomain(GoogleSyncRetryEntity entity) {
+        return GoogleSyncRetry.builder()
+                .id(entity.getId())
+                .appointmentId(entity.getAppointmentId())
+                .professionalId(entity.getProfessionalId())
+                .operation(GoogleSyncRetry.SyncOperation.valueOf(entity.getOperation()))
+                .attemptCount(entity.getAttemptCount())
+                .lastError(entity.getLastError())
+                .nextRetryAt(entity.getNextRetryAt())
+                .status(GoogleSyncRetry.SyncStatus.valueOf(entity.getStatus()))
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
+    }
+
+    private void saveRetry(GoogleSyncRetry retry) {
+        GoogleSyncRetryEntity entity = GoogleSyncRetryEntity.builder()
+                .id(retry.getId())
+                .appointmentId(retry.getAppointmentId())
+                .professionalId(retry.getProfessionalId())
+                .operation(retry.getOperation().name())
+                .attemptCount(retry.getAttemptCount())
+                .lastError(retry.getLastError())
+                .nextRetryAt(retry.getNextRetryAt())
+                .status(retry.getStatus().name())
+                .createdAt(retry.getCreatedAt())
+                .updatedAt(retry.getUpdatedAt())
+                .build();
+        retryRepository.save(entity);
     }
 }

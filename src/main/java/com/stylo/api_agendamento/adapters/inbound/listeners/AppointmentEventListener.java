@@ -1,5 +1,6 @@
 package com.stylo.api_agendamento.adapters.inbound.listeners;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.google.GoogleSyncRetryEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.google.GoogleSyncRetryRepository;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.GoogleSyncRetry;
@@ -89,15 +90,33 @@ public class AppointmentEventListener {
     }
 
     private void scheduleRetry(UUID appointmentId, UUID professionalId, GoogleSyncRetry.SyncOperation op, String error) {
-        // ✨ CORREÇÃO: Agora o repositório aceita UUID corretamente
-        if (retryRepository.existsByAppointmentIdAndOperationAndStatus(appointmentId, op, GoogleSyncRetry.SyncStatus.PENDING)) {
+        // ✨ CORREÇÃO 1: Conversão dos Enums para String usando .name()
+        if (retryRepository.existsByAppointmentIdAndOperationAndStatus(
+                appointmentId, 
+                op.name(), 
+                GoogleSyncRetry.SyncStatus.PENDING.name())) {
             return;
         }
 
-        // ✨ CORREÇÃO: Usando o Factory Method do domínio para garantir as regras de backoff
+        // Instancia o objeto do domínio para aplicar a regra de negócio e backoff
         GoogleSyncRetry retry = GoogleSyncRetry.create(appointmentId, professionalId, op);
         retry.registerFailure(error); // Calcula o backoff automático para a próxima tentativa
         
-        retryRepository.save(retry);
+        // ✨ CORREÇÃO 2: Mapeamento do Domínio (GoogleSyncRetry) para a Entidade do Banco (GoogleSyncRetryEntity)
+        GoogleSyncRetryEntity entity = GoogleSyncRetryEntity.builder()
+                .id(retry.getId())
+                .appointmentId(retry.getAppointmentId())
+                .professionalId(retry.getProfessionalId())
+                .operation(retry.getOperation().name())
+                .attemptCount(retry.getAttemptCount())
+                .lastError(retry.getLastError())
+                .nextRetryAt(retry.getNextRetryAt())
+                .status(retry.getStatus().name())
+                .createdAt(retry.getCreatedAt())
+                .updatedAt(retry.getUpdatedAt())
+                .build();
+
+        // Salva a entidade reconhecida pelo JPA
+        retryRepository.save(entity);
     }
 }

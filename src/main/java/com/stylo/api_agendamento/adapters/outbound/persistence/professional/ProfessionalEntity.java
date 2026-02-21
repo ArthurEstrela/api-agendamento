@@ -77,4 +77,8 @@ public class ProfessionalEntity extends BaseEntity {
     // ✨ Proteção Monetária
     @Column(name = "remuneration_value", precision = 19, scale = 2)
     private BigDecimal remunerationValue;
+
+    // ✨ CORREÇÃO AQUI: Adicionado o campo que faltava para a integração com gateway de pagamento (Ex: Stripe)
+    @Column(name = "gateway_account_id")
+    private String gatewayAccountId;
 }

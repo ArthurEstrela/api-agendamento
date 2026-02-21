@@ -11,8 +11,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "waitlist", indexes = {
-    @Index(name = "idx_waitlist_prof_date", columnList = "professional_id, desired_date"),
-    @Index(name = "idx_waitlist_client", columnList = "client_id")
+        @Index(name = "idx_waitlist_prof_date", columnList = "professional_id, desired_date"),
+        @Index(name = "idx_waitlist_client", columnList = "client_id")
 })
 @Getter
 @Setter
@@ -25,6 +25,9 @@ public class WaitlistEntity extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
+
+    @Column(name = "service_provider_id", nullable = false)
+    private UUID serviceProviderId;
 
     @Column(name = "professional_id", nullable = false)
     private UUID professionalId;
