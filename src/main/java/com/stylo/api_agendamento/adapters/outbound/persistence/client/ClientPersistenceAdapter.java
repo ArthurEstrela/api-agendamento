@@ -52,9 +52,10 @@ public class ClientPersistenceAdapter implements IClientRepository {
 
     @Override
     public Optional<Client> findByUserAndProvider(UUID userId, UUID serviceProviderId) {
-        // ✨ CORREÇÃO MARKETPLACE: Como o cliente é global, buscamos apenas pelo ID 
+        // ✨ CORREÇÃO MARKETPLACE: Como o cliente é global, buscamos apenas pelo ID
         // (que geralmente é o mesmo do User no seu sistema).
-        // Se houver necessidade de filtro por provider, isso será feito via Appointments.
+        // Se houver necessidade de filtro por provider, isso será feito via
+        // Appointments.
         return jpaClientRepository.findById(userId)
                 .map(clientMapper::toDomain);
     }
@@ -64,8 +65,10 @@ public class ClientPersistenceAdapter implements IClientRepository {
         // Ordena por nome em ordem alfabética
         Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
 
-        // ✨ CORREÇÃO: Chamando o novo método global que definimos no JpaClientRepository
-        Page<ClientEntity> entityPage = jpaClientRepository.findAllByNameFilter(
+        // ✨ Chama a query de Marketplace: Filtra globalmente, mas restrito ao histórico
+        // do Salão
+        Page<ClientEntity> entityPage = jpaClientRepository.findClientsByProviderInteraction(
+                providerId,
                 nameFilter,
                 pageable);
 
