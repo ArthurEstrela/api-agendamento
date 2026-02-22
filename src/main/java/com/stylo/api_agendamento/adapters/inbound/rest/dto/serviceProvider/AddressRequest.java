@@ -10,7 +10,10 @@ public record AddressRequest(
         @NotBlank String neighborhood,
         @NotBlank String city,
         @NotBlank String state,
-        @NotBlank String zipCode) {
+        @NotBlank String zipCode,
+        Double lat, // ✨ NOVO
+        Double lng  // ✨ NOVO
+) {
     /**
      * Converte o DTO de entrada para o Value Object de Domínio.
      */
@@ -22,6 +25,9 @@ public record AddressRequest(
                 this.neighborhood,
                 this.city,
                 this.state,
-                this.zipCode);
+                this.zipCode,
+                this.lat, // ✨ NOVO
+                this.lng  // ✨ NOVO
+        );
     }
 }

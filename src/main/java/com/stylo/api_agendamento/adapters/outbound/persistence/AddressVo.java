@@ -29,4 +29,11 @@ public class AddressVo {
 
     @Column(name = "address_zip_code", length = 10)
     private String zipCode;
+
+    // ✨ NOVO: Campos para Geolocalização
+    @Column(name = "address_lat")
+    private Double lat;
+
+    @Column(name = "address_lng")
+    private Double lng;
 }

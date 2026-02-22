@@ -9,7 +9,9 @@ public record Address(
     String neighborhood,
     String city,
     String state,
-    String zipCode
+    String zipCode,
+    Double lat, // ✨ NOVO
+    Double lng  // ✨ NOVO
 ) {
     public Address {
         if (street == null || street.isBlank()) throw new BusinessException("A rua é obrigatória.");
@@ -17,7 +19,7 @@ public record Address(
         if (state == null || state.isBlank()) throw new BusinessException("O estado é obrigatório.");
         
         // Validação básica de CEP (apenas números, 8 dígitos)
-        if (zipCode != null) {
+        if (zipCode != null && !zipCode.isBlank()) {
             String cleanZip = zipCode.replaceAll("\\D", "");
             if (cleanZip.length() != 8) throw new BusinessException("CEP inválido.");
             zipCode = cleanZip; // Armazena limpo
