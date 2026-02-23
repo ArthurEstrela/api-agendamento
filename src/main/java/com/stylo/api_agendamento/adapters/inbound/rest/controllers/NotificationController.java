@@ -44,10 +44,23 @@ public class NotificationController {
     public ResponseEntity<Void> markAllAsRead() {
         UUID userId = userContext.getCurrentUserId();
         List<NotificationEntity> unread = notificationRepository.findByUserIdAndIsReadFalse(userId);
-        
+
         unread.forEach(n -> n.setRead(true));
         notificationRepository.saveAll(unread);
-        
+
         return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteNotification(@PathVariable UUID id) {
+        UUID userId = userContext.getCurrentUserId();
+        NotificationEntity notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Notificação não encontrada"));
+
+        // Proteção: garante que o usuário só pode deletar a própria notificação
+        if (notification.getUserId().equals(userId)) {
+            notificationRepository.delete(notification);
+        }
+        return ResponseEntity.noContent().build();
     }
 }
