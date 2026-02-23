@@ -32,7 +32,7 @@ public class SecurityConfigurations {
 
     private final SecurityFilter securityFilter;
 
-    // ✨ INJEÇÃO DA URL DO FRONT-END (Vem do application.properties ou Variável de Ambiente)
+    // INJEÇÃO DA URL DO FRONT-END (Vem do application.properties ou Variável de Ambiente)
     @Value("${stylo.frontend-url}")
     private String frontendUrl;
 
@@ -43,17 +43,30 @@ public class SecurityConfigurations {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        // ✨ CORREÇÃO 1: Libera a rota de erro nativa do Spring para que erros de validação (@Valid) 
+                        // cheguem ao front-end como 400 Bad Request, em vez de um 403 Forbidden cego.
+                        .requestMatchers("/error").permitAll()
+
                         // --- PÚBLICO ---
+                        
+                        // ✨ CORREÇÃO 2: Libera a checagem de sessão para retornar 404 amigável se o usuário 
+                        // acabou de ser criado no Firebase mas ainda não está no Postgres.
+                        .requestMatchers(HttpMethod.GET, "/v1/auth/me").permitAll()
+                        
                         .requestMatchers(HttpMethod.POST, "/v1/auth/**").permitAll()
+                        
+                        // ✨ CORREÇÃO 3: Libera explicitamente o POST para o cadastro do profissional
+                        .requestMatchers(HttpMethod.POST, "/v1/service-providers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/service-providers/**").permitAll()
+                        
                         // Rota exata do webhook do Stripe mapeada no PaymentController
                         .requestMatchers(HttpMethod.POST, "/v1/payments/webhook").permitAll() 
                         // Documentação do Swagger/OpenAPI
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
-                        // --- ÁREA DO CLIENTE (Novo) ---
-                        // ✨ Apenas clientes podem gerenciar seus favoritos
-                        .requestMatchers("/v1/clients/me/favorites/**").hasAuthority(APPOINTMENT_READ.getPermission()) // Ou crie uma permissão específica CLIENT_PROFILE
+                        // --- ÁREA DO CLIENTE ---
+                        // Apenas clientes podem gerenciar seus favoritos
+                        .requestMatchers("/v1/clients/me/favorites/**").hasAuthority(APPOINTMENT_READ.getPermission())
 
                         // --- FINANCEIRO (Proteção Crítica) ---
                         // Apenas quem tem FINANCIAL_READ vê o dashboard
@@ -111,11 +124,11 @@ public class SecurityConfigurations {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // Permite APENAS o domínio seguro do SaaS (ou localhost durante o dev)
-        configuration.setAllowedOrigins(List.of(frontendUrl, "http://localhost:5173")); // ✨ Adicionado localhost para dev
+        configuration.setAllowedOrigins(List.of(frontendUrl, "http://localhost:5173")); 
         
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         
-        // ✨ Incluído headers padrões para React/Axios além do Stripe
+        // Incluído headers padrões para React/Axios além do Stripe
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Stripe-Signature", "X-Requested-With", "Accept"));
         
         // Essencial para frameworks modernos de front-end

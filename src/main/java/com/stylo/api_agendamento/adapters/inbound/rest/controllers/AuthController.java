@@ -31,7 +31,7 @@ public class AuthController {
 
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
+
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
 
@@ -42,64 +42,57 @@ public class AuthController {
     })
     @PostMapping("/register/client")
     public ResponseEntity<Map<String, Object>> register(@RequestBody @Valid RegisterClientRequest request) {
-        
+
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new BusinessException("Este e-mail já está cadastrado em nosso sistema.");
         }
 
-        // Mantemos a criptografia local caso você ainda queira ter a senha salva no PostgreSQL
+        // Mantemos a criptografia local caso você ainda queira ter a senha salva no
+        // PostgreSQL
         // (embora o Firebase também vá gerenciar essa senha no front-end)
         String encryptedPassword = passwordEncoder.encode(request.password());
-        
+
         User newUser = User.create(
-            request.name(), 
-            request.email(), 
-            request.phoneNumber(), 
-            UserRole.CLIENT
-        );
+                request.name(),
+                request.email(),
+                request.phoneNumber(),
+                UserRole.CLIENT);
 
         newUser.changePassword(encryptedPassword);
-        
+
         User savedUser = userRepository.save(newUser);
-        
+
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-            "id", savedUser.getId(),
-            "name", savedUser.getName(),
-            "email", savedUser.getEmail(),
-            "role", savedUser.getRole()
-        ));
+                "id", savedUser.getId(),
+                "name", savedUser.getName(),
+                "email", savedUser.getEmail(),
+                "role", savedUser.getRole()));
     }
 
-    @Operation(summary = "Obter dados do usuário (Substitui o Login antigo)", description = "Retorna os dados do banco após o front-end enviar o token do Firebase.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Retorna os dados do usuário sincronizado."),
-            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido.")
-    })
-    @GetMapping("/me") // Mudamos de POST /login para GET /me
+    @Operation(summary = "Obter dados do usuário", description = "Retorna os dados do banco após o front-end enviar o token do Firebase.")
+    @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> getMe() {
-        // Como o SecurityFilter já validou o token do Firebase que veio no cabeçalho,
-        // o usuário já estará logado no contexto do Spring!
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
+        // ✨ Se o usuário não existe no banco, retorna 404 (O React espera isso)
         if (authentication == null || "anonymousUser".equals(authentication.getPrincipal())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
         User user = (User) authentication.getPrincipal();
 
-        // Retornamos os dados do banco para o React preencher o Dashboard
         return ResponseEntity.ok(Map.of(
-            "id", user.getId(),
-            "name", user.getName(),
-            "email", user.getEmail(),
-            "role", user.getRole()
-        ));
+                "id", user.getId(),
+                "name", user.getName(),
+                "email", user.getEmail(),
+                "role", user.getRole()));
     }
 
     @Operation(summary = "Esqueci minha senha", description = "Inicia o fluxo de recuperação enviando um e-mail com o link de reset.")
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
-        // DICA: No futuro, você pode remover isso e usar a função nativa do Firebase no React: sendPasswordResetEmail()
+        // DICA: No futuro, você pode remover isso e usar a função nativa do Firebase no
+        // React: sendPasswordResetEmail()
         requestPasswordResetUseCase.execute(request.email());
         return ResponseEntity.noContent().build();
     }
