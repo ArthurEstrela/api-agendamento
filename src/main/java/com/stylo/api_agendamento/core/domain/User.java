@@ -18,22 +18,23 @@ import java.util.UUID;
 public class User implements UserDetails {
 
     private UUID id;
-    
+
     // --- IDENTIFICAÇÃO ---
     private String name;
     private String email;
     private String password; // Hash criptografado
-    
+
     private UserRole role;
 
     // --- VÍNCULOS (MULTI-TENANT) ---
     private UUID providerId; // Obrigatório para Admin e Profissionais
-    private UUID clientId;   // Opcional: Link para a ficha do cliente final
+    private UUID clientId; // Opcional: Link para a ficha do cliente final
+    private UUID professionalId; // ✨ NOVO: Link para a ficha do Profissional
 
     // --- DADOS DE PERFIL ---
     private String phoneNumber;
     private String profilePictureUrl;
-    
+
     // --- INTEGRAÇÕES ---
     private String fcmToken; // Push Notifications
 
@@ -49,12 +50,14 @@ public class User implements UserDetails {
 
     /**
      * Factory Method de Criação.
-     * Note que a senha não é passada aqui. Ela deve ser injetada via changePassword(),
-     * permitindo fluxos de cadastro via OAuth (Google) onde a senha não existe inicialmente.
+     * Note que a senha não é passada aqui. Ela deve ser injetada via
+     * changePassword(),
+     * permitindo fluxos de cadastro via OAuth (Google) onde a senha não existe
+     * inicialmente.
      */
     public static User create(String name, String email, String phoneNumber, UserRole role) {
         validateEmail(email);
-        
+
         if (name == null || name.isBlank()) {
             throw new BusinessException("Nome do usuário é obrigatório.");
         }
@@ -77,20 +80,24 @@ public class User implements UserDetails {
     // --- MÉTODOS DE NEGÓCIO: PERFIL E VÍNCULOS ---
 
     public void linkProvider(UUID providerId) {
-        if (providerId == null) throw new BusinessException("ID do estabelecimento inválido.");
+        if (providerId == null)
+            throw new BusinessException("ID do estabelecimento inválido.");
         this.providerId = providerId;
         this.updatedAt = LocalDateTime.now();
     }
 
     public void linkClient(UUID clientId) {
-        if (clientId == null) throw new BusinessException("ID do cliente inválido.");
+        if (clientId == null)
+            throw new BusinessException("ID do cliente inválido.");
         this.clientId = clientId;
         this.updatedAt = LocalDateTime.now();
     }
 
     public void updateProfile(String name, String phoneNumber) {
-        if (name != null && !name.isBlank()) this.name = name;
-        if (phoneNumber != null) this.phoneNumber = phoneNumber;
+        if (name != null && !name.isBlank())
+            this.name = name;
+        if (phoneNumber != null)
+            this.phoneNumber = phoneNumber;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -123,8 +130,8 @@ public class User implements UserDetails {
     }
 
     public boolean isResetTokenValid() {
-        return this.resetPasswordToken != null 
-                && this.resetPasswordExpiresAt != null 
+        return this.resetPasswordToken != null
+                && this.resetPasswordExpiresAt != null
                 && LocalDateTime.now().isBefore(this.resetPasswordExpiresAt);
     }
 
@@ -162,7 +169,8 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        if (role == null) return Collections.emptyList();
+        if (role == null)
+            return Collections.emptyList();
         return role.getAuthorities();
     }
 
@@ -204,12 +212,21 @@ public class User implements UserDetails {
         }
     }
 
+    public void linkProfessional(UUID professionalId) {
+        if (professionalId == null)
+            throw new BusinessException("ID do profissional inválido.");
+        this.professionalId = professionalId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     // --- IDENTIDADE (DDD) ---
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         User user = (User) o;
         return Objects.equals(id, user.id);
     }
@@ -218,4 +235,5 @@ public class User implements UserDetails {
     public int hashCode() {
         return Objects.hash(id);
     }
+
 }

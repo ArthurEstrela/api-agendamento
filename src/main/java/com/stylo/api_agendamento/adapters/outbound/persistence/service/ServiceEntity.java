@@ -11,18 +11,18 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 
 @Entity
 @Table(name = "services")
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder(toBuilder = true)
 public class ServiceEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    // ✨ DESACOPLAMENTO (DDD): Apenas o ID, sem ManyToOne carregando a entidade inteira
+    // ✨ DESACOPLAMENTO (DDD): Apenas o ID, sem ManyToOne carregando a entidade
+    // inteira
     @Column(name = "service_provider_id", nullable = false)
     private UUID serviceProviderId;
 
@@ -56,8 +56,10 @@ public class ServiceEntity extends BaseEntity {
 
     @PrePersist
     protected void onCreate() {
-        if (this.createdAt == null) this.createdAt = LocalDateTime.now();
-        if (this.updatedAt == null) this.updatedAt = LocalDateTime.now();
+        if (this.createdAt == null)
+            this.createdAt = LocalDateTime.now();
+        if (this.updatedAt == null)
+            this.updatedAt = LocalDateTime.now();
     }
 
     @PreUpdate

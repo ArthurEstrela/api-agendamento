@@ -23,7 +23,6 @@ import com.stylo.api_agendamento.core.domain.RemunerationType;
 public class ProfessionalEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "service_provider_id", nullable = false)

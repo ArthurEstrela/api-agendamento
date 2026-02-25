@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "users", indexes = {
-    @Index(name = "idx_user_email", columnList = "email"),
-    @Index(name = "idx_user_provider", columnList = "provider_id")
+        @Index(name = "idx_user_email", columnList = "email"),
+        @Index(name = "idx_user_provider", columnList = "provider_id")
 })
 @Getter
 @Setter
@@ -24,7 +24,6 @@ import java.util.UUID;
 public class UserEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
@@ -71,4 +70,10 @@ public class UserEntity extends BaseEntity {
 
     @Column(name = "provider_id")
     private UUID providerId;
+
+    @Column(name = "professional_id")
+    private UUID professionalId;
+
+    @Column(name = "client_id")
+    private UUID clientId;
 }

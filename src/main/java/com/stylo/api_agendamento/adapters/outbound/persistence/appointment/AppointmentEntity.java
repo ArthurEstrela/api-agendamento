@@ -23,7 +23,6 @@ import java.util.UUID;
 public class AppointmentEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     // --- DADOS DO CLIENTE (Snapshots) ---

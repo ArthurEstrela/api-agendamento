@@ -32,7 +32,6 @@ import java.util.UUID;
 public class ServiceProviderEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "business_name", nullable = false, length = 150)

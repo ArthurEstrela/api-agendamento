@@ -20,7 +20,6 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 public class ProductEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id; // ✨ Atualizado de String para UUID
 
     @Column(name = "service_provider_id", nullable = false)

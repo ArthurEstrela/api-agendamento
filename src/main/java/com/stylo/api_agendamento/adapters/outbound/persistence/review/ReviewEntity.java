@@ -16,7 +16,6 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 public class ReviewEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "appointment_id", nullable = false)

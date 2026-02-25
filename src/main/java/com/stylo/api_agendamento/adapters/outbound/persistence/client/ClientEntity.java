@@ -21,7 +21,6 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
 public class ClientEntity extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(nullable = false)
