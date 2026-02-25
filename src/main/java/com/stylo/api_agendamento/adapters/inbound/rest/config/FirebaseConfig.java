@@ -15,8 +15,6 @@ public class FirebaseConfig {
     public void initFirebase() {
         try {
             if (FirebaseApp.getApps().isEmpty()) {
-                // Opção 1: Usando arquivo JSON baixado do console do Firebase (Recomendado para local/desenvolvimento)
-                // Coloque o arquivo 'firebase-service-account.json' na pasta src/main/resources
                 InputStream serviceAccount = getClass().getResourceAsStream("/firebase-service-account.json");
                 
                 FirebaseOptions options;
@@ -25,17 +23,19 @@ public class FirebaseConfig {
                             .setCredentials(GoogleCredentials.fromStream(serviceAccount))
                             .build();
                 } else {
-                    // Opção 2: Application Default Credentials (ideal para deploy no Google Cloud/produção)
+                    // Tenta o default (útil para produção no GCP), mas se falhar, vai cair no catch
                     options = FirebaseOptions.builder()
                             .setCredentials(GoogleCredentials.getApplicationDefault())
                             .build();
                 }
 
                 FirebaseApp.initializeApp(options);
-                System.out.println("Firebase Admin inicializado com sucesso!");
+                System.out.println("🔥 Firebase Admin inicializado com sucesso!");
             }
         } catch (Exception e) {
-            System.err.println("Erro ao inicializar o Firebase Admin SDK: " + e.getMessage());
+            // ✨ CORREÇÃO: Em vez de só imprimir, nós derrubamos a aplicação com um erro claro
+            // Se o Firebase não ligar, a API de agendamento não pode funcionar.
+            throw new IllegalStateException("ERRO CRÍTICO: Não foi possível inicializar o Firebase Admin. Verifique se o arquivo firebase-service-account.json está na pasta resources.", e);
         }
     }
 }
