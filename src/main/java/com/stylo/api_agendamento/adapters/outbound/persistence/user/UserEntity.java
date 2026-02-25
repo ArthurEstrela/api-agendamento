@@ -76,4 +76,7 @@ public class UserEntity extends BaseEntity {
 
     @Column(name = "client_id")
     private UUID clientId;
+
+    @Column(name = "firebase_id", length = 128, unique = true)
+    private String firebaseId;
 }

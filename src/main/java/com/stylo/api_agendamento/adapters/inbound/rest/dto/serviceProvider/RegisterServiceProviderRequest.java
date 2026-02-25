@@ -12,5 +12,6 @@ public record RegisterServiceProviderRequest(
     @NotBlank String businessName,
     @NotBlank String document, // CPF ou CNPJ
     @NotBlank String phone,
-    @NotNull AddressRequest address
+    @NotNull AddressRequest address,
+    String firebaseUid
 ) {}

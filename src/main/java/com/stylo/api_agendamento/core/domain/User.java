@@ -30,6 +30,7 @@ public class User implements UserDetails {
     private UUID providerId; // Obrigatório para Admin e Profissionais
     private UUID clientId; // Opcional: Link para a ficha do cliente final
     private UUID professionalId; // ✨ NOVO: Link para a ficha do Profissional
+    private String firebaseId;
 
     // --- DADOS DE PERFIL ---
     private String phoneNumber;
@@ -216,6 +217,11 @@ public class User implements UserDetails {
         if (professionalId == null)
             throw new BusinessException("ID do profissional inválido.");
         this.professionalId = professionalId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void linkFirebase(String firebaseUid) {
+        this.firebaseId = firebaseUid;
         this.updatedAt = LocalDateTime.now();
     }
 

@@ -21,18 +21,20 @@ public class RegisterClientUseCase {
     private final IClientRepository clientRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional // ✨ MUITO IMPORTANTE: Garante que se falhar ao salvar o User, ele desfaz o Client
+    @Transactional // ✨ MUITO IMPORTANTE: Garante que se falhar ao salvar o User, ele desfaz o
+                   // Client
     public User execute(RegisterClientRequest request) {
-        
+
         // 1. Valida se o e-mail já existe
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new BusinessException("Este e-mail já está cadastrado em nosso sistema.");
         }
 
         // 2. Cria o Perfil do Cliente (Tabela clients)
-        // Nota: Assumindo que seu VO ClientPhone pode ser instanciado assim. Adapte se for um método estático (.of)
-        ClientPhone phoneVo = new ClientPhone(request.phoneNumber()); 
-        
+        // Nota: Assumindo que seu VO ClientPhone pode ser instanciado assim. Adapte se
+        // for um método estático (.of)
+        ClientPhone phoneVo = new ClientPhone(request.phoneNumber());
+
         Client newClient = Client.create(
                 request.name(),
                 request.email(),
@@ -46,12 +48,15 @@ public class RegisterClientUseCase {
                 request.name(),
                 request.email(),
                 request.phoneNumber(),
-                UserRole.CLIENT
-        );
+                UserRole.CLIENT);
 
         // 4. Configura senha e VINCULA o ID do cliente recém-criado
         newUser.changePassword(passwordEncoder.encode(request.password()));
         newUser.linkClient(savedClient.getId());
+
+        if (request.firebaseUid() != null && !request.firebaseUid().isBlank()) {
+            newUser.linkFirebase(request.firebaseUid());
+        }
 
         // 5. Salva o usuário e retorna
         return userRepository.save(newUser);

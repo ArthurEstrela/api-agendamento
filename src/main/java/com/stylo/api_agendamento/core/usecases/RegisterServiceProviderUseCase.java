@@ -1,3 +1,4 @@
+// src/main/java/com/stylo/api_agendamento/core/usecases/RegisterServiceProviderUseCase.java
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
@@ -16,7 +17,7 @@ import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.crypto.password.PasswordEncoder; // Adicione isso se for codificar a senha
+import org.springframework.security.crypto.password.PasswordEncoder; 
 
 import java.util.ArrayList;
 
@@ -29,11 +30,10 @@ public class RegisterServiceProviderUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IUserRepository userRepository;
     private final INotificationProvider notificationProvider;
-    private final PasswordEncoder passwordEncoder; // ✨ Injetado para salvar a senha de forma segura
+    private final PasswordEncoder passwordEncoder; 
 
     @Transactional
     public ServiceProvider execute(Input input) {
-        // 1. Validações de Unicidade
         if (providerRepository.existsByDocument(input.document())) {
             throw new BusinessException("Já existe um estabelecimento cadastrado com este documento.");
         }
@@ -44,7 +44,6 @@ public class RegisterServiceProviderUseCase {
             throw new BusinessException("Este e-mail já está vinculado a um usuário da plataforma.");
         }
 
-        // 2. Criar Estabelecimento (Tenant)
         ServiceProvider provider = ServiceProvider.create(
                 input.businessName(),
                 input.document(),
@@ -54,31 +53,32 @@ public class RegisterServiceProviderUseCase {
 
         ServiceProvider savedProvider = providerRepository.save(provider);
 
-        // 3. Criar Usuário Dono (Vinculado ao Tenant)
-        // ✨ CORREÇÃO 1: Passando uma String vazia "" ou nula para o telefone (3º parâmetro)
-        User user = User.create(input.ownerName(), input.email(), "", UserRole.SERVICE_PROVIDER);
-        
-        // ✨ CORREÇÃO 2: Usamos changePassword com a senha já criptografada (melhor prática)
+        User user = User.create(input.ownerName(), input.email(), input.phone(), UserRole.SERVICE_PROVIDER);
         user.changePassword(passwordEncoder.encode(input.password()));
-        
-        // ✨ CORREÇÃO 3: linkProvider é void, chamamos direto
         user.linkProvider(savedProvider.getId());
+
+        // ✨ VINCULA O ID DO FIREBASE SE VIER NA REQUISIÇÃO (Igual fizemos no Cliente)
+        if (input.firebaseUid() != null && !input.firebaseUid().isBlank()) {
+            user.linkFirebase(input.firebaseUid());
+        }
         
         userRepository.save(user);
 
-        // 4. Perfil Profissional (Se o dono também atende clientes)
         if (input.ownerIsProfessional()) {
             Professional ownerProfile = Professional.create(
                     input.ownerName(),
                     input.email(),
                     savedProvider.getId(),
-                    new ArrayList<>(), // Serviços vazios
-                    new ArrayList<>()); // Disponibilidade vazia
+                    new ArrayList<>(), 
+                    new ArrayList<>()); 
             
             professionalRepository.save(ownerProfile);
+            
+            // Opcional: Se quiser vincular o profissional ao user automaticamente
+            // user.linkProfessional(ownerProfile.getId());
+            // userRepository.save(user);
         }
 
-        // 5. Notificação de Boas-vindas
         try {
             notificationProvider.sendWelcomeEmail(user.getEmail(), user.getName());
         } catch (Exception e) {
@@ -97,6 +97,9 @@ public class RegisterServiceProviderUseCase {
             String ownerName,
             String email,
             String password,
-            boolean ownerIsProfessional) {
+            String phone, // ✨ NOVO
+            boolean ownerIsProfessional,
+            String firebaseUid // ✨ NOVO
+            ) {
     }
 }

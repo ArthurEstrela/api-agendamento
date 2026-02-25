@@ -36,10 +36,10 @@ public class ServiceProviderController {
         private final UpdateServiceProviderProfileUseCase updateProfileUseCase;
         private final SearchServiceProvidersUseCase searchServiceProvidersUseCase;
 
-        @Operation(summary = "Criar Conta (Onboarding)", description = "Regista um novo estabelecimento e cria automaticamente o utilizador administrador/proprietário.")
+        @Operation(summary = "Criar Conta (Onboarding)", description = "Regista um novo estabelecimento e sincroniza com o Firebase.")
         @ApiResponses({
                         @ApiResponse(responseCode = "201", description = "Estabelecimento registado com sucesso"),
-                        @ApiResponse(responseCode = "400", description = "Dados inválidos, e-mail já em uso ou CPF/CNPJ duplicado")
+                        @ApiResponse(responseCode = "400", description = "Dados inválidos ou e-mail já em uso")
         })
         @PostMapping("/register")
         public ResponseEntity<ServiceProvider> register(@RequestBody @Valid RegisterServiceProviderRequest request) {
@@ -50,30 +50,29 @@ public class ServiceProviderController {
                                 .replaceAll("[^a-z0-9\\s]", "")
                                 .replaceAll("\\s+", "-");
 
-                // 2. Conversão segura do endereço
-                Address addressDomain = request.address().toDomain();
+                // ✨ CORREÇÃO: O Front-end não manda endereço na primeira etapa (onboarding).
+                // Passamos null de forma segura.
+                Address addressDomain = null;
 
-                // 3. ✨ CORREÇÃO DEFINITIVA: Instanciando Document conforme a definição do
-                // Record
+                // 3. Tratamento do Documento (CPF/CNPJ)
                 String cleanDoc = request.document().replaceAll("\\D", "");
-
-                // Determinamos o tipo baseado no tamanho (11 = CPF, 14 = CNPJ)
-                Document.DocumentType type = cleanDoc.length() > 11
-                                ? Document.DocumentType.CNPJ
+                Document.DocumentType type = cleanDoc.length() > 11 ? Document.DocumentType.CNPJ
                                 : Document.DocumentType.CPF;
-
                 Document document = new Document(cleanDoc, type);
 
-                // 4. Instância do Record 'Input'
+                // 4. Instância do Record 'Input' mapeando os nomes que o Frontend envia
                 var input = new RegisterServiceProviderUseCase.Input(
                                 request.businessName(),
                                 document,
                                 new Slug(generatedSlugValue),
                                 addressDomain,
-                                request.ownerName(),
-                                request.ownerEmail(),
-                                request.ownerPassword(),
-                                true);
+                                request.ownerName(), // ✨ Agora bate com o JSON do front
+                                request.ownerEmail(), // ✨ Agora bate com o JSON do front
+                                request.ownerPassword(), // ✨ Agora bate com o JSON do front
+                                request.phone(),
+                                true, // Por padrão, o dono é o primeiro profissional da agenda
+                                request.firebaseUid() // ✨ IDs sincronizados!
+                );
 
                 return ResponseEntity.status(HttpStatus.CREATED).body(registerUseCase.execute(input));
         }
