@@ -1,6 +1,8 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.config;
 
+import com.google.firebase.auth.FirebaseToken;
 import com.stylo.api_agendamento.adapters.outbound.security.TokenService;
+import com.stylo.api_agendamento.core.domain.User;
 import com.stylo.api_agendamento.core.ports.IUserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -29,7 +32,6 @@ public class SecurityFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) 
             throws ServletException, IOException {
         
-        // ✨ Otimização: Pula a verificação de token para rotas públicas como Swagger ou Webhooks
         String path = request.getRequestURI();
         if (path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui") || path.equals("/v1/payments/webhook")) {
             filterChain.doFilter(request, response);
@@ -39,21 +41,35 @@ public class SecurityFilter extends OncePerRequestFilter {
         var token = this.recoverToken(request);
         
         if (token != null) {
-            var email = tokenService.validateToken(token);
+            FirebaseToken firebaseToken = tokenService.validateToken(token);
             
-            if (email != null && !email.isBlank()) {
-                // Busca o usuário no banco local pelo e-mail verificado pelo Firebase
-                userRepository.findByEmail(email).ifPresentOrElse(
+            if (firebaseToken != null) {
+                String uid = firebaseToken.getUid();
+                String email = firebaseToken.getEmail();
+
+                // ✨ 1. Tenta buscar PRIMEIRO pelo ID do Firebase (O mais seguro)
+                Optional<User> userOpt = userRepository.findByFirebaseId(uid);
+
+                // ✨ 2. Fallback: Se não achou pelo UID, tenta pelo E-mail (Retrocompatibilidade)
+                if (userOpt.isEmpty() && email != null && !email.isBlank()) {
+                    userOpt = userRepository.findByEmail(email);
+                    
+                    // ✨ 3. Auto-cura (Self-Healing): Achou pelo e-mail? Vincula o UID para as próximas vezes!
+                    if (userOpt.isPresent()) {
+                        User user = userOpt.get();
+                        user.linkFirebase(uid);
+                        userRepository.save(user); // Salva o vínculo definitivo
+                        logger.info("Vínculo Firebase UID realizado com sucesso para o usuário: {}", email);
+                    }
+                }
+
+                userOpt.ifPresentOrElse(
                     user -> {
-                        // Usuário encontrado: Autentica no contexto do Spring Security
+                        // ✨ 4. Autentica no contexto do Spring Security com as Roles corretas
                         var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
                         SecurityContextHolder.getContext().setAuthentication(authentication);
                     },
-                    () -> {
-                        // Usuário logado no Firebase, mas não existe no BD Postgres.
-                        // O Spring Security irá retornar 403/401 automaticamente dependendo da rota.
-                        logger.warn("Aviso: Token Firebase válido, mas usuário não encontrado no banco local (e-mail: {})", email);
-                    }
+                    () -> logger.warn("Aviso: Token Firebase válido, mas usuário não encontrado no banco local (UID: {}, E-mail: {})", uid, email)
                 );
             }
         }
@@ -63,13 +79,9 @@ public class SecurityFilter extends OncePerRequestFilter {
 
     private String recoverToken(HttpServletRequest request) {
         var authHeader = request.getHeader("Authorization");
-        
-        // Verifica se o cabeçalho existe e começa com o padrão correto
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return null;
         }
-        
-        // Retorna apenas o token usando substring (mais eficiente e seguro que o replace)
         return authHeader.substring(7);
     }
 }

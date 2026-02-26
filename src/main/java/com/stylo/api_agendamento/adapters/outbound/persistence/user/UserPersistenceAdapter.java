@@ -71,4 +71,10 @@ public class UserPersistenceAdapter implements IUserRepository {
             jpaUserRepository.clearFcmToken(fcmToken);
         }
     }
+
+    @Override
+    public Optional<User> findByFirebaseId(String firebaseId) {
+        return jpaUserRepository.findByFirebaseId(firebaseId)
+                .map(userMapper::toDomain);
+    }
 }

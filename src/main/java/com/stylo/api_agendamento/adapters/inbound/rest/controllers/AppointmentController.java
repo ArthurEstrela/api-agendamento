@@ -9,8 +9,6 @@ import com.stylo.api_agendamento.core.ports.IUserContext;
 import com.stylo.api_agendamento.core.usecases.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,25 +50,28 @@ public class AppointmentController {
     // --- AGENDAMENTO ONLINE (Clientes e Staff) ---
 
     @Operation(summary = "Criar Agendamento Online", description = "Endpoint para o cliente final agendar um horário via App/Site.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Agendamento criado com sucesso"),
-            @ApiResponse(responseCode = "400", description = "Dados inválidos ou regras de negócio violadas"),
-            @ApiResponse(responseCode = "409", description = "Conflito de horário (Horário já ocupado)")
-    })
     @PostMapping
     @Idempotent(ttl = 24, unit = TimeUnit.HOURS)
     @PreAuthorize("hasAuthority('appointment:write')")
     public ResponseEntity<Appointment> create(@RequestBody @Valid CreateAppointmentRequest request) {
         UUID loggedUserId = userContext.getCurrentUserId();
 
+        // Extrai apenas os IDs dos itens que são do tipo "SERVICE" para passar pro
+        // UseCase
+        List<UUID> extractedServiceIds = request.items().stream()
+                .filter(item -> "SERVICE".equalsIgnoreCase(item.type()))
+                .map(item -> UUID.fromString(item.referenceId()))
+                .collect(Collectors.toList());
+
         var input = new CreateAppointmentUseCase.Input(
                 loggedUserId,
                 UUID.fromString(request.professionalId()),
-                request.serviceIds().stream().map(UUID::fromString).collect(Collectors.toList()),
+                extractedServiceIds, // Enviando os serviços filtrados do payload do Front
                 request.startTime(),
-                request.reminderMinutes(),
+                120, // reminderMinutes chumbado como padrão de negócio (ex: 2 horas antes), já que o
+                     // front não manda
                 request.couponCode(),
-                null // notes
+                request.notes() // Agora repassamos as anotações do cliente
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createAppointmentUseCase.execute(input));
@@ -79,7 +80,8 @@ public class AppointmentController {
     @Operation(summary = "Criar Agendamento Recorrente", description = "Cria uma série de agendamentos (ex: Toda Sexta-feira).")
     @PostMapping("/recurring")
     @PreAuthorize("hasAuthority('appointment:write')")
-    public ResponseEntity<RecurringAppointmentResponse> createRecurring(@RequestBody @Valid RecurringAppointmentRequest request) {
+    public ResponseEntity<RecurringAppointmentResponse> createRecurring(
+            @RequestBody @Valid RecurringAppointmentRequest request) {
         UUID loggedUserId = userContext.getCurrentUserId();
 
         var input = CreateRecurringAppointmentUseCase.Input.builder()
@@ -103,8 +105,7 @@ public class AppointmentController {
                 result.createdAppointments().stream().map(a -> a.getId().toString()).toList(),
                 result.failedOccurrences().stream()
                         .map(f -> new RecurringAppointmentResponse.FailedSlot(f.date(), f.reason()))
-                        .toList()
-        );
+                        .toList());
 
         if (result.createdAppointments().isEmpty()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
@@ -125,8 +126,7 @@ public class AppointmentController {
                 request.clientPhone(),
                 request.serviceIds().stream().map(UUID::fromString).collect(Collectors.toList()),
                 request.startTime(),
-                request.notes()
-        );
+                request.notes());
         return ResponseEntity.status(HttpStatus.CREATED).body(createManualAppointmentUseCase.execute(input));
     }
 
@@ -145,19 +145,20 @@ public class AppointmentController {
     @Operation(summary = "Finalizar/Checkout", description = "Conclui o atendimento, calcula comissões e registra pagamento.")
     @PatchMapping("/{id}/complete")
     @PreAuthorize("hasAuthority('appointment:manage_all') or hasRole('PROFESSIONAL')")
-    public ResponseEntity<Void> complete(@PathVariable UUID id, @RequestBody @Valid CompleteAppointmentRequest request) {
+    public ResponseEntity<Void> complete(@PathVariable UUID id,
+            @RequestBody @Valid CompleteAppointmentRequest request) {
         var productItems = request.soldProducts() != null
                 ? request.soldProducts().stream()
-                .map(p -> new CompleteAppointmentUseCase.ProductSaleItem(UUID.fromString(p.productId()), p.quantity()))
-                .collect(Collectors.toList())
+                        .map(p -> new CompleteAppointmentUseCase.ProductSaleItem(UUID.fromString(p.productId()),
+                                p.quantity()))
+                        .collect(Collectors.toList())
                 : Collections.<CompleteAppointmentUseCase.ProductSaleItem>emptyList();
 
         var input = new CompleteAppointmentUseCase.Input(
                 id,
                 PaymentMethod.valueOf(request.paymentMethod()),
                 request.serviceFinalPrice(),
-                productItems
-        );
+                productItems);
 
         completeAppointmentUseCase.execute(input);
         return ResponseEntity.noContent().build();
@@ -178,8 +179,7 @@ public class AppointmentController {
                 id,
                 loggedUserId,
                 reason,
-                isClient
-        );
+                isClient);
 
         cancelAppointmentUseCase.execute(input);
         return ResponseEntity.noContent().build();
@@ -216,8 +216,7 @@ public class AppointmentController {
         var input = new GetAvailableSlotsUseCase.Input(
                 professionalId,
                 LocalDate.parse(date),
-                Collections.emptyList()
-        );
+                Collections.emptyList());
         return ResponseEntity.ok(getAvailableSlotsUseCase.execute(input));
     }
 

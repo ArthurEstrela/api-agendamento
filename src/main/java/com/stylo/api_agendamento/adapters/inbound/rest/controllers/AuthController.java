@@ -4,6 +4,8 @@ import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ForgotPasswordRe
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.RegisterClientRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.auth.ResetPasswordRequest;
 import com.stylo.api_agendamento.core.domain.User;
+import com.stylo.api_agendamento.core.ports.IClientRepository;
+import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import com.stylo.api_agendamento.core.usecases.RegisterClientUseCase;
 import com.stylo.api_agendamento.core.usecases.RequestPasswordResetUseCase;
 import com.stylo.api_agendamento.core.usecases.ResetPasswordUseCase;
@@ -29,6 +31,8 @@ public class AuthController {
     private final RegisterClientUseCase registerClientUseCase;
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
+    private final IClientRepository clientRepository;
+    private final IServiceProviderRepository serviceProviderRepository;
 
     @Operation(summary = "Registrar Cliente", description = "Cria a conta do usuário e o perfil de cliente no banco de dados.")
     @ApiResponses({
@@ -50,32 +54,62 @@ public class AuthController {
         ));
     }
 
-    @Operation(summary = "Obter dados do usuário", description = "Retorna os dados do banco após o front-end enviar o token do Firebase.")
+    @Operation(summary = "Obter dados do usuário", description = "Retorna os dados completos mesclando User e o Perfil (Client ou Provider).")
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> getMe() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // Se o usuário não existe no banco, retorna 404
         if (authentication == null || "anonymousUser".equals(authentication.getPrincipal())) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
         User user = (User) authentication.getPrincipal();
-
-        // ✨ SOLUÇÃO: Usar HashMap clássico no lugar de Map.of()
-        // O HashMap permite valores nulos sem quebrar a aplicação.
         java.util.Map<String, Object> response = new java.util.HashMap<>();
-        
-        // Dados Base
+
+        // 1. DADOS BASE (Equivalente ao BaseUser do types.ts)
         response.put("id", user.getId());
         response.put("name", user.getName());
         response.put("email", user.getEmail());
         response.put("role", user.getRole());
-        
-        // ✨ Vínculos (Multi-tenant) - O React precisa MUITO disso para gerenciar rotas
-        response.put("clientId", user.getClientId()); 
+        response.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        response.put("phoneNumber", user.getPhoneNumber());
+        response.put("profilePictureUrl", user.getProfilePictureUrl());
+
+        // 2. VÍNCULOS DE IDENTIDADE
+        response.put("clientId", user.getClientId());
         response.put("providerId", user.getProviderId());
         response.put("professionalId", user.getProfessionalId());
+
+        // 3. DADOS ESPECÍFICOS DO PERFIL CLIENTE
+        if (user.isClient() && user.getClientId() != null) {
+            clientRepository.findById(user.getClientId()).ifPresent(client -> {
+                response.put("cpf", client.getCpf());
+                response.put("dateOfBirth",
+                        client.getDateOfBirth() != null ? client.getDateOfBirth().toString() : null);
+                response.put("gender", client.getGender());
+                response.put("noShowCount", client.getNoShowCount());
+                response.put("favoriteProfessionals", client.getFavoriteProviders());
+            });
+        }
+        // 4. DADOS ESPECÍFICOS DO PERFIL ESTABELECIMENTO
+        else if (user.isProviderAdmin() && user.getProviderId() != null) {
+            serviceProviderRepository.findById(user.getProviderId()).ifPresent(provider -> {
+                response.put("businessName", provider.getBusinessName());
+                response.put("businessAddress", provider.getBusinessAddress());
+                response.put("document", provider.getDocument() != null ? provider.getDocument().value() : null);
+                response.put("publicProfileSlug",
+                        provider.getPublicProfileSlug() != null ? provider.getPublicProfileSlug().value() : null);
+                response.put("businessPhone", provider.getBusinessPhone());
+                response.put("logoUrl", provider.getLogoUrl());
+                response.put("bannerUrl", provider.getBannerUrl());
+                response.put("pixKey", provider.getPixKey());
+                response.put("pixKeyType", provider.getPixKeyType());
+                response.put("cancellationMinHours", provider.getCancellationMinHours());
+                response.put("subscriptionStatus", provider.getSubscriptionStatus());
+                response.put("averageRating", provider.getAverageRating());
+                response.put("paymentMethods", provider.getPaymentMethods());
+            });
+        }
 
         return ResponseEntity.ok(response);
     }

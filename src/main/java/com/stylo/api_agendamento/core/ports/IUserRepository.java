@@ -30,4 +30,6 @@ public interface IUserRepository {
     void delete(UUID id);
 
     void clearTokenIfInUse(String fcmToken);
+
+    Optional<User> findByFirebaseId(String firebaseId);
 }

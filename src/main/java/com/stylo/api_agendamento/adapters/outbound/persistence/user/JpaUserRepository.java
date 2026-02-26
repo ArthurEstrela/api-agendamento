@@ -26,4 +26,6 @@ public interface JpaUserRepository extends JpaRepository<UserEntity, UUID> {
     @Modifying
     @Query("UPDATE UserEntity u SET u.fcmToken = null WHERE u.fcmToken = :token")
     void clearFcmToken(@Param("token") String token);
+
+    Optional<UserEntity> findByFirebaseId(String firebaseId);
 }

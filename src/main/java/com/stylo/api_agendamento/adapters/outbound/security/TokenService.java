@@ -12,25 +12,14 @@ public class TokenService {
 
     private static final Logger logger = LoggerFactory.getLogger(TokenService.class);
 
-    /**
-     * Valida o token gerado pelo Front-end (Firebase Auth)
-     * 
-     * @param token O ID Token (Bearer) enviado na requisição.
-     * @return O e-mail do usuário caso o token seja válido, ou null se for
-     *         inválido/expirado.
-     */
-    public String validateToken(String token) {
+    // ✨ AGORA RETORNA O OBJETO COMPLETO DO FIREBASE
+    public FirebaseToken validateToken(String token) {
         if (token == null || token.isBlank()) {
             return null;
         }
 
         try {
-            // O Firebase Admin verifica a assinatura do token e confere se ele não expirou.
-            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);
-
-            // Retornamos o e-mail associado ao token para buscar no banco local
-            return decodedToken.getEmail();
-
+            return FirebaseAuth.getInstance().verifyIdToken(token);
         } catch (FirebaseAuthException e) {
             logger.error("Erro na validação do token Firebase: {}", e.getMessage());
             return null;
