@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.BatchSize;
+
 @Entity
 @Table(name = "appointments")
 @Getter
@@ -53,7 +55,10 @@ public class AppointmentEntity extends BaseEntity {
 
     // --- SERVIÇOS (Catálogo) ---
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "appointment_services", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
+    @JoinTable(name = "appointment_services", 
+        joinColumns = @JoinColumn(name = "appointment_id"), 
+        inverseJoinColumns = @JoinColumn(name = "service_id"))
+    @BatchSize(size = 50) // ✨ FETCH EM LOTE: Resolve o N+1 de forma otimizada para coleções paginadas
     @Builder.Default
     private List<ServiceEntity> services = new ArrayList<>();
 
@@ -132,6 +137,7 @@ public class AppointmentEntity extends BaseEntity {
     // --- ITENS DA COMANDA (PRODUTOS FÍSICOS) ---
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "appointment_id")
+    @BatchSize(size = 50) // ✨ FETCH EM LOTE: Busca os itens de 50 em 50, matando o N+1
     @Builder.Default
     private List<AppointmentItemEntity> items = new ArrayList<>();
 
