@@ -44,15 +44,19 @@ public class ServiceProviderController {
         @PostMapping("/register")
         public ResponseEntity<ServiceProvider> register(@RequestBody @Valid RegisterServiceProviderRequest request) {
 
-                // 1. Geração do Slug baseada no nome
+                // 1. Geração do Slug baseada no nome do negócio
                 String generatedSlugValue = request.businessName().toLowerCase()
                                 .trim()
                                 .replaceAll("[^a-z0-9\\s]", "")
                                 .replaceAll("\\s+", "-");
 
-                // ✨ CORREÇÃO: O Front-end não manda endereço na primeira etapa (onboarding).
-                // Passamos null de forma segura.
+                // 2. Extrair o endereço que AGORA VEM do Frontend na primeira requisição
                 Address addressDomain = null;
+                if (request.address() != null) {
+                        addressDomain = request.address().toDomain();
+                } else {
+                        throw new IllegalArgumentException("O endereço do estabelecimento é obrigatório.");
+                }
 
                 // 3. Tratamento do Documento (CPF/CNPJ)
                 String cleanDoc = request.document().replaceAll("\\D", "");
@@ -60,19 +64,18 @@ public class ServiceProviderController {
                                 : Document.DocumentType.CPF;
                 Document document = new Document(cleanDoc, type);
 
-                // 4. Instância do Record 'Input' mapeando os nomes que o Frontend envia
+                // 4. Instância do Record 'Input' mapeando os nomes
                 var input = new RegisterServiceProviderUseCase.Input(
                                 request.businessName(),
                                 document,
                                 new Slug(generatedSlugValue),
-                                addressDomain,
-                                request.ownerName(), // ✨ Agora bate com o JSON do front
-                                request.ownerEmail(), // ✨ Agora bate com o JSON do front
-                                request.ownerPassword(), // ✨ Agora bate com o JSON do front
+                                addressDomain, // ✨ Passando o endereço convertido
+                                request.ownerName(),
+                                request.ownerEmail(),
+                                request.ownerPassword(),
                                 request.phone(),
                                 true, // Por padrão, o dono é o primeiro profissional da agenda
-                                request.firebaseUid() // ✨ IDs sincronizados!
-                );
+                                request.firebaseUid());
 
                 return ResponseEntity.status(HttpStatus.CREATED).body(registerUseCase.execute(input));
         }

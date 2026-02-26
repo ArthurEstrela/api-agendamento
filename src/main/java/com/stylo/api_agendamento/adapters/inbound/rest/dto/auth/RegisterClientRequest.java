@@ -9,5 +9,6 @@ public record RegisterClientRequest(
         @NotBlank @Email String email,
         @NotBlank @Size(min = 6) String password,
         @NotBlank String phoneNumber,
+        @NotBlank String cpf,
         String firebaseUid) {
 }
