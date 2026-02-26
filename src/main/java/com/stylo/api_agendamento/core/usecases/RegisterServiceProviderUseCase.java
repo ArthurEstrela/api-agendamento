@@ -17,7 +17,7 @@ import com.stylo.api_agendamento.core.ports.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.crypto.password.PasswordEncoder; 
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.ArrayList;
 
@@ -30,7 +30,7 @@ public class RegisterServiceProviderUseCase {
     private final IProfessionalRepository professionalRepository;
     private final IUserRepository userRepository;
     private final INotificationProvider notificationProvider;
-    private final PasswordEncoder passwordEncoder; 
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public ServiceProvider execute(Input input) {
@@ -49,7 +49,8 @@ public class RegisterServiceProviderUseCase {
                 input.document(),
                 input.slug(),
                 input.address(),
-                input.email());
+                input.email(),
+                input.phone());
 
         ServiceProvider savedProvider = providerRepository.save(provider);
 
@@ -61,7 +62,7 @@ public class RegisterServiceProviderUseCase {
         if (input.firebaseUid() != null && !input.firebaseUid().isBlank()) {
             user.linkFirebase(input.firebaseUid());
         }
-        
+
         userRepository.save(user);
 
         if (input.ownerIsProfessional()) {
@@ -69,11 +70,11 @@ public class RegisterServiceProviderUseCase {
                     input.ownerName(),
                     input.email(),
                     savedProvider.getId(),
-                    new ArrayList<>(), 
-                    new ArrayList<>()); 
-            
+                    new ArrayList<>(),
+                    new ArrayList<>());
+
             professionalRepository.save(ownerProfile);
-            
+
             // Opcional: Se quiser vincular o profissional ao user automaticamente
             // user.linkProfessional(ownerProfile.getId());
             // userRepository.save(user);
@@ -85,7 +86,8 @@ public class RegisterServiceProviderUseCase {
             log.warn("Falha não-bloqueante no envio de boas-vindas para {}: {}", user.getEmail(), e.getMessage());
         }
 
-        log.info("Novo ServiceProvider cadastrado: {} | ID: {}", savedProvider.getBusinessName(), savedProvider.getId());
+        log.info("Novo ServiceProvider cadastrado: {} | ID: {}", savedProvider.getBusinessName(),
+                savedProvider.getId());
         return savedProvider;
     }
 
@@ -100,6 +102,6 @@ public class RegisterServiceProviderUseCase {
             String phone, // ✨ NOVO
             boolean ownerIsProfessional,
             String firebaseUid // ✨ NOVO
-            ) {
+    ) {
     }
 }

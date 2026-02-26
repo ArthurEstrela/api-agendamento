@@ -37,11 +37,10 @@ public class Client {
 
     // --- FACTORY ---
 
-    public static Client create(String name, String email, ClientPhone phone, String cpf) {
+    public static Client create(String name, String email, ClientPhone phone, String cpf, LocalDate dateOfBirth, String gender) {
         if (name == null || name.isBlank()) {
             throw new BusinessException("O nome do cliente é obrigatório.");
         }
-
         if (email == null || !email.contains("@")) {
             throw new BusinessException("E-mail de cliente inválido.");
         }
@@ -52,6 +51,8 @@ public class Client {
                 .email(email)
                 .phoneNumber(phone)
                 .cpf(cpf)
+                .dateOfBirth(dateOfBirth)
+                .gender(gender)
                 .favoriteProviders(new HashSet<>())
                 .noShowCount(0)
                 .createdAt(LocalDateTime.now())

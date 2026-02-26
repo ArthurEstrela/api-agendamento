@@ -10,7 +10,7 @@ public record RegisterServiceProviderRequest(
     @NotBlank @Email String ownerEmail,
     @NotBlank @Size(min = 6) String ownerPassword,
     @NotBlank String businessName,
-    @NotBlank String document, // CPF ou CNPJ
+    @NotBlank String document,
     @NotBlank String phone,
     @NotNull AddressRequest address,
     String firebaseUid

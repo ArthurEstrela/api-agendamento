@@ -77,7 +77,7 @@ public class ServiceProvider {
     // --- FACTORY ---
 
     public static ServiceProvider create(String businessName, Document doc, Slug slug, Address address,
-            String ownerEmail) {
+            String ownerEmail, String businessPhone) {
 
         if (businessName == null || businessName.isBlank())
             throw new BusinessException("Nome do estabelecimento é obrigatório.");
@@ -95,6 +95,7 @@ public class ServiceProvider {
                 .publicProfileSlug(slug)
                 .businessAddress(address)
                 .ownerEmail(ownerEmail)
+                .businessPhone(businessPhone)
                 // Padrões de Assinatura
                 .subscriptionStatus(SubscriptionStatus.TRIAL)
                 .trialEndsAt(LocalDateTime.now().plusDays(15)) // 15 dias grátis

@@ -39,7 +39,9 @@ public class RegisterClientUseCase {
                 request.name(),
                 request.email(),
                 phoneVo,
-                documentVo.value() // <-- CORREÇÃO AQUI: Passando a String validada
+                documentVo.value(),
+                request.dateOfBirth(), // ✨ AGORA PASSA A DATA
+                request.gender()       // ✨ AGORA PASSA O GÊNERO
         );
         Client savedClient = clientRepository.save(newClient);
 
