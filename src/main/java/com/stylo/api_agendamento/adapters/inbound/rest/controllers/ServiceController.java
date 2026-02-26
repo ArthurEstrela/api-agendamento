@@ -5,6 +5,7 @@ import com.stylo.api_agendamento.adapters.inbound.rest.dto.professional.UpdateSe
 import com.stylo.api_agendamento.core.domain.Service;
 import com.stylo.api_agendamento.core.ports.IServiceRepository;
 import com.stylo.api_agendamento.core.usecases.CreateServiceUseCase;
+import com.stylo.api_agendamento.core.usecases.DeleteServiceUseCase;
 import com.stylo.api_agendamento.core.usecases.UpdateServiceUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -29,6 +30,7 @@ public class ServiceController {
     private final CreateServiceUseCase createServiceUseCase;
     private final UpdateServiceUseCase updateServiceUseCase;
     private final IServiceRepository serviceRepository;
+    private final DeleteServiceUseCase deleteServiceUseCase;
 
     // --- ESCRITA (Staff) ---
 
@@ -40,10 +42,11 @@ public class ServiceController {
     @PostMapping
     @PreAuthorize("hasAuthority('appointment:manage_all') or hasRole('SERVICE_PROVIDER')")
     public ResponseEntity<Service> create(@RequestBody @Valid CreateServiceRequest request) {
-        
-        // Tratamento seguro do UUID da categoria vindo do DTO (que o recebe como String)
-        UUID categoryId = (request.categoryId() != null && !request.categoryId().isBlank()) 
-                ? UUID.fromString(request.categoryId()) 
+
+        // Tratamento seguro do UUID da categoria vindo do DTO (que o recebe como
+        // String)
+        UUID categoryId = (request.categoryId() != null && !request.categoryId().isBlank())
+                ? UUID.fromString(request.categoryId())
                 : null;
 
         // Utilizamos o Record 'Input' corretamente tipado
@@ -53,7 +56,8 @@ public class ServiceController {
                 request.duration(),
                 request.price(),
                 categoryId,
-                null // serviceProviderId nulo indica que o UseCase deve extrair do Token JWT do utilizador logado
+                null // serviceProviderId nulo indica que o UseCase deve extrair do Token JWT do
+                     // utilizador logado
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createServiceUseCase.execute(input));
@@ -75,17 +79,32 @@ public class ServiceController {
                 request.name(),
                 request.description(),
                 request.duration(),
-                request.price()
-        );
+                request.price());
 
         return ResponseEntity.ok(updateServiceUseCase.execute(input));
+    }
+
+    @Operation(summary = "Excluir Serviço", description = "Remove um serviço do catálogo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Serviço excluído com sucesso")
+    })
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('appointment:manage_all') or hasRole('SERVICE_PROVIDER')")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+
+        deleteServiceUseCase.execute(id);
+
+        // Retorna 204 No Content (padrão HTTP para exclusão bem sucedida sem corpo de
+        // resposta)
+        return ResponseEntity.noContent().build();
     }
 
     // --- LEITURA (Público / Autenticado) ---
 
     @Operation(summary = "Listar serviços ativos de um estabelecimento", description = "Retorna o catálogo de serviços disponíveis para agendamento. (Uso do Front-end Cliente)")
     @GetMapping("/provider/{providerId}/active")
-    // Sem @PreAuthorize: Rota pública para que clientes não autenticados possam ver o preçário do salão
+    // Sem @PreAuthorize: Rota pública para que clientes não autenticados possam ver
+    // o preçário do salão
     public ResponseEntity<List<Service>> listActiveByProvider(@PathVariable UUID providerId) {
         return ResponseEntity.ok(serviceRepository.findAllActiveByProviderId(providerId));
     }
