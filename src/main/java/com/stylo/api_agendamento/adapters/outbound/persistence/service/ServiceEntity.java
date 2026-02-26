@@ -23,7 +23,7 @@ public class ServiceEntity extends BaseEntity {
 
     // ✨ DESACOPLAMENTO (DDD): Apenas o ID, sem ManyToOne carregando a entidade
     // inteira
-    @Column(name = "service_provider_id", nullable = false)
+    @Column(name = "provider_id", nullable = false)
     private UUID serviceProviderId;
 
     // ✨ SINCRONIA: O campo de categoria que adicionamos no Domínio
@@ -41,7 +41,7 @@ public class ServiceEntity extends BaseEntity {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal price;
 
-    @Column(nullable = false)
+    @Column(name = "duration_minutes", nullable = false)
     private Integer duration; // em minutos
 
     @Column(name = "is_active", nullable = false)
