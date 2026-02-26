@@ -41,7 +41,7 @@ public class AppointmentEntity extends BaseEntity {
     private String clientPhone;
 
     // --- DADOS DO ESTABELECIMENTO E PROFISSIONAL ---
-    @Column(nullable = false, name = "service_provider_id")
+    @Column(nullable = false, name = "provider_id")
     private UUID serviceProviderId; // ✨ Renomeado para bater exato com o Domínio
 
     @Column(name = "business_name")

@@ -8,11 +8,11 @@ import org.mapstruct.ReportingPolicy;
 @Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface ServiceMapper {
     
-    // Mapeia o ID da entidade (Foreign Key) de volta para o campo puro no domínio
     @Mapping(target = "serviceProviderId", source = "serviceProviderId")
+    @Mapping(target = "isActive", source = "active") // ✨ Entity (active) para Domain (isActive)
     Service toDomain(ServiceEntity entity);
 
-    // Cria uma referência Lazy usando apenas o ID para salvar no banco de forma otimizada
     @Mapping(target = "serviceProviderId", source = "serviceProviderId")
+    @Mapping(target = "active", source = "isActive") // ✨ Domain (isActive) para Entity (active)
     ServiceEntity toEntity(Service domain);
 }
