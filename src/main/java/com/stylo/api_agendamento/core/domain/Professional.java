@@ -68,16 +68,6 @@ public class Professional {
         if (providerId == null)
             throw new BusinessException("O profissional deve estar vinculado a um estabelecimento.");
 
-        // Validação de Serviços (Regra de Negócio: Profissional deve fazer algo)
-        if (services == null || services.isEmpty()) {
-            throw new BusinessException("Um profissional deve estar habilitado em pelo menos um serviço.");
-        }
-
-        // Validação de Disponibilidade
-        if (availability == null || availability.isEmpty()) {
-            throw new BusinessException("O profissional deve ter pelo menos um dia de disponibilidade configurado.");
-        }
-
         return Professional.builder()
                 .id(UUID.randomUUID()) // Identidade gerada
                 .name(name)

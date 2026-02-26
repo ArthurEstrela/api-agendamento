@@ -7,8 +7,6 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEn
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -103,15 +101,6 @@ public class ServiceProviderEntity extends BaseEntity {
     @Column(name = "total_reviews")
     @Builder.Default
     private Integer totalReviews = 0;
-
-    // --- CAMPOS DE AUDITORIA ---
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
 
     @Column(name = "time_zone")
     private String timeZone;

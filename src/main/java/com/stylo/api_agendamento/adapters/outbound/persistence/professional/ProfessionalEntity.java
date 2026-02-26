@@ -25,7 +25,7 @@ public class ProfessionalEntity extends BaseEntity {
     @Id
     private UUID id;
 
-    @Column(name = "service_provider_id", nullable = false)
+    @Column(name = "provider_id", nullable = false)
     private UUID serviceProviderId;
 
     @Column(name = "service_provider_name")
@@ -43,7 +43,8 @@ public class ProfessionalEntity extends BaseEntity {
     @Column(length = 500)
     private String bio;
 
-    // ✨ Sincronizado com o Domínio: Mapeamento da lista de "Tags" (Ex: Barbeiro, Visagista)
+    // ✨ Sincronizado com o Domínio: Mapeamento da lista de "Tags" (Ex: Barbeiro,
+    // Visagista)
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "professional_specialties", joinColumns = @JoinColumn(name = "professional_id"))
     @Column(name = "specialty")
@@ -51,13 +52,12 @@ public class ProfessionalEntity extends BaseEntity {
     private List<String> specialties = new ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "professional_services", 
-               joinColumns = @JoinColumn(name = "professional_id"), 
-               inverseJoinColumns = @JoinColumn(name = "service_id"))
+    @JoinTable(name = "professional_services", joinColumns = @JoinColumn(name = "professional_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     @Builder.Default
     private List<ServiceEntity> services = new ArrayList<>();
 
-    // ✨ Otimizado: Trocado EAGER para LAZY (Evita derrubar a memória do banco em buscas de lista)
+    // ✨ Otimizado: Trocado EAGER para LAZY (Evita derrubar a memória do banco em
+    // buscas de lista)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "professional_id")
     @Builder.Default
@@ -65,7 +65,7 @@ public class ProfessionalEntity extends BaseEntity {
 
     @Column(name = "slot_interval")
     private Integer slotInterval;
-    
+
     @Column(name = "is_owner")
     private boolean isOwner;
 
@@ -77,7 +77,8 @@ public class ProfessionalEntity extends BaseEntity {
     @Column(name = "remuneration_value", precision = 19, scale = 2)
     private BigDecimal remunerationValue;
 
-    // ✨ CORREÇÃO AQUI: Adicionado o campo que faltava para a integração com gateway de pagamento (Ex: Stripe)
+    // ✨ CORREÇÃO AQUI: Adicionado o campo que faltava para a integração com gateway
+    // de pagamento (Ex: Stripe)
     @Column(name = "gateway_account_id")
     private String gatewayAccountId;
 }

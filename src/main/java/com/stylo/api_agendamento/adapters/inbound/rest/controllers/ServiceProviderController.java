@@ -20,6 +20,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,8 +46,10 @@ public class ServiceProviderController {
         public ResponseEntity<ServiceProvider> register(@RequestBody @Valid RegisterServiceProviderRequest request) {
 
                 // 1. Geração do Slug baseada no nome do negócio
-                String generatedSlugValue = request.businessName().toLowerCase()
-                                .trim()
+                String normalized = Normalizer.normalize(request.businessName().trim(), Normalizer.Form.NFD)
+                                .replaceAll("[\\p{InCombiningDiacriticalMarks}]", "");
+
+                String generatedSlugValue = normalized.toLowerCase()
                                 .replaceAll("[^a-z0-9\\s]", "")
                                 .replaceAll("\\s+", "-");
 

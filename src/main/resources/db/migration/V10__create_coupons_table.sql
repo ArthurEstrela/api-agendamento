@@ -1,7 +1,7 @@
 CREATE TABLE
     coupons (
-        id VARCHAR(36) PRIMARY KEY,
-        provider_id VARCHAR(36) NOT NULL,
+        id UUID PRIMARY KEY,                   -- ✨ ALTERADO PARA UUID
+        provider_id UUID NOT NULL,             -- ✨ ALTERADO PARA UUID
         code VARCHAR(50) NOT NULL,
         type VARCHAR(20) NOT NULL,
         value DECIMAL(19, 2) NOT NULL,
@@ -20,7 +20,7 @@ CREATE INDEX idx_coupon_provider ON coupons (provider_id);
 
 -- ⚠️ IMPORTANTE: Certifique-se que estas linhas estão no arquivo V10 --
 ALTER TABLE appointments
-ADD COLUMN coupon_id VARCHAR(36);
+ADD COLUMN coupon_id UUID;                    -- ✨ ALTERADO PARA UUID
 
 ALTER TABLE appointments
 ADD COLUMN discount_amount DECIMAL(19, 2) DEFAULT 0;

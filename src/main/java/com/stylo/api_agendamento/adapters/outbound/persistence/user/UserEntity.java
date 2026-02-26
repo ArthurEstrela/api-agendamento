@@ -5,8 +5,6 @@ import com.stylo.api_agendamento.core.domain.UserRole;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -44,14 +42,6 @@ public class UserEntity extends BaseEntity {
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
 
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
