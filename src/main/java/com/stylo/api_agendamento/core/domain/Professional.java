@@ -218,6 +218,15 @@ public class Professional {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void updateServices(List<Service> newServices) {
+        if (newServices == null || newServices.isEmpty()) {
+            throw new BusinessException("O profissional deve realizar pelo menos um serviço.");
+        }
+        this.services.clear();
+        this.services.addAll(newServices);
+        this.updatedAt = LocalDateTime.now();
+    }   
+
     public void deactivate() {
         this.isActive = false;
         this.updatedAt = LocalDateTime.now();
