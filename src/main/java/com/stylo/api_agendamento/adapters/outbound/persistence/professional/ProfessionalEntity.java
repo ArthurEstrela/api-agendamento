@@ -12,6 +12,7 @@ import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailability
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.core.domain.RemunerationType;
+import org.hibernate.annotations.SQLRestriction;
 
 @Entity
 @Table(name = "professionals")
@@ -20,6 +21,7 @@ import com.stylo.api_agendamento.core.domain.RemunerationType;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
+@SQLRestriction("is_active = true")
 public class ProfessionalEntity extends BaseEntity {
 
     @Id
@@ -42,6 +44,10 @@ public class ProfessionalEntity extends BaseEntity {
 
     @Column(length = 500)
     private String bio;
+
+    @Builder.Default
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 
     // ✨ Sincronizado com o Domínio: Mapeamento da lista de "Tags" (Ex: Barbeiro,
     // Visagista)
@@ -81,4 +87,5 @@ public class ProfessionalEntity extends BaseEntity {
     // de pagamento (Ex: Stripe)
     @Column(name = "gateway_account_id")
     private String gatewayAccountId;
+
 }

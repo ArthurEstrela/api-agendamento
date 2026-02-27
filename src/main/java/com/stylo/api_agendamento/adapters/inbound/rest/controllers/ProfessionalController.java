@@ -4,6 +4,7 @@ import com.stylo.api_agendamento.adapters.inbound.rest.dto.professional.*;
 import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
 import com.stylo.api_agendamento.core.usecases.BlockProfessionalTimeUseCase;
 import com.stylo.api_agendamento.core.usecases.CreateProfessionalUseCase;
+import com.stylo.api_agendamento.core.usecases.DeleteProfessionalUseCase;
 import com.stylo.api_agendamento.core.usecases.GetProfessionalProfileUseCase;
 import com.stylo.api_agendamento.core.usecases.UpdateProfessionalAvailabilityUseCase;
 import com.stylo.api_agendamento.core.usecases.UpdateProfessionalCommissionUseCase;
@@ -37,6 +38,7 @@ public class ProfessionalController {
         private final CreateProfessionalUseCase createProfessionalUseCase;
         private final UpdateProfessionalServicesUseCase updateProfessionalServicesUseCase;
         private final UpdateProfessionalProfileUseCase updateProfessionalProfileUseCase;
+        private final DeleteProfessionalUseCase deleteProfessionalUseCase;
 
         @Operation(summary = "Criar Profissional (Staff)", description = "Cria um novo profissional vinculado a um estabelecimento.")
         @ApiResponses({
@@ -175,6 +177,21 @@ public class ProfessionalController {
 
                 // Retorna o perfil atualizado para o frontend
                 return ResponseEntity.ok(getProfessionalProfileUseCase.execute(updatedProfessional.getId()));
+        }
+
+        @Operation(summary = "Inativar Profissional (Soft Delete)", description = "Inativa o profissional do sistema, preservando o histórico de agendamentos e transações financeiras.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "204", description = "Profissional inativado com sucesso"),
+                        @ApiResponse(responseCode = "404", description = "Profissional não encontrado")
+        })
+        @DeleteMapping("/{id}")
+        @PreAuthorize("hasAuthority('finance:manage') or hasRole('SERVICE_PROVIDER')")
+        public ResponseEntity<Void> deleteProfessional(@PathVariable UUID id) {
+
+                deleteProfessionalUseCase.execute(id);
+
+                // Retorna 204 No Content (padrão REST para deleção com sucesso)
+                return ResponseEntity.noContent().build();
         }
 
 }
