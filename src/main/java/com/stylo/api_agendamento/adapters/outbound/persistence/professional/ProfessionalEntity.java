@@ -21,7 +21,7 @@ import org.hibernate.annotations.SQLRestriction;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
-@SQLRestriction("is_active = true")
+@SQLRestriction("active = true")
 public class ProfessionalEntity extends BaseEntity {
 
     @Id
@@ -46,7 +46,7 @@ public class ProfessionalEntity extends BaseEntity {
     private String bio;
 
     @Builder.Default
-    @Column(name = "is_active", nullable = false)
+    @Column(name = "active", nullable = false)
     private boolean isActive = true;
 
     // ✨ Sincronizado com o Domínio: Mapeamento da lista de "Tags" (Ex: Barbeiro,
