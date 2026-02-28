@@ -14,7 +14,7 @@ import jakarta.persistence.LockModeType;
 
 @Repository
 public interface JpaProfessionalRepository extends JpaRepository<ProfessionalEntity, UUID> {
-    
+
     Optional<ProfessionalEntity> findByEmail(String email);
 
     List<ProfessionalEntity> findAllByServiceProviderId(UUID providerId);
@@ -25,4 +25,6 @@ public interface JpaProfessionalRepository extends JpaRepository<ProfessionalEnt
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM ProfessionalEntity p WHERE p.id = :id")
     Optional<ProfessionalEntity> findByIdWithLock(@Param("id") UUID id);
+
+    List<ProfessionalEntity> findByServiceProviderId(UUID providerId);
 }

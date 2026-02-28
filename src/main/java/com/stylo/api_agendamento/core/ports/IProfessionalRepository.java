@@ -32,4 +32,6 @@ public interface IProfessionalRepository {
      * Busca pelo ID da conta conectada do Stripe (para webhooks de pagamento).
      */
     Optional<Professional> findByGatewayAccountId(String accountId);
+
+    List<Professional> findByServiceProviderId(UUID providerId);
 }

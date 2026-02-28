@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -22,7 +23,8 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
 
     @Override
     public Professional save(Professional professional) {
-        // 1. Tenta achar a entidade que já existe no banco (para o Hibernate rastrear as listas)
+        // 1. Tenta achar a entidade que já existe no banco (para o Hibernate rastrear
+        // as listas)
         ProfessionalEntity entity = jpaProfessionalRepository.findById(professional.getId())
                 .orElseGet(() -> new ProfessionalEntity()); // Se for criação, cria nova
 
@@ -34,16 +36,17 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         entity.setBio(professional.getBio());
         entity.setAvatarUrl(professional.getAvatarUrl());
         entity.setActive(professional.isActive());
-        
-        // Pode adicionar outros campos básicos aqui (isOwner, remunerationType, etc) se precisar
+
+        // Pode adicionar outros campos básicos aqui (isOwner, remunerationType, etc) se
+        // precisar
 
         // 3. ✨ A MÁGICA DOS SERVIÇOS ✨
         if (entity.getServices() == null) {
             entity.setServices(new ArrayList<>());
         }
-        
+
         // Limpa as relações antigas na tabela professional_services
-        entity.getServices().clear(); 
+        entity.getServices().clear();
 
         // ✨ 3. CORREÇÃO DA VARIÁVEL: Nome padronizado para serviceEntities
         List<ServiceEntity> serviceEntities = professional.getServices().stream()
@@ -51,7 +54,7 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
                 .toList();
 
         // Insere os novos!
-        entity.getServices().addAll(serviceEntities); 
+        entity.getServices().addAll(serviceEntities);
 
         // 4. Salva a entidade
         ProfessionalEntity savedEntity = jpaProfessionalRepository.save(entity);
@@ -90,5 +93,12 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
     public Optional<Professional> findByGatewayAccountId(String gatewayAccountId) {
         return jpaProfessionalRepository.findByGatewayAccountId(gatewayAccountId)
                 .map(professionalMapper::toDomain);
+    }
+
+    @Override
+    public List<Professional> findByServiceProviderId(UUID providerId) {
+        return jpaProfessionalRepository.findByServiceProviderId(providerId).stream()
+                .map(professionalMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }
