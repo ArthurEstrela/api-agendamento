@@ -1,4 +1,3 @@
-// src/main/java/com/stylo/api_agendamento/core/usecases/RegisterServiceProviderUseCase.java
 package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
@@ -71,7 +70,9 @@ public class RegisterServiceProviderUseCase {
                     input.email(),
                     savedProvider.getId(),
                     new ArrayList<>(),
-                    new ArrayList<>());
+                    new ArrayList<>(),
+                    true // ✨ CORREÇÃO AQUI: Passando 'true' pois ele é o Dono (isOwner)
+            );
 
             professionalRepository.save(ownerProfile);
 

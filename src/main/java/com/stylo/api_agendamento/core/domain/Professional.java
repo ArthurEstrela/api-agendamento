@@ -59,7 +59,7 @@ public class Professional {
     // --- FACTORY ---
 
     public static Professional create(String name, String email, UUID providerId,
-            List<Service> services, List<DailyAvailability> availability) {
+            List<Service> services, List<DailyAvailability> availability, boolean isOwner) {
 
         if (name == null || name.isBlank())
             throw new BusinessException("Nome do profissional é obrigatório.");
@@ -69,16 +69,15 @@ public class Professional {
             throw new BusinessException("O profissional deve estar vinculado a um estabelecimento.");
 
         return Professional.builder()
-                .id(UUID.randomUUID()) // Identidade gerada
+                .id(UUID.randomUUID())
                 .name(name)
                 .email(email)
                 .serviceProviderId(providerId)
-                .services(new ArrayList<>(services)) // Lista mutável
-                .availability(new ArrayList<>(availability)) // Lista mutável
-                .slotInterval(30) // Default
-                .isOwner(false)
+                .services(new ArrayList<>(services))
+                .availability(new ArrayList<>(availability))
+                .slotInterval(30)
+                .isOwner(isOwner)
                 .isActive(true)
-                // Padrão: Sem comissão definida inicialmente
                 .remunerationType(null)
                 .remunerationValue(BigDecimal.ZERO)
                 .createdAt(LocalDateTime.now())

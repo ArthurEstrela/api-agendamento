@@ -32,14 +32,17 @@ public class GetProfessionalProfileUseCase {
         List<Review> recentReviews = reviewRepository.findAllByProfessionalId(professionalId, 0, 10).items();
 
         // 4. Retorna o DTO completo para o Front-end
+        // Dentro do GetProfessionalProfileUseCase.java
         return new ProfessionalProfile(
                 professional.getId(),
                 professional.getName(),
+                professional.getEmail(),
+                professional.isOwner(), // ✨ ESSE AQUI É O CAMPO NOVO QUE VOCÊ PRECISA PASSAR!
                 professional.getAvatarUrl(),
                 professional.getBio(),
-                professional.getSpecialties(), // ✨ As tags (ex: Visagista)
-                professional.getServices(), // ✨ Os serviços que ele presta (ex: Corte Tesoura)
-                averageRating != null ? averageRating : 0.0,
+                professional.getSpecialties(), // ✨ O campo novo de especialidades
+                professional.getServices(),
+                averageRating,
                 recentReviews);
     }
 }

@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.UUID;
 
 public record ProfessionalProfile(
-    UUID id,
-    String name,
-    String avatarUrl,
-    String bio,
-    List<String> specialties, // ✨ Novo campo
-    List<Service> services,   // Mantendo os serviços atrelados
-    Double averageRating,
-    List<Review> recentReviews
-) {}
+        UUID id,
+        String name,
+        String email,
+        boolean isOwner,
+        String avatarUrl,
+        String bio,
+        List<String> specialties, // ✨ Novo campo
+        List<Service> services, // Mantendo os serviços atrelados
+        Double averageRating,
+        List<Review> recentReviews) {
+}
