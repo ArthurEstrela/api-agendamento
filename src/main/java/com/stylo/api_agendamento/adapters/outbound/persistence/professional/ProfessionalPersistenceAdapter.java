@@ -81,16 +81,12 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         if (professional.getAvailability() != null) {
             List<DailyAvailabilityEntity> availabilityEntities = professional.getAvailability().stream()
                     .map(availability -> {
-                        // Converte para entidade
                         DailyAvailabilityEntity availEntity = availabilityMapper.toEntity(availability);
-
-                        // ✨ CORREÇÃO CRÍTICA AQUI: Seta o ID do profissional pai em cada horário
+                        // ISSO É O QUE PREENCHE A COLUNA QUE O HIBERNATE ESTAVA DEIXANDO NULA
                         availEntity.setProfessionalId(professional.getId());
-
                         return availEntity;
                     })
                     .toList();
-
             entity.getAvailability().addAll(availabilityEntities);
         }
 

@@ -8,12 +8,12 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "professional_availabilities", indexes = {
-    @Index(name = "idx_avail_prof_day", columnList = "professional_id, day_of_week")
+        @Index(name = "idx_avail_prof_day", columnList = "professional_id, day_of_week")
 })
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class DailyAvailabilityEntity extends BaseEntity {
 
@@ -22,7 +22,7 @@ public class DailyAvailabilityEntity extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "professional_id", insertable = false, updatable = false)
+    @Column(name = "professional_id", nullable = false)
     private UUID professionalId;
 
     @Enumerated(EnumType.STRING)
