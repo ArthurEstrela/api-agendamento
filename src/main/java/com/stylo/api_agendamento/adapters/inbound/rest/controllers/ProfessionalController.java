@@ -51,7 +51,8 @@ public class ProfessionalController {
                                 request.email(),
                                 request.bio(),
                                 request.commissionPercentage(),
-                                request.serviceIds());
+                                request.serviceIds(),
+                                request.isOwner());
 
                 var created = createProfessionalUseCase.execute(input);
                 return ResponseEntity.status(201).body(getProfessionalProfileUseCase.execute(created.getId()));
