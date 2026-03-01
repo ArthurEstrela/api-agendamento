@@ -65,7 +65,7 @@ public class ProfessionalEntity extends BaseEntity {
     // ✨ Otimizado: Trocado EAGER para LAZY (Evita derrubar a memória do banco em
     // buscas de lista)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JoinColumn(name = "professional_id")
+    @JoinColumn(name = "professional_id", nullable = false)
     @Builder.Default
     private List<DailyAvailabilityEntity> availability = new ArrayList<>();
 

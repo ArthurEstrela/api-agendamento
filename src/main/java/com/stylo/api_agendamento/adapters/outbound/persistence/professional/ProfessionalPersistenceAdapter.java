@@ -1,7 +1,9 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.professional;
 
+import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity; // ✨ NOVO IMPORT
+import com.stylo.api_agendamento.adapters.outbound.persistence.mapper.AvailabilityMapper; // ✨ NOVO IMPORT
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
-import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceMapper; // ✨ 1. Import do ServiceMapper
+import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceMapper;
 import com.stylo.api_agendamento.core.domain.Professional;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +21,8 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
 
     private final JpaProfessionalRepository jpaProfessionalRepository;
     private final ProfessionalMapper professionalMapper;
-    private final ServiceMapper serviceMapper; // ✨ 2. Injeção do ServiceMapper aqui!
+    private final ServiceMapper serviceMapper;
+    private final AvailabilityMapper availabilityMapper; // ✨ 1. Injeção do AvailabilityMapper aqui!
 
     @Override
     public Professional save(Professional professional) {
@@ -28,24 +31,23 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         ProfessionalEntity entity = jpaProfessionalRepository.findById(professional.getId())
                 .orElseGet(() -> new ProfessionalEntity()); // Se for criação, cria nova
 
-        // 2. Atualiza os dados básicos e de perfil na entidade
+        // 2. Atualiza os dados básicos na entidade
         entity.setId(professional.getId());
-        entity.setServiceProviderId(professional.getServiceProviderId()); // Fundamental para não dar erro de Null
+        entity.setServiceProviderId(professional.getServiceProviderId());
         entity.setName(professional.getName());
         entity.setEmail(professional.getEmail());
         entity.setBio(professional.getBio());
         entity.setAvatarUrl(professional.getAvatarUrl());
         entity.setActive(professional.isActive());
 
-        // ✨ 3. CORREÇÕES CRÍTICAS: Mapeamento de regras de negócio e financeiro que
-        // faltavam
-        entity.setOwner(professional.isOwner()); // Resolve o bug de múltiplos perfis "dono"
+        // ✨ Correções mantidas (Bug do Dono e do Financeiro)
+        entity.setOwner(professional.isOwner());
         entity.setSlotInterval(professional.getSlotInterval());
         entity.setRemunerationType(professional.getRemunerationType());
         entity.setRemunerationValue(professional.getRemunerationValue());
         entity.setGatewayAccountId(professional.getGatewayAccountId());
 
-        // ✨ 4. Mapeamento de Especialidades (Tags)
+        // Especialidades (Tags)
         if (entity.getSpecialties() == null) {
             entity.setSpecialties(new ArrayList<>());
         }
@@ -54,28 +56,48 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
             entity.getSpecialties().addAll(professional.getSpecialties());
         }
 
-        // ✨ 5. A MÁGICA DOS SERVIÇOS ✨
+        // 3. A MÁGICA DOS SERVIÇOS
         if (entity.getServices() == null) {
             entity.setServices(new ArrayList<>());
         }
-
-        // Limpa as relações antigas na tabela professional_services
         entity.getServices().clear();
-
-        // Nome padronizado para serviceEntities e proteção contra null pointer
         if (professional.getServices() != null) {
             List<ServiceEntity> serviceEntities = professional.getServices().stream()
                     .map(serviceMapper::toEntity)
                     .toList();
-
-            // Insere os novos!
             entity.getServices().addAll(serviceEntities);
         }
 
-        // 6. Salva a entidade
+        // ✨ 4. A MÁGICA DA DISPONIBILIDADE (A CORREÇÃO DESSE BUG) ✨
+        if (entity.getAvailability() == null) {
+            entity.setAvailability(new ArrayList<>());
+        }
+
+        // Limpa os horários antigos do banco (orphanRemoval = true cuidará de
+        // deletá-los)
+        entity.getAvailability().clear();
+
+        // Mapeia os novos horários que vieram do Domínio e joga na Entidade
+        if (professional.getAvailability() != null) {
+            List<DailyAvailabilityEntity> availabilityEntities = professional.getAvailability().stream()
+                    .map(availability -> {
+                        // Converte para entidade
+                        DailyAvailabilityEntity availEntity = availabilityMapper.toEntity(availability);
+
+                        // ✨ CORREÇÃO CRÍTICA AQUI: Seta o ID do profissional pai em cada horário
+                        availEntity.setProfessionalId(professional.getId());
+
+                        return availEntity;
+                    })
+                    .toList();
+
+            entity.getAvailability().addAll(availabilityEntities);
+        }
+
+        // 5. Salva a entidade no banco de dados
         ProfessionalEntity savedEntity = jpaProfessionalRepository.save(entity);
 
-        // 7. Retorna o Domínio atualizado
+        // 6. Retorna o Domínio atualizado
         return professionalMapper.toDomain(savedEntity);
     }
 

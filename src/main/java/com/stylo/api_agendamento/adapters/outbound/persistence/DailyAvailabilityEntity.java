@@ -22,7 +22,7 @@ public class DailyAvailabilityEntity extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "professional_id", nullable = false)
+    @Column(name = "professional_id", insertable = false, updatable = false)
     private UUID professionalId;
 
     @Enumerated(EnumType.STRING)
