@@ -28,7 +28,7 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         ProfessionalEntity entity = jpaProfessionalRepository.findById(professional.getId())
                 .orElseGet(() -> new ProfessionalEntity()); // Se for criação, cria nova
 
-        // 2. Atualiza os dados básicos na entidade
+        // 2. Atualiza os dados básicos e de perfil na entidade
         entity.setId(professional.getId());
         entity.setServiceProviderId(professional.getServiceProviderId()); // Fundamental para não dar erro de Null
         entity.setName(professional.getName());
@@ -37,10 +37,24 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         entity.setAvatarUrl(professional.getAvatarUrl());
         entity.setActive(professional.isActive());
 
-        // Pode adicionar outros campos básicos aqui (isOwner, remunerationType, etc) se
-        // precisar
+        // ✨ 3. CORREÇÕES CRÍTICAS: Mapeamento de regras de negócio e financeiro que
+        // faltavam
+        entity.setOwner(professional.isOwner()); // Resolve o bug de múltiplos perfis "dono"
+        entity.setSlotInterval(professional.getSlotInterval());
+        entity.setRemunerationType(professional.getRemunerationType());
+        entity.setRemunerationValue(professional.getRemunerationValue());
+        entity.setGatewayAccountId(professional.getGatewayAccountId());
 
-        // 3. ✨ A MÁGICA DOS SERVIÇOS ✨
+        // ✨ 4. Mapeamento de Especialidades (Tags)
+        if (entity.getSpecialties() == null) {
+            entity.setSpecialties(new ArrayList<>());
+        }
+        entity.getSpecialties().clear();
+        if (professional.getSpecialties() != null) {
+            entity.getSpecialties().addAll(professional.getSpecialties());
+        }
+
+        // ✨ 5. A MÁGICA DOS SERVIÇOS ✨
         if (entity.getServices() == null) {
             entity.setServices(new ArrayList<>());
         }
@@ -48,18 +62,20 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         // Limpa as relações antigas na tabela professional_services
         entity.getServices().clear();
 
-        // ✨ 3. CORREÇÃO DA VARIÁVEL: Nome padronizado para serviceEntities
-        List<ServiceEntity> serviceEntities = professional.getServices().stream()
-                .map(serviceMapper::toEntity)
-                .toList();
+        // Nome padronizado para serviceEntities e proteção contra null pointer
+        if (professional.getServices() != null) {
+            List<ServiceEntity> serviceEntities = professional.getServices().stream()
+                    .map(serviceMapper::toEntity)
+                    .toList();
 
-        // Insere os novos!
-        entity.getServices().addAll(serviceEntities);
+            // Insere os novos!
+            entity.getServices().addAll(serviceEntities);
+        }
 
-        // 4. Salva a entidade
+        // 6. Salva a entidade
         ProfessionalEntity savedEntity = jpaProfessionalRepository.save(entity);
 
-        // 5. Retorna o Domínio atualizado
+        // 7. Retorna o Domínio atualizado
         return professionalMapper.toDomain(savedEntity);
     }
 
