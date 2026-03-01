@@ -72,7 +72,7 @@ public class ProfessionalEntity extends BaseEntity {
     @Column(name = "slot_interval")
     private Integer slotInterval;
 
-    @Column(name = "is_owner")
+    @Column(name = "is_owner", nullable = false)
     private boolean isOwner;
 
     @Enumerated(EnumType.STRING)
