@@ -1,7 +1,10 @@
 package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.professional.*;
+import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
+import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.stylo.api_agendamento.core.ports.IUserContext;
 import com.stylo.api_agendamento.core.usecases.*;
 import com.stylo.api_agendamento.core.usecases.dto.ProfessionalProfile;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,9 +35,28 @@ public class ProfessionalController {
         private final UpdateProfessionalServicesUseCase updateProfessionalServicesUseCase;
         private final UpdateProfessionalProfileUseCase updateProfessionalProfileUseCase;
         private final DeleteProfessionalUseCase deleteProfessionalUseCase;
-
-        // ✨ INJETANDO O NOVO USE CASE
         private final ListProfessionalsByProviderUseCase listProfessionalsByProviderUseCase;
+
+        // ✨ INJETADO PARA VALIDAÇÃO DE SEGURANÇA (IDOR)
+        private final IUserContext userContext;
+
+        /**
+         * Valida se o usuário logado tem permissão para alterar o recurso do profissional.
+         * Permite a ação se:
+         * 1. O usuário for o próprio dono do recurso (ID logado == ID solicitado)
+         * 2. O usuário for o Dono do Salão (SERVICE_PROVIDER) ou um ADMIN.
+         */
+        private void validateProfessionalAccess(UUID targetProfessionalId) {
+                UUID loggedUserId = userContext.getCurrentUserId();
+                UserRole loggedUserRole = userContext.getCurrentUserRole();
+
+                boolean isOwnResource = loggedUserId.equals(targetProfessionalId);
+                boolean isManager = loggedUserRole == UserRole.SERVICE_PROVIDER || loggedUserRole == UserRole.MANAGER;
+
+                if (!isOwnResource && !isManager) {
+                        throw new BusinessException("Acesso negado. Você não tem permissão para alterar os dados de outro profissional.");
+                }
+        }
 
         @Operation(summary = "Criar Profissional (Staff)", description = "Cria um novo profissional vinculado a um estabelecimento.")
         @ApiResponses({
@@ -73,6 +95,9 @@ public class ProfessionalController {
                         @PathVariable UUID id,
                         @RequestBody @Valid UpdateAvailabilityRequest request) {
 
+                // ✨ PROTEÇÃO APLICADA AQUI: Impede que um profissional altere a agenda de outro
+                validateProfessionalAccess(id);
+
                 List<DailyAvailability> availabilities = request.availabilities().stream()
                                 .map(req -> new DailyAvailability(
                                                 req.dayOfWeek(),
@@ -92,6 +117,9 @@ public class ProfessionalController {
         public ResponseEntity<Void> blockTime(
                         @PathVariable UUID id,
                         @RequestBody @Valid BlockProfessionalTimeRequest request) {
+
+                // ✨ PROTEÇÃO APLICADA AQUI: Impede que um profissional bloqueie a agenda de outro
+                validateProfessionalAccess(id);
 
                 var input = new BlockProfessionalTimeUseCase.Input(
                                 id,
@@ -151,12 +179,10 @@ public class ProfessionalController {
                 return ResponseEntity.noContent().build();
         }
 
-        // ✨ O CÓDIGO CORRIGIDO QUE FALTAVA
         @Operation(summary = "Listar Profissionais do Estabelecimento")
         @GetMapping("/provider/{providerId}")
         @PreAuthorize("isAuthenticated()")
         public ResponseEntity<List<ProfessionalProfile>> listProfessionalsByProvider(@PathVariable UUID providerId) {
-                // Chama o UseCase e retorna a lista em JSON com status 200 OK
                 List<ProfessionalProfile> profiles = listProfessionalsByProviderUseCase.execute(providerId);
                 return ResponseEntity.ok(profiles);
         }

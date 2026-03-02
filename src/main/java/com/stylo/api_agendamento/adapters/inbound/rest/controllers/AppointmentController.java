@@ -39,8 +39,8 @@ public class AppointmentController {
     private final CompleteAppointmentUseCase completeAppointmentUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final RescheduleAppointmentUseCase rescheduleAppointmentUseCase;
-    private final GetAvailableSlotsUseCase getAvailableSlotsUseCase;
-    private final GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase;
+    private final GetProfessionalAvailabilityUseCase getProfessionalAvailabilityUseCase; // <--- Único UseCase de
+                                                                                         // disponibilidade
     private final MarkNoShowUseCase markNoShowUseCase;
     private final AddAppointmentItemUseCase addAppointmentItemUseCase;
     private final RemoveAppointmentItemUseCase removeAppointmentItemUseCase;
@@ -66,13 +66,11 @@ public class AppointmentController {
         var input = new CreateAppointmentUseCase.Input(
                 loggedUserId,
                 UUID.fromString(request.professionalId()),
-                extractedServiceIds, // Enviando os serviços filtrados do payload do Front
+                extractedServiceIds,
                 request.startTime(),
-                120, // reminderMinutes chumbado como padrão de negócio (ex: 2 horas antes), já que o
-                     // front não manda
+                120, // reminderMinutes chumbado como padrão de negócio (ex: 2 horas antes)
                 request.couponCode(),
-                request.notes() // Agora repassamos as anotações do cliente
-        );
+                request.notes());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(createAppointmentUseCase.execute(input));
     }
@@ -97,7 +95,6 @@ public class AppointmentController {
 
         CreateRecurringAppointmentUseCase.Response result = createRecurringAppointmentUseCase.execute(input);
 
-        // ✅ CORREÇÃO AQUI: Mapeando a extração do ID (UUID) para String
         var response = new RecurringAppointmentResponse(
                 result.getSummary(),
                 result.createdAppointments().size(),
@@ -206,27 +203,13 @@ public class AppointmentController {
 
     // --- DISPONIBILIDADE (Leitura Pública / Autenticada) ---
 
-    @Operation(summary = "Buscar Horários Livres (Simples)", description = "Retorna lista de horários disponíveis para um dia específico.")
-    @GetMapping("/slots")
-    @PreAuthorize("hasAuthority('appointment:read')")
-    public ResponseEntity<List<LocalTime>> getAvailableSlots(
-            @Parameter(description = "ID do profissional") @RequestParam UUID professionalId,
-            @Parameter(description = "Data no formato YYYY-MM-DD") @RequestParam String date) {
-
-        var input = new GetAvailableSlotsUseCase.Input(
-                professionalId,
-                LocalDate.parse(date),
-                Collections.emptyList());
-        return ResponseEntity.ok(getAvailableSlotsUseCase.execute(input));
-    }
-
-    @Operation(summary = "Verificar Disponibilidade Completa", description = "Verifica se uma lista de serviços cabe na agenda em determinada data.")
+    @Operation(summary = "Verificar Disponibilidade", description = "Retorna os horários livres calculando a duração exata dos serviços selecionados e intervalos do profissional.")
     @GetMapping("/availability")
     @PreAuthorize("hasAuthority('appointment:read')")
     public ResponseEntity<List<LocalTime>> getAvailability(
-            @RequestParam UUID professionalId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam List<UUID> serviceIds) {
+            @Parameter(description = "ID do profissional") @RequestParam UUID professionalId,
+            @Parameter(description = "Data no formato YYYY-MM-DD") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Parameter(description = "Lista de IDs dos serviços selecionados") @RequestParam List<UUID> serviceIds) {
 
         var availability = getProfessionalAvailabilityUseCase.execute(professionalId, date, serviceIds);
         return ResponseEntity.ok(availability);

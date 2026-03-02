@@ -113,6 +113,9 @@ public class CreateAppointmentUseCase {
 
         // 4. Validação de Competência e Disponibilidade
         professional.validateCanPerform(requestedServices);
+        
+        // ✨ NOVA VALIDAÇÃO: Impede horários quebrados (ex: 14:15 quando o intervalo é 30min)
+        professional.validateSlotAlignment(input.startTime());
 
         int totalDuration = requestedServices.stream().mapToInt(Service::getDuration).sum();
         

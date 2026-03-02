@@ -44,6 +44,10 @@ public class CreateManualAppointmentUseCase {
 
         // 3. Validação de Disponibilidade na Grade (Regra de Domínio)
         int totalDuration = services.stream().mapToInt(Service::getDuration).sum();
+        
+        // ✨ NOVA VALIDAÇÃO: Protege a grade contra horários quebrados forçados manualmente
+        professional.validateSlotAlignment(input.startTime());
+        
         if (!professional.isAvailable(input.startTime(), totalDuration)) {
             throw new BusinessException("O horário solicitado está fora do expediente ou configurado como pausa.");
         }

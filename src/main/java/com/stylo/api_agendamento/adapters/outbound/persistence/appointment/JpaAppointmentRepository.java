@@ -31,7 +31,7 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
         @Query("""
                             SELECT COUNT(a) > 0 FROM AppointmentEntity a
                             WHERE a.professionalId = :professionalId
-                            AND a.status != 'CANCELLED'
+                            AND a.status IN ('PENDING', 'SCHEDULED', 'BLOCKED')
                             AND (a.startTime < :endTime AND a.endTime > :startTime)
                         """)
         boolean existsOverlapping(

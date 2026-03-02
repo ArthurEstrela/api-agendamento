@@ -5,7 +5,10 @@ import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -115,6 +118,82 @@ public class Professional {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public List<LocalTime> calculateAvailableSlots(
+            LocalDate date,
+            int totalDurationMinutes,
+            List<Appointment> existingAppointments,
+            ZoneId providerZoneId) {
+
+        // 1. Obter configuração do dia (Expediente)
+        DailyAvailability dailyConfig = this.availability.stream()
+                .filter(a -> a.dayOfWeek() == date.getDayOfWeek() && a.isOpen())
+                .findFirst()
+                .orElse(null);
+
+        // Se não atende no dia ou não tem configuração, retorna lista vazia
+        if (dailyConfig == null) {
+            return new ArrayList<>();
+        }
+
+        List<LocalTime> availableSlots = new ArrayList<>();
+        LocalTime currentSlot = dailyConfig.startTime();
+
+        // Ajuste de fuso horário para "hoje"
+        LocalTime nowInProviderZone = LocalTime.now(providerZoneId);
+        LocalDate todayInProviderZone = LocalDate.now(providerZoneId);
+
+        // O último horário possível deve comportar a duração total dos serviços
+        LocalTime lastPossibleSlot = dailyConfig.endTime().minusMinutes(totalDurationMinutes);
+
+        while (!currentSlot.isAfter(lastPossibleSlot)) {
+            LocalTime slotStart = currentSlot;
+            LocalTime slotEnd = currentSlot.plusMinutes(totalDurationMinutes);
+
+            // Regra 1: Não permitir horários que já passaram hoje
+            boolean isPast = date.isEqual(todayInProviderZone) && slotStart.isBefore(nowInProviderZone);
+
+            // Regra 2: Verificar sobreposição com qualquer ocupação existente
+            boolean hasConflict = existingAppointments.stream().anyMatch(occ -> {
+                LocalTime occStart = occ.getStartTime().toLocalTime();
+                LocalTime occEnd = occ.getEndTime().toLocalTime();
+                // (StartA < EndB) AND (EndA > StartB) -> Sobreposição detectada
+                return slotStart.isBefore(occEnd) && slotEnd.isAfter(occStart);
+            });
+
+            if (!hasConflict && !isPast) {
+                availableSlots.add(slotStart);
+            }
+
+            // Incrementa o slot conforme o intervalo configurado no perfil do profissional
+            currentSlot = currentSlot.plusMinutes(this.slotInterval);
+        }
+
+        return availableSlots;
+    }
+
+    // --- REGRAS DE NEGÓCIO: ALINHAMENTO DE SLOTS ---
+
+    public void validateSlotAlignment(LocalDateTime requestedStartTime) {
+        DailyAvailability dailyConfig = this.availability.stream()
+                .filter(a -> a.dayOfWeek() == requestedStartTime.getDayOfWeek() && a.isOpen())
+                .findFirst()
+                .orElseThrow(() -> new BusinessException("O profissional não atende neste dia da semana."));
+
+        // Calcula a diferença em minutos desde a hora que o profissional começa a
+        // trabalhar
+        long minutesFromStart = java.time.Duration.between(dailyConfig.startTime(), requestedStartTime.toLocalTime())
+                .toMinutes();
+
+        // Se o resto da divisão não for zero, o horário está "quebrado"
+        if (minutesFromStart % this.slotInterval != 0) {
+            throw new BusinessException(String.format(
+                    "O horário solicitado (%s) é inválido. Os agendamentos devem seguir intervalos exatos de %d minutos a partir do início do expediente (%s).",
+                    requestedStartTime.toLocalTime().toString(),
+                    this.slotInterval,
+                    dailyConfig.startTime().toString()));
+        }
+    }
+
     // --- REGRAS DE NEGÓCIO: SERVIÇOS ---
 
     public void validateCanPerform(List<Service> requestedServices) {
@@ -183,19 +262,24 @@ public class Professional {
 
     // --- REGRAS DE NEGÓCIO: BLOQUEIO E AGENDA ---
 
+    // --- REGRAS DE NEGÓCIO: BLOQUEIO E AGENDA ---
+
     public void validateCanBlockTime(LocalDateTime start, LocalDateTime end, List<Appointment> existingAppointments) {
         if (!this.isActive)
             throw new BusinessException("Profissional inativo não pode realizar bloqueios.");
 
         boolean hasConflict = existingAppointments.stream()
-                .anyMatch(app -> (app.getStatus() == AppointmentStatus.SCHEDULED
-                        || app.getStatus() == AppointmentStatus.PENDING) &&
+                .anyMatch(app -> (app.getStatus() == AppointmentStatus.SCHEDULED ||
+                        app.getStatus() == AppointmentStatus.PENDING ||
+                        app.getStatus() == AppointmentStatus.BLOCKED // ✨ ADICIONADO: Verifica bloqueios existentes
+                ) &&
                 // Lógica de intersecção de intervalos: (StartA < EndB) e (EndA > StartB)
                         app.getStartTime().isBefore(end) &&
                         app.getEndTime().isAfter(start));
 
         if (hasConflict) {
-            throw new BusinessException("Não é possível bloquear: você já tem um cliente agendado nesse horário.");
+            throw new BusinessException(
+                    "Não é possível bloquear: já existe um cliente agendado ou um bloqueio neste horário.");
         }
     }
 
@@ -224,7 +308,7 @@ public class Professional {
         this.services.clear();
         this.services.addAll(newServices);
         this.updatedAt = LocalDateTime.now();
-    }   
+    }
 
     public void deactivate() {
         this.isActive = false;
