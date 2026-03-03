@@ -41,7 +41,8 @@ public class ProfessionalController {
         private final IUserContext userContext;
 
         /**
-         * Valida se o usuário logado tem permissão para alterar o recurso do profissional.
+         * Valida se o usuário logado tem permissão para alterar o recurso do
+         * profissional.
          * Permite a ação se:
          * 1. O usuário for o próprio dono do recurso (ID logado == ID solicitado)
          * 2. O usuário for o Dono do Salão (SERVICE_PROVIDER) ou um ADMIN.
@@ -54,7 +55,8 @@ public class ProfessionalController {
                 boolean isManager = loggedUserRole == UserRole.SERVICE_PROVIDER || loggedUserRole == UserRole.MANAGER;
 
                 if (!isOwnResource && !isManager) {
-                        throw new BusinessException("Acesso negado. Você não tem permissão para alterar os dados de outro profissional.");
+                        throw new BusinessException(
+                                        "Acesso negado. Você não tem permissão para alterar os dados de outro profissional.");
                 }
         }
 
@@ -101,7 +103,7 @@ public class ProfessionalController {
                 List<DailyAvailability> availabilities = request.availabilities().stream()
                                 .map(req -> new DailyAvailability(
                                                 req.dayOfWeek(),
-                                                req.isWorkingDay(),
+                                                req.isOpen(),
                                                 req.startTime(),
                                                 req.endTime()))
                                 .collect(Collectors.toList());
@@ -118,7 +120,8 @@ public class ProfessionalController {
                         @PathVariable UUID id,
                         @RequestBody @Valid BlockProfessionalTimeRequest request) {
 
-                // ✨ PROTEÇÃO APLICADA AQUI: Impede que um profissional bloqueie a agenda de outro
+                // ✨ PROTEÇÃO APLICADA AQUI: Impede que um profissional bloqueie a agenda de
+                // outro
                 validateProfessionalAccess(id);
 
                 var input = new BlockProfessionalTimeUseCase.Input(
