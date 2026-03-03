@@ -1,7 +1,6 @@
 package com.stylo.api_agendamento.adapters.outbound.persistence.professional;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.DailyAvailabilityEntity; // ✨ NOVO IMPORT
-import com.stylo.api_agendamento.adapters.outbound.persistence.mapper.AvailabilityMapper; // ✨ NOVO IMPORT
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceMapper;
 import com.stylo.api_agendamento.core.domain.Professional;
@@ -22,7 +21,6 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
     private final JpaProfessionalRepository jpaProfessionalRepository;
     private final ProfessionalMapper professionalMapper;
     private final ServiceMapper serviceMapper;
-    private final AvailabilityMapper availabilityMapper; // ✨ 1. Injeção do AvailabilityMapper aqui!
 
     @Override
     public Professional save(Professional professional) {
@@ -81,12 +79,17 @@ public class ProfessionalPersistenceAdapter implements IProfessionalRepository {
         if (professional.getAvailability() != null) {
             List<DailyAvailabilityEntity> availabilityEntities = professional.getAvailability().stream()
                     .map(availability -> {
-                        DailyAvailabilityEntity availEntity = availabilityMapper.toEntity(availability);
-                        // ISSO É O QUE PREENCHE A COLUNA QUE O HIBERNATE ESTAVA DEIXANDO NULA
+                        DailyAvailabilityEntity availEntity = new DailyAvailabilityEntity();
+                        // Aqui forçamos a criação da entidade manualmente para evitar bugs do mapper
+                        availEntity.setDayOfWeek(availability.dayOfWeek());
+                        availEntity.setOpen(availability.isOpen());
+                        availEntity.setStartTime(availability.startTime());
+                        availEntity.setEndTime(availability.endTime());
                         availEntity.setProfessionalId(professional.getId());
                         return availEntity;
                     })
-                    .toList();
+                    .collect(Collectors.toList());
+
             entity.getAvailability().addAll(availabilityEntities);
         }
 
