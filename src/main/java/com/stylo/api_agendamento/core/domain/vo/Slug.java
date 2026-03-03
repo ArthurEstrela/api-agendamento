@@ -1,12 +1,14 @@
 package com.stylo.api_agendamento.core.domain.vo;
 
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
+import com.fasterxml.jackson.annotation.JsonValue; // ✨ ADICIONAR IMPORT
 
 import java.text.Normalizer;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-public record Slug(String value) {
+// ✨ ADICIONAR @JsonValue antes do String value
+public record Slug(@JsonValue String value) { 
     
     private static final Pattern NONLATIN = Pattern.compile("[^\\w-]");
     private static final Pattern WHITESPACE = Pattern.compile("[\\s]");

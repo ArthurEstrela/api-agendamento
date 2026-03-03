@@ -58,6 +58,7 @@ public class SecurityConfigurations {
                         // ✨ CORREÇÃO 3: Libera explicitamente o POST para o cadastro do profissional
                         .requestMatchers(HttpMethod.POST, "/v1/service-providers/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/v1/service-providers/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v1/service-providers/public/**").permitAll()
                         
                         // Rota exata do webhook do Stripe mapeada no PaymentController
                         .requestMatchers(HttpMethod.POST, "/v1/payments/webhook").permitAll() 

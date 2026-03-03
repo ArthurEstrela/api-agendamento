@@ -7,6 +7,8 @@ import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Address;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
+import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
+import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
 import com.stylo.api_agendamento.core.usecases.RegisterServiceProviderUseCase;
 import com.stylo.api_agendamento.core.usecases.SearchServiceProvidersUseCase;
 import com.stylo.api_agendamento.core.usecases.UpdateServiceProviderProfileUseCase;
@@ -36,6 +38,9 @@ public class ServiceProviderController {
         private final RegisterServiceProviderUseCase registerUseCase;
         private final UpdateServiceProviderProfileUseCase updateProfileUseCase;
         private final SearchServiceProvidersUseCase searchServiceProvidersUseCase;
+        
+        // ✨ Repositório injetado para resolver a busca pública
+        private final IServiceProviderRepository repository; 
 
         @Operation(summary = "Criar Conta (Onboarding)", description = "Regista um novo estabelecimento e sincroniza com o Firebase.")
         @ApiResponses({
@@ -72,7 +77,7 @@ public class ServiceProviderController {
                                 request.businessName(),
                                 document,
                                 new Slug(generatedSlugValue),
-                                addressDomain, // ✨ Passando o endereço convertido
+                                addressDomain,
                                 request.ownerName(),
                                 request.ownerEmail(),
                                 request.ownerPassword(),
@@ -81,6 +86,23 @@ public class ServiceProviderController {
                                 request.firebaseUid());
 
                 return ResponseEntity.status(HttpStatus.CREATED).body(registerUseCase.execute(input));
+        }
+
+        // ✨ ENDPOINT ADICIONADO E DOCUMENTADO ✨
+        @Operation(summary = "Buscar Perfil Público por Slug", description = "Retorna os dados públicos de um estabelecimento usando a sua URL amigável (ex: /public/slug/arthurbarber).")
+        @ApiResponses({
+                @ApiResponse(responseCode = "200", description = "Perfil encontrado com sucesso"),
+                @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado para o slug informado")
+        })
+        @GetMapping("/public/slug/{slugValue}")
+        public ResponseEntity<ServiceProvider> getPublicProfileBySlug(@PathVariable String slugValue) {
+            
+            Slug slug = new Slug(slugValue);
+            
+            ServiceProvider provider = repository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado para o slug: " + slugValue));
+                
+            return ResponseEntity.ok(provider);
         }
 
         @GetMapping("/search")
