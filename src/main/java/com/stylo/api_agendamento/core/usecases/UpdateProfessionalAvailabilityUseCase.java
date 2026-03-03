@@ -6,37 +6,29 @@ import com.stylo.api_agendamento.core.domain.vo.DailyAvailability;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IProfessionalRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
 @UseCase
 @RequiredArgsConstructor
 public class UpdateProfessionalAvailabilityUseCase {
 
-    private final IProfessionalRepository professionalRepository;
+        private final IProfessionalRepository professionalRepository;
 
-    @Transactional
-    public void execute(Input input) {
-        // 1. Busca o profissional e valida existência
-        Professional professional = professionalRepository.findById(input.professionalId())
-                .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
+        public record Input(UUID professionalId, List<DailyAvailability> availabilities) {
+        }
 
-        // 2. Atualiza a grade no domínio (O domínio valida intersecções e horários inválidos)
-        professional.updateAvailability(input.availabilities());
+        @Transactional // ✨ EXTREMAMENTE IMPORTANTE: Garante que as mudanças sejam salvas no banco
+        public void execute(Input input) {
+                Professional professional = professionalRepository.findById(input.professionalId())
+                                .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-        // 3. Persistência
-        professionalRepository.save(professional);
-        
-        log.info("Grade de horários atualizada para o profissional: {} (ID: {})", 
-                professional.getName(), professional.getId());
-    }
+                // ✨ CORREÇÃO AQUI: Chama o método de domínio seguro em vez de um setter padrão
+                professional.updateAvailability(input.availabilities());
 
-    public record Input(
-            UUID professionalId,
-            List<DailyAvailability> availabilities
-    ) {}
+                // 2. ✨ SALVA NO BANCO DE DADOS: Se não tiver isso, a atualização é perdida
+                professionalRepository.save(professional);
+        }
 }
