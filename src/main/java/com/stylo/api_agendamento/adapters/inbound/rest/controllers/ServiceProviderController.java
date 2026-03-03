@@ -3,15 +3,19 @@ package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.AddressRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.RegisterServiceProviderRequest;
 import com.stylo.api_agendamento.core.common.PagedResult;
+import com.stylo.api_agendamento.core.domain.Service; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Address;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
+import com.stylo.api_agendamento.core.ports.IServiceRepository; // ✨ IMPORT ADICIONADO
+import com.stylo.api_agendamento.core.usecases.ListProfessionalsByProviderUseCase; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.usecases.RegisterServiceProviderUseCase;
 import com.stylo.api_agendamento.core.usecases.SearchServiceProvidersUseCase;
 import com.stylo.api_agendamento.core.usecases.UpdateServiceProviderProfileUseCase;
+import com.stylo.api_agendamento.core.usecases.dto.ProfessionalProfile; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.usecases.dto.ProviderSearchCriteria;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +27,8 @@ import lombok.RequiredArgsConstructor;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.List; // ✨ IMPORT ADICIONADO
+import java.util.UUID; // ✨ IMPORT ADICIONADO
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +47,10 @@ public class ServiceProviderController {
         
         // ✨ Repositório injetado para resolver a busca pública
         private final IServiceProviderRepository repository; 
+
+        // ✨ INJEÇÕES ADICIONADAS PARA O ENDPOINT AGREGADOR (BFF)
+        private final IServiceRepository serviceRepository;
+        private final ListProfessionalsByProviderUseCase listProfessionalsUseCase;
 
         @Operation(summary = "Criar Conta (Onboarding)", description = "Regista um novo estabelecimento e sincroniza com o Firebase.")
         @ApiResponses({
@@ -88,7 +98,29 @@ public class ServiceProviderController {
                 return ResponseEntity.status(HttpStatus.CREATED).body(registerUseCase.execute(input));
         }
 
-        // ✨ ENDPOINT ADICIONADO E DOCUMENTADO ✨
+        // ✨ ENDPOINT DE ALTA PERFORMANCE (BFF) PARA O AGENDAMENTO PÚBLICO ✨
+        @Operation(summary = "Buscar Dados Completos para Agendamento", description = "Retorna o provedor, equipe e serviços ativos em uma única requisição de alta performance.")
+        @ApiResponses({
+                @ApiResponse(responseCode = "200", description = "Dados encontrados com sucesso"),
+                @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado")
+        })
+        @GetMapping("/public/{id}/booking-data")
+        public ResponseEntity<PublicBookingDataResponse> getPublicBookingData(@PathVariable UUID id) {
+            
+            // 1. Busca os dados da Barbearia/Salão
+            ServiceProvider provider = repository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado para o ID: " + id));
+
+            // 2. Busca a equipe
+            List<ProfessionalProfile> professionals = listProfessionalsUseCase.execute(id);
+            
+            // 3. Busca apenas os serviços ativos
+            List<Service> services = serviceRepository.findAllActiveByProviderId(id);
+
+            // Retorna tudo consolidado num único JSON
+            return ResponseEntity.ok(new PublicBookingDataResponse(provider, professionals, services));
+        }
+
         @Operation(summary = "Buscar Perfil Público por Slug", description = "Retorna os dados públicos de um estabelecimento usando a sua URL amigável (ex: /public/slug/arthurbarber).")
         @ApiResponses({
                 @ApiResponse(responseCode = "200", description = "Perfil encontrado com sucesso"),
@@ -155,4 +187,11 @@ public class ServiceProviderController {
                         String slug,
                         AddressRequest address) {
         }
+
+        // ✨ RECORD DE RESPOSTA DO NOVO ENDPOINT AGREGADOR ✨
+        public record PublicBookingDataResponse(
+                        ServiceProvider provider,
+                        List<ProfessionalProfile> professionals,
+                        List<Service> services
+        ) {}
 }

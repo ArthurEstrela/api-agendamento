@@ -36,6 +36,7 @@ public class ProfessionalController {
         private final UpdateProfessionalProfileUseCase updateProfessionalProfileUseCase;
         private final DeleteProfessionalUseCase deleteProfessionalUseCase;
         private final ListProfessionalsByProviderUseCase listProfessionalsByProviderUseCase;
+        private final GetProfessionalAvailabilityUseCase getAvailabilityUseCase;
 
         // ✨ INJETADO PARA VALIDAÇÃO DE SEGURANÇA (IDOR)
         private final IUserContext userContext;
@@ -188,5 +189,28 @@ public class ProfessionalController {
         public ResponseEntity<List<ProfessionalProfile>> listProfessionalsByProvider(@PathVariable UUID providerId) {
                 List<ProfessionalProfile> profiles = listProfessionalsByProviderUseCase.execute(providerId);
                 return ResponseEntity.ok(profiles);
+        }
+
+        @Operation(summary = "Obter horários disponíveis", description = "Retorna uma lista de horários livres de um profissional para um determinado dia, considerando a duração dos serviços.")
+        @GetMapping("/{id}/available-slots")
+        // Sem @PreAuthorize porque clientes públicos precisam ver os horários para
+        // agendar
+        public ResponseEntity<List<String>> getAvailableSlots(
+                        @PathVariable UUID id,
+                        @RequestParam String date,
+                        @RequestParam(required = false) List<UUID> services) {
+
+                java.time.LocalDate requestedDate = java.time.LocalDate.parse(date);
+
+                // Se a lista de serviços vier vazia, o UseCase lançará exceção, então é seguro
+                // passar.
+                List<java.time.LocalTime> slots = getAvailabilityUseCase.execute(id, requestedDate, services);
+
+                // O frontend espera um array de strings no formato "HH:mm"
+                List<String> formattedSlots = slots.stream()
+                                .map(java.time.LocalTime::toString)
+                                .collect(Collectors.toList());
+
+                return ResponseEntity.ok(formattedSlots);
         }
 }
