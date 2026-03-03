@@ -24,7 +24,7 @@ public class AddressVo {
     @Column(name = "address_city", length = 100)
     private String city;
 
-    @Column(name = "address_state", length = 2) // Padrão UF (SP, GO, etc)
+    @Column(name = "address_state", length = 50) // Padrão UF (SP, GO, etc)
     private String state;
 
     @Column(name = "address_zip_code", length = 10)

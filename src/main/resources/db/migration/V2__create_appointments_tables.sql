@@ -4,8 +4,9 @@ CREATE TABLE appointments (
     client_id UUID NOT NULL REFERENCES clients(id),
     professional_id UUID REFERENCES professionals(id),
     
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP NOT NULL,
+    -- ✨ AJUSTE CRÍTICO: Garante que o banco armazene o ponto exato no tempo global
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) NOT NULL, -- PENDING, CONFIRMED, COMPLETED, CANCELLED
     
     total_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -14,8 +15,9 @@ CREATE TABLE appointments (
     external_payment_id VARCHAR(255),
     paid BOOLEAN DEFAULT FALSE,
     
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP
+    -- ✨ AJUSTE CRÍTICO: Mantém a criação precisa
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE appointment_items (
