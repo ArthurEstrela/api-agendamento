@@ -3,6 +3,7 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider;
 import com.stylo.api_agendamento.adapters.outbound.persistence.AddressVo;
 import com.stylo.api_agendamento.adapters.outbound.persistence.BaseEntity;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
+import com.stylo.api_agendamento.adapters.outbound.persistence.SocialLinksVo;
 import com.stylo.api_agendamento.adapters.outbound.persistence.service.ServiceEntity;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
 import jakarta.persistence.*;
@@ -56,6 +57,9 @@ public class ServiceProviderEntity extends BaseEntity {
     @Column(name = "banner_url", columnDefinition = "TEXT")
     private String bannerUrl;
 
+    @Embedded
+    private SocialLinksVo socialLinks;
+
     @Column(name = "pix_key", length = 100)
     private String pixKey;
 
@@ -94,7 +98,7 @@ public class ServiceProviderEntity extends BaseEntity {
     @Builder.Default
     private Set<ServiceEntity> services = new HashSet<>();
 
-   @Column(name = "average_rating")
+    @Column(name = "average_rating")
     @Builder.Default
     private Double averageRating = 0.0;
 

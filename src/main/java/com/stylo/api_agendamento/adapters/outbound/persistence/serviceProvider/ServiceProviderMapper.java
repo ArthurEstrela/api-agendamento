@@ -2,10 +2,12 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.serviceProvider;
 
 import com.stylo.api_agendamento.adapters.outbound.persistence.AddressVo;
 import com.stylo.api_agendamento.adapters.outbound.persistence.DocumentVo;
+import com.stylo.api_agendamento.adapters.outbound.persistence.SocialLinksVo; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
 import com.stylo.api_agendamento.core.domain.vo.Address;
 import com.stylo.api_agendamento.core.domain.vo.Document;
 import com.stylo.api_agendamento.core.domain.vo.Slug;
+import com.stylo.api_agendamento.core.domain.vo.SocialLinks; // ✨ IMPORT ADICIONADO
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
@@ -17,6 +19,7 @@ public interface ServiceProviderMapper {
     @Mapping(target = "publicProfileSlug", source = "publicProfileSlug")
     @Mapping(target = "businessAddress", source = "businessAddress")
     @Mapping(target = "document", source = "document")
+    @Mapping(target = "socialLinks", source = "socialLinks") // ✨ MAPEAMENTO ADICIONADO
     ServiceProviderEntity toEntity(ServiceProvider domain);
 
     @Mapping(target = "isActive", ignore = true)
@@ -24,6 +27,7 @@ public interface ServiceProviderMapper {
     @Mapping(target = "publicProfileSlug", source = "publicProfileSlug")
     @Mapping(target = "businessAddress", source = "businessAddress")
     @Mapping(target = "document", source = "document")
+    @Mapping(target = "socialLinks", source = "socialLinks") // ✨ MAPEAMENTO ADICIONADO
     ServiceProvider toDomain(ServiceProviderEntity entity);
 
     // Conversores Customizados para o Slug
@@ -41,4 +45,8 @@ public interface ServiceProviderMapper {
 
     DocumentVo mapDocumentToVo(Document document);
     Document mapVoToDocument(DocumentVo documentVo);
+
+    // ✨ Sub-mapeadores explícitos para Redes Sociais
+    SocialLinksVo mapSocialLinksToVo(SocialLinks socialLinks);
+    SocialLinks mapVoToSocialLinks(SocialLinksVo socialLinksVo);
 }

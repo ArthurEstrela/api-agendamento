@@ -2,6 +2,7 @@ package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.AddressRequest;
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.RegisterServiceProviderRequest;
+import com.stylo.api_agendamento.adapters.inbound.rest.dto.serviceProvider.UpdateServiceProviderInput;
 import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Service; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
@@ -44,9 +45,9 @@ public class ServiceProviderController {
         private final RegisterServiceProviderUseCase registerUseCase;
         private final UpdateServiceProviderProfileUseCase updateProfileUseCase;
         private final SearchServiceProvidersUseCase searchServiceProvidersUseCase;
-        
+
         // ✨ Repositório injetado para resolver a busca pública
-        private final IServiceProviderRepository repository; 
+        private final IServiceProviderRepository repository;
 
         // ✨ INJEÇÕES ADICIONADAS PARA O ENDPOINT AGREGADOR (BFF)
         private final IServiceRepository serviceRepository;
@@ -101,40 +102,42 @@ public class ServiceProviderController {
         // ✨ ENDPOINT DE ALTA PERFORMANCE (BFF) PARA O AGENDAMENTO PÚBLICO ✨
         @Operation(summary = "Buscar Dados Completos para Agendamento", description = "Retorna o provedor, equipe e serviços ativos em uma única requisição de alta performance.")
         @ApiResponses({
-                @ApiResponse(responseCode = "200", description = "Dados encontrados com sucesso"),
-                @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado")
+                        @ApiResponse(responseCode = "200", description = "Dados encontrados com sucesso"),
+                        @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado")
         })
         @GetMapping("/public/{id}/booking-data")
         public ResponseEntity<PublicBookingDataResponse> getPublicBookingData(@PathVariable UUID id) {
-            
-            // 1. Busca os dados da Barbearia/Salão
-            ServiceProvider provider = repository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado para o ID: " + id));
 
-            // 2. Busca a equipe
-            List<ProfessionalProfile> professionals = listProfessionalsUseCase.execute(id);
-            
-            // 3. Busca apenas os serviços ativos
-            List<Service> services = serviceRepository.findAllActiveByProviderId(id);
+                // 1. Busca os dados da Barbearia/Salão
+                ServiceProvider provider = repository.findById(id)
+                                .orElseThrow(() -> new EntityNotFoundException(
+                                                "Estabelecimento não encontrado para o ID: " + id));
 
-            // Retorna tudo consolidado num único JSON
-            return ResponseEntity.ok(new PublicBookingDataResponse(provider, professionals, services));
+                // 2. Busca a equipe
+                List<ProfessionalProfile> professionals = listProfessionalsUseCase.execute(id);
+
+                // 3. Busca apenas os serviços ativos
+                List<Service> services = serviceRepository.findAllActiveByProviderId(id);
+
+                // Retorna tudo consolidado num único JSON
+                return ResponseEntity.ok(new PublicBookingDataResponse(provider, professionals, services));
         }
 
         @Operation(summary = "Buscar Perfil Público por Slug", description = "Retorna os dados públicos de um estabelecimento usando a sua URL amigável (ex: /public/slug/arthurbarber).")
         @ApiResponses({
-                @ApiResponse(responseCode = "200", description = "Perfil encontrado com sucesso"),
-                @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado para o slug informado")
+                        @ApiResponse(responseCode = "200", description = "Perfil encontrado com sucesso"),
+                        @ApiResponse(responseCode = "404", description = "Estabelecimento não encontrado para o slug informado")
         })
         @GetMapping("/public/slug/{slugValue}")
         public ResponseEntity<ServiceProvider> getPublicProfileBySlug(@PathVariable String slugValue) {
-            
-            Slug slug = new Slug(slugValue);
-            
-            ServiceProvider provider = repository.findBySlug(slug)
-                .orElseThrow(() -> new EntityNotFoundException("Estabelecimento não encontrado para o slug: " + slugValue));
-                
-            return ResponseEntity.ok(provider);
+
+                Slug slug = new Slug(slugValue);
+
+                ServiceProvider provider = repository.findBySlug(slug)
+                                .orElseThrow(() -> new EntityNotFoundException(
+                                                "Estabelecimento não encontrado para o slug: " + slugValue));
+
+                return ResponseEntity.ok(provider);
         }
 
         @GetMapping("/search")
@@ -156,7 +159,7 @@ public class ServiceProviderController {
                 return ResponseEntity.ok(result);
         }
 
-        @Operation(summary = "Atualizar Perfil do Estabelecimento", description = "Atualiza os dados públicos (logo, banner, url/slug, morada) do salão.")
+        @Operation(summary = "Atualizar Perfil do Estabelecimento", description = "Atualiza os dados públicos (logo, banner, url/slug, morada) e configurações operacionais (Pix, cancelamento) do salão.")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Perfil atualizado com sucesso"),
                         @ApiResponse(responseCode = "400", description = "O Slug escolhido já está em uso"),
@@ -164,17 +167,34 @@ public class ServiceProviderController {
         })
         @PutMapping("/profile")
         @PreAuthorize("hasAuthority('finance:manage') or hasRole('SERVICE_PROVIDER')")
-        public ResponseEntity<ServiceProvider> updateProfile(@RequestBody @Valid UpdateProfileRequest request) {
+        public ResponseEntity<ServiceProvider> updateProfile(@RequestBody @Valid UpdateServiceProviderInput request) {
 
-                Address addressDomain = request.address() != null ? request.address().toDomain() : null;
+                // Mapeamento seguro do endereço para o Domínio
+                Address addressDomain = request.businessAddress() != null ? request.businessAddress().toDomain() : null;
+                // Passando todos os dados completos para o UseCase processar
+
+                var socialLinksInput = request.socialLinks() != null
+                                ? new UpdateServiceProviderProfileUseCase.SocialLinksInput(
+                                                request.socialLinks().instagram(),
+                                                request.socialLinks().facebook(),
+                                                request.socialLinks().website(),
+                                                request.socialLinks().whatsapp())
+                                : null;
 
                 var input = new UpdateServiceProviderProfileUseCase.Input(
                                 request.name(),
-                                request.phoneNumber(),
+                                request.businessName(),
+                                request.businessPhone(),
                                 request.logoUrl(),
                                 request.bannerUrl(),
-                                request.slug(),
-                                addressDomain);
+                                request.publicProfileSlug(),
+                                addressDomain,
+                                request.documentType(),
+                                request.document(),
+                                request.cancellationMinHours(),
+                                request.pixKey(),
+                                request.pixKeyType(),
+                                socialLinksInput);
 
                 return ResponseEntity.ok(updateProfileUseCase.execute(input));
         }
@@ -192,6 +212,6 @@ public class ServiceProviderController {
         public record PublicBookingDataResponse(
                         ServiceProvider provider,
                         List<ProfessionalProfile> professionals,
-                        List<Service> services
-        ) {}
+                        List<Service> services) {
+        }
 }

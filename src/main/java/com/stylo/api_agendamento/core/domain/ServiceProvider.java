@@ -31,6 +31,7 @@ public class ServiceProvider {
     // --- 2. BRANDING ---
     private String logoUrl;
     private String bannerUrl;
+    private SocialLinks socialLinks; // ✨ ADICIONADO AQUI
 
     // --- ✨ NOVOS CAMPOS: RANKING E AVALIAÇÃO (Busca Avançada) ---
     @Builder.Default
@@ -201,7 +202,7 @@ public class ServiceProvider {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String name, String phone, String logoUrl, String bannerUrl) {
+public void updateProfile(String name, String phone, String logoUrl, String bannerUrl, SocialLinks socialLinks) { // ✨ PARÂMETRO ADICIONADO AQUI
         if (name != null && !name.isBlank())
             this.businessName = name;
         if (phone != null)
@@ -210,6 +211,8 @@ public class ServiceProvider {
             this.logoUrl = logoUrl;
         if (bannerUrl != null)
             this.bannerUrl = bannerUrl;
+        if (socialLinks != null)
+            this.socialLinks = socialLinks;
         this.updatedAt = LocalDateTime.now();
     }
 
