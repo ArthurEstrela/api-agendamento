@@ -118,6 +118,14 @@ public class Professional {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void updateSlotInterval(Integer interval) {
+        if (interval == null || interval <= 0) {
+            throw new BusinessException("O intervalo entre horários deve ser maior que zero.");
+        }
+        this.slotInterval = interval;
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public List<LocalTime> calculateAvailableSlots(
             LocalDate date,
             int totalDurationMinutes,

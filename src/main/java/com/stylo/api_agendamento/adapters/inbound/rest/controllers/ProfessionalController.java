@@ -109,7 +109,13 @@ public class ProfessionalController {
                                                 req.endTime()))
                                 .collect(Collectors.toList());
 
-                var input = new UpdateProfessionalAvailabilityUseCase.Input(id, availabilities);
+                // ✨ MUDANÇA AQUI: Passando o request.slotInterval() para o Input
+                var input = new UpdateProfessionalAvailabilityUseCase.Input(
+                                id, 
+                                availabilities, 
+                                request.slotInterval()
+                );
+                
                 updateAvailabilityUseCase.execute(input);
                 return ResponseEntity.noContent().build();
         }

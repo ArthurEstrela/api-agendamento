@@ -17,18 +17,22 @@ public class UpdateProfessionalAvailabilityUseCase {
 
         private final IProfessionalRepository professionalRepository;
 
-        public record Input(UUID professionalId, List<DailyAvailability> availabilities) {
+        public record Input(UUID professionalId, List<DailyAvailability> availabilities, Integer slotInterval) {
         }
 
-        @Transactional // ✨ EXTREMAMENTE IMPORTANTE: Garante que as mudanças sejam salvas no banco
+        @Transactional 
         public void execute(Input input) {
                 Professional professional = professionalRepository.findById(input.professionalId())
                                 .orElseThrow(() -> new EntityNotFoundException("Profissional não encontrado."));
 
-                // ✨ CORREÇÃO AQUI: Chama o método de domínio seguro em vez de um setter padrão
+                // Atualiza a grade de dias
                 professional.updateAvailability(input.availabilities());
 
-                // 2. ✨ SALVA NO BANCO DE DADOS: Se não tiver isso, a atualização é perdida
+                // ✨ Usa o método de domínio correto no lugar do Setter
+                if (input.slotInterval() != null) {
+                        professional.updateSlotInterval(input.slotInterval());
+                }
+
                 professionalRepository.save(professional);
         }
 }
