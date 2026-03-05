@@ -2,8 +2,9 @@ package com.stylo.api_agendamento.core.usecases;
 
 import com.stylo.api_agendamento.core.common.UseCase;
 import com.stylo.api_agendamento.core.domain.ServiceProvider;
+import com.stylo.api_agendamento.core.domain.vo.PaymentMethod; // ✨ IMPORT ADICIONADO
 import com.stylo.api_agendamento.core.domain.vo.Slug;
-import com.stylo.api_agendamento.core.domain.vo.SocialLinks; // ✨ IMPORT ADICIONADO
+import com.stylo.api_agendamento.core.domain.vo.SocialLinks;
 import com.stylo.api_agendamento.core.exceptions.BusinessException;
 import com.stylo.api_agendamento.core.exceptions.EntityNotFoundException;
 import com.stylo.api_agendamento.core.ports.IServiceProviderRepository;
@@ -11,6 +12,7 @@ import com.stylo.api_agendamento.core.ports.IUserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List; // ✨ IMPORT ADICIONADO
 import java.util.UUID;
 
 @UseCase
@@ -56,7 +58,7 @@ public class UpdateServiceProviderProfileUseCase {
             input.phoneNumber(), 
             input.logoUrl(),
             input.bannerUrl(),
-            linksDomain           // ✨ PASSANDO AS REDES SOCIAIS AQUI
+            linksDomain
         );
 
         // 5. Atualização de Endereço
@@ -69,7 +71,12 @@ public class UpdateServiceProviderProfileUseCase {
             provider.updatePixKeys(input.pixKey(), input.pixKeyType());
         }
 
-        // 7. Atualização de Configurações via Builder (Para campos que não possuem setters no Domínio)
+        // ✨ 7. NOVA ADIÇÃO: Atualização da Lista de Métodos de Pagamento
+        if (input.paymentMethods() != null) {
+            provider.updatePaymentMethods(input.paymentMethods());
+        }
+
+        // 8. Atualização de Configurações via Builder
         ServiceProvider updatedProvider = provider.toBuilder()
                 .cancellationMinHours(input.cancellationMinHours() != null ? input.cancellationMinHours() : provider.getCancellationMinHours())
                 .build();
@@ -91,10 +98,11 @@ public class UpdateServiceProviderProfileUseCase {
             Integer cancellationMinHours,
             String pixKey,
             String pixKeyType,
-            SocialLinksInput socialLinks // ✨ Campo das redes sociais adicionado
+            SocialLinksInput socialLinks,
+            List<PaymentMethod> paymentMethods // ✨ Campo dos pagamentos adicionado aqui
     ) {}
 
-    // ✨ Sub-record para transitar as redes sociais sem sujar o UseCase com o DTO do Rest
+    // ✨ Sub-record para transitar as redes sociais
     public record SocialLinksInput(
         String instagram,
         String facebook,

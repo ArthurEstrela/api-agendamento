@@ -194,7 +194,8 @@ public class ServiceProviderController {
                                 request.cancellationMinHours(),
                                 request.pixKey(),
                                 request.pixKeyType(),
-                                socialLinksInput);
+                                socialLinksInput,
+                                request.paymentMethods());
 
                 return ResponseEntity.ok(updateProfileUseCase.execute(input));
         }
