@@ -22,7 +22,6 @@ public interface ServiceProviderMapper {
     @Mapping(target = "socialLinks", source = "socialLinks") // ✨ MAPEAMENTO ADICIONADO
     ServiceProviderEntity toEntity(ServiceProvider domain);
 
-    @Mapping(target = "isActive", ignore = true)
     @Mapping(target = "maxNoShowsAllowed", ignore = true)
     @Mapping(target = "publicProfileSlug", source = "publicProfileSlug")
     @Mapping(target = "businessAddress", source = "businessAddress")

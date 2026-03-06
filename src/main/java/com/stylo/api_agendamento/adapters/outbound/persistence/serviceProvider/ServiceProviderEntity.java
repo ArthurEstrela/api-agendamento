@@ -121,8 +121,15 @@ public class ServiceProviderEntity extends BaseEntity {
     @Builder.Default
     private BigDecimal platformFeePercentage = new BigDecimal("2.00");
 
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
+
     @PrePersist
     protected void onCreate() {
+        if (this.isActive == null) {
+            this.isActive = true;
+        }
         if (this.subscriptionStatus == null) {
             this.subscriptionStatus = "TRIAL";
             this.trialEndsAt = LocalDateTime.now().plusDays(15);

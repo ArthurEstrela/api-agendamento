@@ -1,0 +1,2 @@
+ALTER TABLE service_providers
+ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;

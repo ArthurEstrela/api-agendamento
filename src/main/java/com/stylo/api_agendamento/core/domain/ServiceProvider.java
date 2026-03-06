@@ -58,7 +58,8 @@ public class ServiceProvider {
     private boolean commissionsEnabled;
 
     // --- 4. ASSINATURA E STATUS ---
-    private SubscriptionStatus subscriptionStatus;
+    @Builder.Default
+    private SubscriptionStatus subscriptionStatus = SubscriptionStatus.TRIAL;
     private LocalDateTime trialEndsAt;
     private LocalDateTime gracePeriodEndsAt;
 
@@ -71,7 +72,8 @@ public class ServiceProvider {
 
     private String timeZone;
 
-    private boolean isActive;
+    @Builder.Default
+    private boolean isActive = true;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -202,7 +204,10 @@ public class ServiceProvider {
         this.updatedAt = LocalDateTime.now();
     }
 
-public void updateProfile(String name, String phone, String logoUrl, String bannerUrl, SocialLinks socialLinks) { // ✨ PARÂMETRO ADICIONADO AQUI
+    public void updateProfile(String name, String phone, String logoUrl, String bannerUrl, SocialLinks socialLinks) { // ✨
+                                                                                                                      // PARÂMETRO
+                                                                                                                      // ADICIONADO
+                                                                                                                      // AQUI
         if (name != null && !name.isBlank())
             this.businessName = name;
         if (phone != null)
@@ -233,12 +238,24 @@ public void updateProfile(String name, String phone, String logoUrl, String bann
     // --- MÉTODOS DE NEGÓCIO: ASSINATURA ---
 
     public boolean isSubscriptionActive() {
-        if (!this.isActive)
+        // Se o prestador foi inativado manualmente (ex: banido ou pausado), bloqueia
+        if (!this.isActive) {
             return false;
+        }
 
-        return this.subscriptionStatus == SubscriptionStatus.ACTIVE ||
-                this.subscriptionStatus == SubscriptionStatus.TRIAL ||
-                this.subscriptionStatus == SubscriptionStatus.GRACE_PERIOD;
+        // Se for ativo ou período de carência, está liberado
+        if (this.subscriptionStatus == SubscriptionStatus.ACTIVE ||
+                this.subscriptionStatus == SubscriptionStatus.GRACE_PERIOD) {
+            return true;
+        }
+
+        // Se estiver em TRIAL, valida dinamicamente se a data não expirou
+        if (this.subscriptionStatus == SubscriptionStatus.TRIAL) {
+            return this.trialEndsAt != null && LocalDateTime.now().isBefore(this.trialEndsAt);
+        }
+
+        // Para PAST_DUE, CANCELED, EXPIRED ou null
+        return false;
     }
 
     public void startGracePeriod(int days) {
