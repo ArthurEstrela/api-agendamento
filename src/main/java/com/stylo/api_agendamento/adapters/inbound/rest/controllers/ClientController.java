@@ -30,8 +30,7 @@ public class ClientController {
 
     private final IClientRepository clientRepository;
     private final GetClientHistoryUseCase getClientHistoryUseCase;
-    
-    // Injetando a porta do contexto, mantendo a Clean Architecture livre do Spring Security
+
     private final IUserContext userContext;
 
     @Operation(summary = "Obter perfil do cliente", description = "Retorna os dados cadastrais do cliente. Acesso permitido ao próprio cliente ou ao Staff.")
@@ -45,9 +44,8 @@ public class ClientController {
     public ResponseEntity<Client> getById(@PathVariable UUID id) {
         User loggedUser = userContext.getCurrentUser();
 
-        // Segurança Corrigida: Se for um CLIENTE, ele só pode ver o próprio ID.
-        // Se for um PROFESSIONAL ou SERVICE_PROVIDER, ele tem passe livre para ver a ficha.
-        if (loggedUser.isClient() && !loggedUser.getId().equals(id)) {
+        // ✨ CORREÇÃO: Compara com o getClientId() e não com getId()
+        if (loggedUser.isClient() && !id.equals(loggedUser.getClientId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -70,23 +68,19 @@ public class ClientController {
 
         User loggedUser = userContext.getCurrentUser();
 
-        // Mesma regra de segurança aplicada na leitura
-        if (loggedUser.isClient() && !loggedUser.getId().equals(id)) {
+        // ✨ CORREÇÃO: Compara com o getClientId() e não com getId()
+        if (loggedUser.isClient() && !id.equals(loggedUser.getClientId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         return clientRepository.findById(id)
                 .map(existingClient -> {
-                    // 1. Determina o Nome (Novo ou mantém o antigo)
                     String newName = request.name() != null ? request.name() : existingClient.getName();
-
-                    // 2. Determina o Telefone (Novo convertido para VO ou mantém o antigo)
                     ClientPhone newPhone = existingClient.getPhoneNumber();
                     if (request.phone() != null) {
                         newPhone = new ClientPhone(request.phone());
                     }
 
-                    // 3. Aplica a atualização usando o método de domínio seguro
                     existingClient.updateContact(newName, newPhone);
 
                     return ResponseEntity.ok(clientRepository.save(existingClient));
@@ -99,15 +93,21 @@ public class ClientController {
             @ApiResponse(responseCode = "200", description = "Histórico recuperado com sucesso")
     })
     @GetMapping("/history")
-    @PreAuthorize("hasRole('CLIENT')") // Apenas o próprio cliente acessa essa rota rápida
+    @PreAuthorize("hasRole('CLIENT')")
     public ResponseEntity<GetClientHistoryUseCase.Response> getMyHistory(
             @Parameter(description = "Número da página (0..N)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Itens por página") @RequestParam(defaultValue = "10") int size) {
 
-        // Extrai o ID direto do Token (segurança máxima, impossível o cliente forjar outro ID)
-        UUID clientId = userContext.getCurrentUserId();
-        
-        // Corrigido para o tipo real do Use Case: Response
+        User loggedUser = userContext.getCurrentUser();
+
+        // ✨ CORREÇÃO: Extrai o ID do perfil de cliente (e não o ID de autenticação)
+        UUID clientId = loggedUser.getClientId();
+
+        if (clientId == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); // Evita NullPointerException se perfil não
+                                                                        // existir
+        }
+
         var historyResponse = getClientHistoryUseCase.execute(clientId, page, size);
         return ResponseEntity.ok(historyResponse);
     }
@@ -123,7 +123,6 @@ public class ClientController {
             @Parameter(description = "Número da página (0..N)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Itens por página") @RequestParam(defaultValue = "10") int size) {
 
-        // Rota exclusiva para o Staff conseguir ver a jornada de um cliente antes do atendimento
         var historyResponse = getClientHistoryUseCase.execute(id, page, size);
         return ResponseEntity.ok(historyResponse);
     }
