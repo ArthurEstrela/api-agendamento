@@ -180,13 +180,14 @@ public class CreateAppointmentUseCase {
                 provider.getTimeZone() // Usa o fuso horário configurado no estabelecimento
         );
 
-        // Enriquecimento com dados financeiros e opcionais
+        // Enriquecimento com dados financeiros, opcionais E STATUS INICIAL
         appointment = appointment.toBuilder()
                 .price(basePrice) // Preço original
                 .finalPrice(finalPrice) // Preço com desconto
                 .couponId(coupon != null ? coupon.getId() : null)
                 .discountAmount(discountAmount)
                 .notes(input.notes())
+                .status(AppointmentStatus.PENDING) // ✨ MAGIA AQUI: Força o status para cair na fila de aprovação
                 .build();
 
         // 8. Persistência

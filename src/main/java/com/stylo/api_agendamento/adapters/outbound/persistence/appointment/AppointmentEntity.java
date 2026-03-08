@@ -9,8 +9,8 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import org.hibernate.annotations.BatchSize;
@@ -60,7 +60,7 @@ public class AppointmentEntity extends BaseEntity {
         inverseJoinColumns = @JoinColumn(name = "service_id"))
     @BatchSize(size = 50) // ✨ FETCH EM LOTE: Resolve o N+1 de forma otimizada para coleções paginadas
     @Builder.Default
-    private List<ServiceEntity> services = new ArrayList<>();
+    private Set<ServiceEntity> services = new LinkedHashSet<>(); // ✨ CORRIGIDO PARA SET COM ORDENAÇÃO
 
     // --- TEMPO E AGENDA ---
     @Column(nullable = false, name = "start_time")
@@ -139,7 +139,7 @@ public class AppointmentEntity extends BaseEntity {
     @JoinColumn(name = "appointment_id")
     @BatchSize(size = 50) // ✨ FETCH EM LOTE: Busca os itens de 50 em 50, matando o N+1
     @Builder.Default
-    private List<AppointmentItemEntity> items = new ArrayList<>();
+    private Set<AppointmentItemEntity> items = new LinkedHashSet<>(); // ✨ CORRIGIDO PARA SET COM ORDENAÇÃO
 
     // --- CALLBACKS JPA ---
     @PrePersist
