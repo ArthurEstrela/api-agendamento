@@ -253,4 +253,14 @@ public class AppointmentController {
 
         return ResponseEntity.ok(agenda);
     }
+
+    @Operation(summary = "Buscar Solicitações Pendentes", description = "Retorna todas as solicitações (PENDING) do estabelecimento para a aba de Inbox.")
+    @GetMapping("/provider/{providerId}/pending")
+    @PreAuthorize("hasAuthority('appointment:read') or hasRole('SERVICE_PROVIDER') or hasRole('PROFESSIONAL')")
+    public ResponseEntity<List<Appointment>> getPendingRequests(@PathVariable UUID providerId) {
+
+        List<Appointment> pendingRequests = appointmentRepository.findPendingRequestsByProvider(providerId);
+
+        return ResponseEntity.ok(pendingRequests);
+    }
 }

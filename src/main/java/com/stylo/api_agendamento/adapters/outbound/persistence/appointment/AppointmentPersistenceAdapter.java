@@ -2,6 +2,7 @@ package com.stylo.api_agendamento.adapters.outbound.persistence.appointment;
 
 import com.stylo.api_agendamento.core.common.PagedResult;
 import com.stylo.api_agendamento.core.domain.Appointment;
+import com.stylo.api_agendamento.core.domain.AppointmentStatus;
 import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -128,5 +129,15 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
     public boolean existsByExternalEventId(String externalEventId) {
         // Implementação do método que estava faltando na interface
         return jpaAppointmentRepository.existsByExternalEventId(externalEventId);
+    }
+
+    @Override
+    public List<Appointment> findPendingRequestsByProvider(UUID providerId) {
+        return jpaAppointmentRepository
+                // ✨ MUDOU AQUI: Retirado o .name() para passar o próprio Enum
+                .findAllByServiceProviderIdAndStatusOrderByStartTimeAsc(providerId, AppointmentStatus.PENDING)
+                .stream()
+                .map(appointmentMapper::toDomain)
+                .toList();
     }
 }

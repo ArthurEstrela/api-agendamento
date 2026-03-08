@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.stylo.api_agendamento.core.domain.AppointmentStatus;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,6 +27,15 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
             UUID serviceProviderId,
             LocalDateTime start,
             LocalDateTime end);
+
+    // Importe o Enum no topo do arquivo se necessário:
+    // import com.stylo.api_agendamento.core.domain.AppointmentStatus;
+
+    @EntityGraph(attributePaths = { "services", "items" })
+    List<AppointmentEntity> findAllByServiceProviderIdAndStatusOrderByStartTimeAsc(
+            UUID serviceProviderId,
+            AppointmentStatus status // ✨ MUDOU AQUI: Era String, agora é AppointmentStatus
+    );
 
     Page<AppointmentEntity> findAllByClientId(UUID clientId, Pageable pageable);
 

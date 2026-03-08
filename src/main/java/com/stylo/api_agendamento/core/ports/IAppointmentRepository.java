@@ -63,4 +63,10 @@ public interface IAppointmentRepository {
     List<Appointment> findPendingReminders(LocalDateTime currentTime);
 
     boolean existsByExternalEventId(String externalEventId);
+
+    /**
+     * Busca apenas solicitações com status PENDING de um estabelecimento (Inbox)
+     * Ignora filtros de data para trazer todos os pedidos novos.
+     */
+    List<Appointment> findPendingRequestsByProvider(UUID providerId);
 }
