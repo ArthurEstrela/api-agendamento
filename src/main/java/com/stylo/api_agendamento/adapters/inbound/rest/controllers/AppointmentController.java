@@ -2,6 +2,7 @@ package com.stylo.api_agendamento.adapters.inbound.rest.controllers;
 
 import com.stylo.api_agendamento.adapters.inbound.rest.dto.appointment.*;
 import com.stylo.api_agendamento.adapters.inbound.rest.idempotency.Idempotent;
+import com.stylo.api_agendamento.core.ports.IAppointmentRepository;
 import com.stylo.api_agendamento.core.domain.Appointment;
 import com.stylo.api_agendamento.core.domain.UserRole;
 import com.stylo.api_agendamento.core.domain.vo.PaymentMethod;
@@ -46,6 +47,8 @@ public class AppointmentController {
     private final RemoveAppointmentItemUseCase removeAppointmentItemUseCase;
 
     private final IUserContext userContext;
+
+    private final IAppointmentRepository appointmentRepository;
 
     // --- AGENDAMENTO ONLINE (Clientes e Staff) ---
 
@@ -230,5 +233,24 @@ public class AppointmentController {
     @PreAuthorize("hasAuthority('appointment:manage_all') or hasRole('PROFESSIONAL')")
     public ResponseEntity<Appointment> removeItem(@PathVariable UUID id, @PathVariable UUID productId) {
         return ResponseEntity.ok(removeAppointmentItemUseCase.execute(id, productId));
+    }
+
+    // --- BUSCA DE AGENDA (Staff) ---
+
+    @Operation(summary = "Buscar Agenda do Estabelecimento", description = "Retorna todos os agendamentos da semana e solicitações pendentes.")
+    @GetMapping("/provider/{providerId}")
+    @PreAuthorize("hasAuthority('appointment:read') or hasRole('SERVICE_PROVIDER') or hasRole('PROFESSIONAL')")
+    public ResponseEntity<List<Appointment>> getProviderAgenda(
+            @PathVariable UUID providerId,
+            @Parameter(description = "Data inicial no formato YYYY-MM-DD") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "Data final no formato YYYY-MM-DD") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        // Converte as datas (LocalDate) para Início do Dia e Fim do Dia (LocalDateTime)
+        List<Appointment> agenda = appointmentRepository.findAllByProviderIdAndPeriod(
+                providerId,
+                startDate.atStartOfDay(),
+                endDate.atTime(LocalTime.MAX));
+
+        return ResponseEntity.ok(agenda);
     }
 }

@@ -43,7 +43,7 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
         var endOfDay = date.atTime(23, 59, 59);
 
         return jpaAppointmentRepository.findAllByProfessionalIdAndStartTimeBetween(
-                        professionalId, startOfDay, endOfDay, Pageable.unpaged())
+                professionalId, startOfDay, endOfDay, Pageable.unpaged())
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .toList();
@@ -51,8 +51,8 @@ public class AppointmentPersistenceAdapter implements IAppointmentRepository {
 
     @Override
     public List<Appointment> findAllByProviderIdAndPeriod(UUID providerId, LocalDateTime start, LocalDateTime end) {
-        return jpaAppointmentRepository.findAllByServiceProviderIdAndStartTimeBetween(
-                        providerId, start, end)
+        // ✨ Atualizado para usar a nova query que inclui sempre os PENDING
+        return jpaAppointmentRepository.findAgendaForProvider(providerId, start, end)
                 .stream()
                 .map(appointmentMapper::toDomain)
                 .toList();

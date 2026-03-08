@@ -104,4 +104,15 @@ public interface JpaAppointmentRepository extends JpaRepository<AppointmentEntit
         List<AppointmentEntity> findAllByProfessionalIdAndCommissionSettledFalse(UUID professionalId);
 
         boolean existsByExternalEventId(String externalEventId);
+
+        // Remova o método antigo e adicione este:
+        @EntityGraph(attributePaths = { "services", "items" })
+        @Query("SELECT a FROM AppointmentEntity a " +
+                        "WHERE a.serviceProviderId = :serviceProviderId " +
+                        "AND (a.status = 'PENDING' OR (a.startTime >= :start AND a.startTime <= :end)) " +
+                        "ORDER BY a.startTime ASC")
+        List<AppointmentEntity> findAgendaForProvider(
+                        @Param("serviceProviderId") UUID serviceProviderId,
+                        @Param("start") LocalDateTime start,
+                        @Param("end") LocalDateTime end);
 }
