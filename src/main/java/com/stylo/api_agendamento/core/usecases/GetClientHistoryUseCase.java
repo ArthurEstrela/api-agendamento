@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 public class GetClientHistoryUseCase {
 
     private final IAppointmentRepository appointmentRepository;
-    private final IServiceProviderRepository serviceProviderRepository; 
+    private final IServiceProviderRepository serviceProviderRepository;
 
     public Response execute(UUID clientId, int page, int size) {
         PagedResult<Appointment> pagedHistory = appointmentRepository.findAllByClientId(clientId, page, size);
@@ -37,8 +37,8 @@ public class GetClientHistoryUseCase {
         BigDecimal totalSpent = completed.stream()
                 .map(Appointment::getFinalPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
-        BigDecimal averageTicket = completed.isEmpty() ? BigDecimal.ZERO : 
+
+        BigDecimal averageTicket = completed.isEmpty() ? BigDecimal.ZERO :
                 totalSpent.divide(BigDecimal.valueOf(completed.size()), 2, RoundingMode.HALF_UP);
 
         List<ItemCount> topServices = completed.stream()
@@ -79,15 +79,15 @@ public class GetClientHistoryUseCase {
                 .toList();
 
         ServiceProviderRequest providerRequest = null;
-        
+
         if (a.getServiceProviderId() != null) {
             var providerOpt = serviceProviderRepository.findById(a.getServiceProviderId());
-            
+
             if (providerOpt.isPresent()) {
                 var p = providerOpt.get();
-                
+
                 AddressRequest addressRequest = null;
-                // ✨ CORREÇÃO 1: Address é um Record, então usamos nomeDoCampo() em vez de getNomeDoCampo()
+                // Address é um Record, então usamos nomeDoCampo() em vez de getNomeDoCampo()
                 if (p.getBusinessAddress() != null) {
                     addressRequest = new AddressRequest(
                             p.getBusinessAddress().street(),
@@ -96,36 +96,45 @@ public class GetClientHistoryUseCase {
                             p.getBusinessAddress().city(),
                             p.getBusinessAddress().state(),
                             p.getBusinessAddress().zipCode(),
-                            p.getBusinessAddress().lat(), // Passando Latitude (já que vi que tem no seu VO)
+                            p.getBusinessAddress().lat(), // Passando Latitude
                             p.getBusinessAddress().lng()  // Passando Longitude
                     );
                 }
 
-                // ✨ CORREÇÃO 2: Convertendo Document VO para String usando toString() (ou value() se existir)
+                // Convertendo Document VO para String usando toString() (ou value() se existir)
                 String docString = p.getDocument() != null ? p.getDocument().toString() : "";
 
                 providerRequest = new ServiceProviderRequest(
-                        p.getBusinessName(), 
+                        p.getBusinessName(),
                         "app@stylo.com", // Enviando um email fixo para validar o DTO sem vazar o real
-                        "",                  
-                        p.getBusinessName(), 
+                        "",
+                        p.getBusinessName(),
                         docString,           // <-- Aqui está o Document como String
-                        addressRequest,      
-                        p.getBusinessPhone() != null ? p.getBusinessPhone() : "" 
+                        addressRequest,
+                        p.getBusinessPhone() != null ? p.getBusinessPhone() : ""
                 );
             }
         }
 
+        // ✨ CORREÇÃO: Adicionados os campos novos exigidos pelo AppointmentResponse
+        String phoneStr = a.getClientPhone() != null ? a.getClientPhone().toString() : null; 
+        // Nota: Se o seu Value Object ClientPhone usar getNumber() ou value() ao invés de toString(), ajuste acima.
+
         return new AppointmentResponse(
                 a.getId() != null ? a.getId().toString() : null,
+                a.getServiceProviderId(),      // ✨ NOVO
+                a.getProfessionalId(),         // ✨ NOVO
+                a.getClientId(),               // ✨ NOVO
                 a.getClientName(),
+                phoneStr,                      // ✨ NOVO
                 a.getProfessionalName(),
-                null, 
-                serviceNames, 
+                null,                          // professionalAvatarUrl
+                serviceNames,
                 a.getStartTime(),
                 a.getEndTime(),
-                a.getFinalPrice(), 
+                a.getFinalPrice(),
                 a.getStatus() != null ? a.getStatus().name() : "PENDING",
+                a.getNotes(),                  // ✨ NOVO
                 providerRequest
         );
     }
